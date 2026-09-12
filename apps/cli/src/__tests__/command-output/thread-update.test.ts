@@ -19,6 +19,7 @@ describe("bb thread update command output", () => {
   it("moves a chat with an expected environment and preserves its id", async () => {
     const thread = fixtures.makeThread({
       id: "thread-move",
+      providerId: "codex",
       projectId: "p1",
       environmentId: "e1",
       status: "idle",
