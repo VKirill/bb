@@ -405,3 +405,5 @@ starting a provider request. Use `--self` for the current thread and `--json` fo
 breakdown after turns and compaction when its SDK supports context inspection.
 A later aggregate-only measurement replaces any older breakdown. Other providers
 continue to expose their available totals.
+
+Move an idle chat’s working directory with `bb thread update ID --directory /absolute/existing/path`. This preserves history within the same project and machine; it does not move files. Send or remove queued messages first. Use this flag separately from other updates.

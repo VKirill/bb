@@ -1168,6 +1168,63 @@ describe("idle cold-start activation", () => {
     });
   });
 
+  it("moves an idle chat through the public update API and rejects stale or busy changes", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, thread } = seedProviderThreadFixture({
+        harness,
+        value: 940,
+      });
+      const target = seedEnvironment(harness.deps, {
+        hostId: environment.hostId,
+        projectId: environment.projectId,
+        path: "/tmp/directory-api-target",
+        status: "ready",
+      });
+      const patch = (expectedEnvironmentId: string) =>
+        harness.app.request(`/api/v1/threads/${thread.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            experimental_directory: {
+              path: target.path,
+              expectedEnvironmentId,
+            },
+          }),
+        });
+      const response = await patch(environment.id);
+      expect(response.status).toBe(200);
+      expect(getThread(harness.db, thread.id)?.environmentId).toBe(target.id);
+      expect((await patch(environment.id)).status).toBe(409);
+      seedQueuedMessage(harness.deps, {
+        threadId: thread.id,
+        content: textInput("queued"),
+      });
+      expect((await patch(target.id)).status).toBe(409);
+      const busy = seedProviderThreadFixture({
+        harness,
+        value: 941,
+        status: "active",
+      });
+      const denied = await harness.app.request(
+        `/api/v1/threads/${busy.thread.id}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            experimental_directory: {
+              path: target.path,
+              expectedEnvironmentId: busy.environment.id,
+            },
+          }),
+        },
+      );
+      expect(denied.status).toBe(409);
+      expect(getThread(harness.db, busy.thread.id)?.environmentId).toBe(
+        busy.environment.id,
+      );
+    });
+  });
+
   it("resumes provider continuity after an environment directory update", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedProviderThreadFixture({
