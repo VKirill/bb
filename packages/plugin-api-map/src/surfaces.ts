@@ -941,6 +941,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Calls bb's own API from the plugin's server code. With this, a plugin can:",
         bullets: [
           "Create threads, send messages to them, and manage projects",
+          "Change an idle chat working folder with sdk.threads.update({ threadId, experimental_directory: { path, expectedEnvironmentId } }); preserves history, same host/project, no file relocation",
           "List machines and suspend, resume, or remove provider-managed machines",
           "Reach the same operations the [bb CLI](cli) and the bb UI use",
           "Have the threads it creates attributed back to the plugin",

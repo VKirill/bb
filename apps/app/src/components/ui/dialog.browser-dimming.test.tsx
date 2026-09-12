@@ -46,3 +46,43 @@ it("an app Dialog dims the browser through the shared-ui env seam", async () => 
     expect(screen.getByTestId("dim").textContent).toBe("clear"),
   );
 });
+
+it("hides native browser views for vendored plugin dialogs and restores them after closing", async () => {
+  const { rerender } = render(
+    <>
+      <div role="dialog" data-state="open">
+        Plugin rules
+      </div>
+      <DimProbe />
+    </>,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId("dim").textContent).toBe("dimmed"),
+  );
+  rerender(
+    <>
+      <div role="dialog" data-state="closed">
+        Plugin rules
+      </div>
+      <DimProbe />
+    </>,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId("dim").textContent).toBe("clear"),
+  );
+  rerender(
+    <>
+      <div role="alertdialog" data-state="open">
+        Confirm
+      </div>
+      <DimProbe />
+    </>,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId("dim").textContent).toBe("dimmed"),
+  );
+  rerender(<DimProbe />);
+  await waitFor(() =>
+    expect(screen.getByTestId("dim").textContent).toBe("clear"),
+  );
+});

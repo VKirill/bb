@@ -545,6 +545,12 @@ export type DeleteThreadRequest = z.infer<typeof deleteThreadRequestSchema>;
 
 export const updateThreadRequestSchema = z
   .object({
+    experimental_directory: z
+      .object({
+        path: z.string().trim().min(1),
+        expectedEnvironmentId: z.string().min(1),
+      })
+      .strict(),
     title: z.string().min(1).nullable(),
     sectionId: z.string().min(1).nullable(),
     parentThreadId: z.string().min(1).nullable(),
@@ -555,6 +561,7 @@ export const updateThreadRequestSchema = z
   .partial()
   .refine(
     (value) =>
+      value.experimental_directory !== undefined ||
       value.title !== undefined ||
       value.sectionId !== undefined ||
       value.parentThreadId !== undefined ||
@@ -562,6 +569,13 @@ export const updateThreadRequestSchema = z
       value.reasoningLevel !== undefined ||
       value.visibility !== undefined,
     "At least one field must be provided",
+  )
+  .refine(
+    (value) =>
+      value.experimental_directory === undefined ||
+      Object.keys(value).filter((key) => key !== "experimental_directory")
+        .length === 0,
+    "Directory changes must be submitted separately",
   );
 export type UpdateThreadRequest = z.infer<typeof updateThreadRequestSchema>;
 

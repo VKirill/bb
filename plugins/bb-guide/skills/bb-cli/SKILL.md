@@ -138,3 +138,5 @@ Use `bb browser instances --host <host-id> --json` to discover a desktop. Comman
 estimates in `providerDetails` when available. Provider inventory failures are
 reported; this is not billing/invoice data. Suspension requires idle live threads
 and no open terminals; empty machines can use an opted-in provider idle policy.
+
+Move an idle chat’s working directory with `bb thread update ID --directory /absolute/existing/path`. This preserves history within the same project and machine; it does not move files. Send or remove queued messages first. Use this flag separately from other updates.

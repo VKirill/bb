@@ -1,3 +1,7 @@
+import {
+  handleUpdateEnvironmentDirectoryToolCall,
+  idleDirectoryChangeFailure,
+} from "../../services/threads/thread-environment-directory.js";
 import { cancelAbandonedProviderCreations } from "../../services/threads/thread-environment-providers.js";
 import {
   THREAD_SEARCH_LIMIT_PER_GROUP_DEFAULT,
@@ -385,6 +389,43 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
 
   patch(routes.update, async (context, payload) => {
     const thread = requirePublicThread(deps.db, context.req.param("id"));
+    if (payload.experimental_directory) {
+      const failure = idleDirectoryChangeFailure(deps.db, thread);
+      if (failure) throw new ApiError(409, "thread_busy", failure);
+      if (
+        thread.environmentId !==
+        payload.experimental_directory.expectedEnvironmentId
+      )
+        throw new ApiError(
+          409,
+          "environment_changed",
+          "The chat environment changed. Refresh and try again.",
+        );
+      const environment = requireEnvironment(
+        deps.db,
+        payload.experimental_directory.expectedEnvironmentId,
+      );
+      const result = await handleUpdateEnvironmentDirectoryToolCall(deps, {
+        currentEnvironment: environment,
+        input: { path: payload.experimental_directory.path },
+        thread,
+        turnId: null,
+      });
+      if (!result.success)
+        throw new ApiError(
+          409,
+          "directory_change_failed",
+          result.contentItems
+            .filter((item) => item.type === "inputText")
+            .map((item) => item.text)
+            .join("\n"),
+        );
+      return context.json(
+        toThreadResponseFromThread(deps, {
+          thread: requirePublicThread(deps.db, thread.id),
+        }),
+      );
+    }
     if (payload.parentThreadId) {
       assertValidParentThread(deps, {
         childThreadId: thread.id,

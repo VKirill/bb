@@ -397,3 +397,5 @@ Lifecycle:
 
 Read-only commands require a thread ID or --self where supported.
 Mutating thread lifecycle and messaging commands require an explicit ID or --self.
+
+Move an idle chat’s working directory with `bb thread update ID --directory /absolute/existing/path`. This preserves history within the same project and machine; it does not move files. Send or remove queued messages first. Use this flag separately from other updates.
