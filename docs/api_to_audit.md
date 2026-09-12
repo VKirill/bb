@@ -2967,4 +2967,4 @@ and plugin branding separate from provider artwork resolution.
 
 ## Thread working directory updates
 
-`threads.update({ threadId, experimental_directory: { path, expectedEnvironmentId } })` changes only an idle/failed, unarchived chat's working environment on the same host and within the same BB project. No files are moved. Queued messages and concurrent environment changes reject the request. The existing native directory-switch validation and provider continuity apply. Stabilization requires API/CLI tests covering concurrent dispatch, stale environment IDs, path ownership and provider resumption.
+`threads.update({ threadId, experimental_directory: { path, expectedEnvironmentId } })` changes only an idle/error, unarchived chat's working environment on the same host and within the same BB project. No files are moved. Queued messages and concurrent environment changes reject the request. The existing native directory-switch validation and provider continuity apply. Stabilization requires API/CLI tests covering concurrent dispatch, stale environment IDs, path ownership and provider resumption.
