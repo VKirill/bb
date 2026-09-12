@@ -33,6 +33,7 @@ import {
 import { SEND_AT_HELP, parseSendAt } from "./send-time.js";
 
 interface ThreadUpdateCommandOptions {
+  directory?: string;
   self?: boolean;
   json?: boolean;
   title?: string;
@@ -126,6 +127,7 @@ type PostThreadMessageResult = ThreadSendResult & {
 };
 
 interface ThreadUpdateBody {
+  experimental_directory?: { path: string; expectedEnvironmentId: string };
   title?: string;
   sectionId?: string | null;
   parentThreadId?: string | null;
@@ -144,6 +146,10 @@ export function registerActionsCommands(
     .option("--self", "Target the current thread (from BB_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .option("--title <title>", "Set the thread title")
+    .option(
+      "--directory <path>",
+      "Move an idle chat to an existing folder on the same machine",
+    )
     .option("--parent-thread <id>", "Set the parent thread id")
     .option("--clear-parent-thread", "Clear the parent thread id")
     .option("--section <id>", "Move the thread into a section")
@@ -174,6 +180,7 @@ export function registerActionsCommands(
               ? undefined
               : threadVisibilitySchema.parse(opts.visibility);
           if (
+            !opts.directory &&
             !opts.parentThread &&
             !opts.clearParentThread &&
             !opts.section &&
@@ -184,7 +191,7 @@ export function registerActionsCommands(
             !visibility
           ) {
             throw new Error(
-              "No changes requested. Provide --title, --parent-thread, --clear-parent-thread, --section, --clear-section, --model, --reasoning-level, or --visibility.",
+              "No changes requested. Provide --directory, --title, --parent-thread, --clear-parent-thread, --section, --clear-section, --model, --reasoning-level, or --visibility.",
             );
           }
 
@@ -221,6 +228,17 @@ export function registerActionsCommands(
           }
 
           const sdk = createCliBbSdk(getUrl());
+          if (opts.directory) {
+            if (Object.keys(body).length)
+              throw new Error("Use --directory separately from other updates.");
+            const current = await sdk.threads.get({ threadId });
+            if (!current.environmentId)
+              throw new Error("The chat has no working environment yet.");
+            body.experimental_directory = {
+              path: opts.directory,
+              expectedEnvironmentId: current.environmentId,
+            };
+          }
           const thread = await sdk.threads.update({ threadId, ...body });
           if (outputJson(opts, thread)) return;
           console.log(`Thread ${thread.id} updated`);

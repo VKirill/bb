@@ -7,9 +7,10 @@ import {
   findProjectEnvironmentByHostPath,
   getEnvironment,
   getThread,
+  listQueuedThreadMessages,
   updateThread,
 } from "@bb/db";
-import { turnScope } from "@bb/domain";
+import { threadScope, turnScope } from "@bb/domain";
 import type { DynamicTool, Thread, ToolCallResponse } from "@bb/domain";
 import type { AppDeps } from "../../types.js";
 import { runLiveHostCommand } from "../hosts/live-command.js";
@@ -58,7 +59,7 @@ interface HandleUpdateEnvironmentDirectoryToolCallArgs {
   currentEnvironment: EnvironmentRow;
   input: unknown;
   thread: Thread;
-  turnId: string;
+  turnId: string | null;
 }
 
 type ReadyEnvironment = EnvironmentRow & { path: string; status: "ready" };
@@ -117,6 +118,17 @@ function threadWritableFailure(thread: Thread): string | null {
   return null;
 }
 
+export function idleDirectoryChangeFailure(
+  db: AppDeps["db"],
+  thread: Thread,
+): string | null {
+  if (thread.status !== "idle" && thread.status !== "error")
+    return "Wait until the chat is idle before moving it.";
+  if (listQueuedThreadMessages(db, thread.id).length > 0)
+    return "Remove or send queued messages before moving the chat.";
+  return null;
+}
+
 function resolveReadyEnvironment(
   environment: EnvironmentRow,
 ): ReadyEnvironment | { failure: string } {
@@ -148,7 +160,7 @@ function attachReadyEnvironment(
     createdEnvironment: boolean;
     targetEnvironment: ReadyEnvironment;
     thread: Thread;
-    turnId: string;
+    turnId: string | null;
   },
 ): AttachEnvironmentResult {
   const result = deps.db.transaction(
@@ -161,7 +173,11 @@ function attachReadyEnvironment(
         };
       }
 
-      const writableFailure = threadWritableFailure(latestThread);
+      const writableFailure =
+        threadWritableFailure(latestThread) ??
+        (args.turnId === null
+          ? idleDirectoryChangeFailure(deps.db, latestThread)
+          : null);
       if (writableFailure) {
         return { kind: "thread_unavailable", message: writableFailure };
       }
@@ -181,7 +197,7 @@ function attachReadyEnvironment(
         threadId: latestThread.id,
         environmentId: args.targetEnvironment.id,
         type: "system/operation",
-        scope: turnScope(args.turnId),
+        scope: args.turnId === null ? threadScope() : turnScope(args.turnId),
         data: {
           operation: "environment_directory_update",
           operationId: createEventId(),

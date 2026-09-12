@@ -205,6 +205,7 @@ const OPTIONAL_SERVER_FIELD_GROUPS: readonly OptionalServerFieldGroup[] = [
     reason:
       "Thread PATCH requests omit fields that should be left unchanged; null explicitly clears nullable values.",
     fields: [
+      "updateThreadRequestSchema.experimental_directory",
       "updateThreadRequestSchema.model",
       "updateThreadRequestSchema.sectionId",
       "updateThreadRequestSchema.parentThreadId",

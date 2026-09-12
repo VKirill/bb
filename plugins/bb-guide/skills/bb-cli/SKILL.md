@@ -141,3 +141,5 @@ reported; this is not billing/invoice data. Suspension requires idle live thread
 and no open terminals; empty machines can use an opted-in provider idle policy.
 
 `bb thread context` reads recorded context usage without sending a model request. A breakdown is optional; absent usage is returned as `null`.
+
+Move an idle chat's working directory with `bb thread update ID --directory /absolute/existing/path`. This preserves history within the same project and machine; it does not move files. Send or remove queued messages first. Use this flag separately from other updates.

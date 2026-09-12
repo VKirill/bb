@@ -16,6 +16,33 @@ describe("bb thread update command output", () => {
   const register: CommandRegistrar = (program) =>
     registerThreadCommands(program, () => "http://server");
 
+  it("moves a chat with an expected environment and preserves its id", async () => {
+    const thread = fixtures.makeThread({
+      id: "thread-move",
+      projectId: "p1",
+      environmentId: "e1",
+      status: "idle",
+    });
+    const patch = vi.fn(async () => ({ ...thread, environmentId: "e2" }));
+    stubServerApi({
+      "v1.threads.:id.$get": vi.fn(async () => thread),
+      "v1.threads.:id.$patch": patch,
+    });
+    await runCommand(
+      ["thread", "update", "thread-move", "--directory", "/work/section"],
+      register,
+    );
+    expect(patch).toHaveBeenCalledWith({
+      param: { id: "thread-move" },
+      json: {
+        experimental_directory: {
+          path: "/work/section",
+          expectedEnvironmentId: "e1",
+        },
+      },
+    });
+  });
+
   it("bb thread update sets the parent thread id", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-update-1",

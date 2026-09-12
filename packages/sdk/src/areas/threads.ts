@@ -208,8 +208,7 @@ export type ThreadStorageFilesResult = ThreadStorageFileListResponse;
 export type ThreadStorageLocationResult = ThreadStorageLocationResponse;
 export type ThreadStoragePathsResult = ThreadStoragePathListResponse;
 export type ThreadChildSummaryResult = ThreadChildSummaryResponse;
-export type ThreadDefaultExecutionOptionsResult =
-  ResolvedThreadExecutionOptions | null;
+export type ThreadDefaultExecutionOptionsResult = ResolvedThreadExecutionOptions | null;
 export type ThreadConversationOutlineResult = ThreadConversationOutlineResponse;
 export type ThreadTimelineTurnSummaryDetailsResult =
   TimelineTurnSummaryDetailsResponse;
@@ -655,6 +654,7 @@ function countQuery(args: ThreadCountArgs | undefined): ThreadCountQuery {
 
 function updateJson(args: ThreadUpdateArgs): UpdateThreadRequest {
   return {
+    experimental_directory: args.experimental_directory,
     title: args.title,
     sectionId: args.sectionId,
     parentThreadId: args.parentThreadId,
@@ -1191,16 +1191,22 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
     },
     async markRead(input) {
       return transport.readJson(
-        transport.api.v1.threads[":id"].read.$post({
-          param: { id: input.threadId },
-        }, ...signalRequestArgs(input.signal)),
+        transport.api.v1.threads[":id"].read.$post(
+          {
+            param: { id: input.threadId },
+          },
+          ...signalRequestArgs(input.signal),
+        ),
       );
     },
     async markUnread(input) {
       return transport.readJson(
-        transport.api.v1.threads[":id"].unread.$post({
-          param: { id: input.threadId },
-        }, ...signalRequestArgs(input.signal)),
+        transport.api.v1.threads[":id"].unread.$post(
+          {
+            param: { id: input.threadId },
+          },
+          ...signalRequestArgs(input.signal),
+        ),
       );
     },
     async output(input) {
