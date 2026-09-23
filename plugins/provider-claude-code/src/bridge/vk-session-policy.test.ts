@@ -33,6 +33,18 @@ function fixture(): { home: string; cwd: string } {
     JSON.stringify({ name: "lane-stack" }),
   );
   skill(join(install, "skills"), "browser-qa");
+  writeFileSync(
+    join(install, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        winnow: {
+          command: "uv",
+          args: ["--project", "${CLAUDE_PLUGIN_ROOT}/winnow"],
+          env: { URL: "${VK_TEST_UNSET_VAR:-http://localhost:3111}" },
+        },
+      },
+    }),
+  );
   mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
   writeFileSync(
     join(home, ".claude", "settings.json"),
@@ -136,5 +148,43 @@ describe("buildClaudeVkSessionOptions", () => {
     expect(options.flagSettings.enabledPlugins).toEqual({
       "remotion@remotion": false,
     });
+  });
+
+  it("hands allowed Claude plugin MCP servers over in strict mode", () => {
+    const { home, cwd } = fixture();
+    const install = join(home, "plugin-install");
+    const byBare = buildClaudeVkSessionOptions({
+      bbSkillNames: [],
+      cwd,
+      home,
+      policy: { version: 1, mcpServers: { mode: "allow", names: ["winnow"] } },
+    });
+    expect(byBare.strictMcpConfig).toBe(true);
+    expect(byBare.mcpServers.winnow).toEqual({
+      command: "uv",
+      args: ["--project", `${install}/winnow`],
+      env: { URL: "http://localhost:3111" },
+    });
+    const byFullName = buildClaudeVkSessionOptions({
+      bbSkillNames: [],
+      cwd,
+      home,
+      policy: {
+        version: 1,
+        mcpServers: { mode: "allow", names: ["plugin:lane-stack:winnow"] },
+      },
+    });
+    expect(Object.keys(byFullName.mcpServers)).toEqual(["winnow"]);
+    const pluginOff = buildClaudeVkSessionOptions({
+      bbSkillNames: [],
+      cwd,
+      home,
+      policy: {
+        version: 1,
+        mcpServers: { mode: "allow", names: ["winnow", "gitnexus"] },
+        nativePlugins: { mode: "deny", names: ["lane-stack"] },
+      },
+    });
+    expect(Object.keys(pluginOff.mcpServers)).toEqual(["gitnexus"]);
   });
 });
