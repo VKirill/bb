@@ -26,7 +26,14 @@ import {
   getPluginSkillRootContributions,
   resolvePluginAgentConfiguration,
   resolvePluginProviderEnv,
+  resolvePluginVkSessionPolicy,
 } from "../plugins/plugin-agent-contributions.js";
+import type { VkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
+import {
+  buildVkRuntimeSessionPolicy,
+  vkPluginAllowed,
+  vkUserInstructionsAllowed,
+} from "./vk-session-policy.js";
 import { resolveSkillCatalog } from "../skills/skill-catalog.js";
 import { discoverPluginSkillIds } from "../skills/injected-skills.js";
 import { UPDATE_ENVIRONMENT_DIRECTORY_TOOL } from "./thread-environment-directory.js";
@@ -68,6 +75,8 @@ export interface ResolvedThreadRuntimeCommandConfig {
   projectId: string;
   providerId: string;
   threadStoragePath: string;
+  /** VK EXPERIMENTAL: the bridge half of the thread's session policy. */
+  vkSessionPolicy: VkRuntimeSessionPolicy | null;
   workspacePath: string;
 }
 
@@ -144,47 +153,53 @@ export async function resolveThreadRuntimeCommandConfig(
     pluginSkillRoots,
     skillTreeRegistry: deps.skillTreeRegistry,
   });
-  const conditionalConfiguration = await resolvePluginAgentConfiguration({
-    context: {
-      thread: {
-        id: args.thread.id,
-        title: args.thread.title,
-        parentThreadId: args.thread.parentThreadId,
-        sourceThreadId: args.thread.sourceThreadId,
-      },
-      project: {
-        id: project.id,
-        kind: project.kind,
-        name: project.name,
-        gitRemoteUrl: project.gitRemoteUrl,
-      },
-      environment: {
-        id: environment.id,
-        name: environment.name,
-        path: environment.path,
-        branchName: environment.branchName,
-        workspaceProvisionType: resolveDeprecatedWorkspaceProvisionType(
-          environment.environmentProviderId,
-        ),
-      },
-      host: { id: host.id, name: host.name },
-      provider: {
-        id: args.thread.providerId,
-        model: args.model,
-        capabilities: {
-          supportsNativeUserQuestion:
-            deps.providerRegistry.get(args.thread.providerId)?.info.capabilities
-              .supportsNativeUserQuestion ?? false,
-        },
-      },
-      origin: {
-        kind: args.thread.originKind,
-        pluginId: args.thread.originPluginId,
+  const agentContext = {
+    thread: {
+      id: args.thread.id,
+      title: args.thread.title,
+      parentThreadId: args.thread.parentThreadId,
+      sourceThreadId: args.thread.sourceThreadId,
+    },
+    project: {
+      id: project.id,
+      kind: project.kind,
+      name: project.name,
+      gitRemoteUrl: project.gitRemoteUrl,
+    },
+    environment: {
+      id: environment.id,
+      name: environment.name,
+      path: environment.path,
+      branchName: environment.branchName,
+      workspaceProvisionType: resolveDeprecatedWorkspaceProvisionType(
+        environment.environmentProviderId,
+      ),
+    },
+    host: { id: host.id, name: host.name },
+    provider: {
+      id: args.thread.providerId,
+      model: args.model,
+      capabilities: {
+        supportsNativeUserQuestion:
+          deps.providerRegistry.get(args.thread.providerId)?.info.capabilities
+            .supportsNativeUserQuestion ?? false,
       },
     },
+    origin: {
+      kind: args.thread.originKind,
+      pluginId: args.thread.originPluginId,
+    },
+  };
+  const conditionalConfiguration = await resolvePluginAgentConfiguration({
+    context: agentContext,
     skillIdsByPlugin,
   });
   markTurnTraceSpan("runtimeConfig.pluginConfig");
+  // VK EXPERIMENTAL: a plugin may narrow what this session loads.
+  const vkResolved = await resolvePluginVkSessionPolicy({
+    context: agentContext,
+  });
+  const vkPolicy = vkResolved?.policy ?? null;
   const contributedEnv = mergeHostAndProviderEnvironment(
     await resolveHostEnvironment(deps, {
       hostId: host.id,
@@ -200,20 +215,30 @@ export async function resolveThreadRuntimeCommandConfig(
     }),
   );
   markTurnTraceSpan("runtimeConfig.env");
-  const injectedSkillSources = (
-    await resolveSkillCatalog(deps, {
-      projectSkillSources: workspaceAgentContext.projectSkillSources,
-      sharedSkillSources: workspaceAgentContext.sharedSkills.runtimeSources,
-      pluginSkillSelections: conditionalConfiguration.selectedSkillIdsByPlugin,
-    })
-  ).map((entry) => entry.runtimeSource);
+  const skillCatalog = await resolveSkillCatalog(deps, {
+    projectSkillSources: workspaceAgentContext.projectSkillSources,
+    sharedSkillSources: workspaceAgentContext.sharedSkills.runtimeSources,
+    pluginSkillSelections: conditionalConfiguration.selectedSkillIdsByPlugin,
+  });
+  const injectedSkillSources = skillCatalog.map((entry) => entry.runtimeSource);
+  const vkSessionPolicy = buildVkRuntimeSessionPolicy(vkPolicy, skillCatalog);
+  if (vkResolved !== null) {
+    deps.logger.info(
+      {
+        threadId: args.thread.id,
+        pluginId: vkResolved.pluginId,
+        bbSkillsDenied: vkSessionPolicy?.bbSkillsDenied?.length ?? 0,
+      },
+      "VK session policy applied",
+    );
+  }
   const dataDirAgentInstructions = readDataDirAgentInstructions(
     deps.logger,
     deps.config.dataDir,
   );
   const dynamicToolContributions = resolveDynamicTools(
     conditionalConfiguration.tools,
-  );
+  ).filter((contribution) => vkPluginAllowed(vkPolicy, contribution.pluginId));
   const dynamicTools = dynamicToolContributions.map(
     (contribution) => contribution.tool,
   );
@@ -230,6 +255,7 @@ export async function resolveThreadRuntimeCommandConfig(
     }
   }
   for (const contribution of listPluginInstructionContributions()) {
+    if (!vkPluginAllowed(vkPolicy, contribution.pluginId)) continue;
     let text: string | null;
     try {
       text = contribution.provider({
@@ -257,12 +283,13 @@ export async function resolveThreadRuntimeCommandConfig(
     );
   }
   for (const contribution of conditionalConfiguration.dynamicInstructions) {
+    if (!vkPluginAllowed(vkPolicy, contribution.pluginId)) continue;
     instructionSections.push(
       `The following dynamic instructions come from the BB plugin "${contribution.pluginId}":`,
       contribution.text,
     );
   }
-  if (dataDirAgentInstructions) {
+  if (dataDirAgentInstructions && vkUserInstructionsAllowed(vkPolicy)) {
     instructionSections.push(
       `The following user instructions come from <dataDir>/${DATA_DIR_AGENT_INSTRUCTIONS_RELATIVE_PATH}:`,
       dataDirAgentInstructions,
@@ -289,6 +316,7 @@ export async function resolveThreadRuntimeCommandConfig(
     projectId: args.thread.projectId,
     providerId: args.thread.providerId,
     threadStoragePath,
+    vkSessionPolicy,
     workspacePath,
   };
 }
