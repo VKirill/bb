@@ -17,8 +17,8 @@ import { join } from "node:path";
  * than by hiding files:
  *
  * - MCP `allow`: `strictMcpConfig` plus the allowed server configs copied from
- *   `~/.claude.json` (user and local scope) and `<cwd>/.mcp.json`. Servers a
- *   Claude plugin ships are not copied, so an allow list drops them.
+ *   `~/.claude.json` (user and local scope), `<cwd>/.mcp.json` and the
+ *   enabled Claude plugins (their `.mcp.json` and manifest `mcpServers`).
  * - MCP `deny`: flag-layer `deniedMcpServers`.
  * - Skills `allow`: the SDK `skills` allow list (hides the rest from the
  *   listing and denies invocation).
@@ -34,9 +34,17 @@ export interface ClaudeVkSessionOptions {
   strictMcpConfig: boolean;
 }
 
+interface ClaudePluginMcpServer {
+  config: McpServerConfig;
+  pluginId: string;
+  pluginName: string;
+}
+
 interface ClaudeNativeInventory {
   /** name → config, nearest scope last (local beats project beats user). */
   mcpServers: Map<string, McpServerConfig>;
+  /** Servers enabled Claude plugins ship; user servers win a name clash. */
+  pluginMcpServers: Map<string, ClaudePluginMcpServer>;
   /** enabled plugin ids (`name@marketplace`) → plugin name. */
   plugins: Map<string, string>;
   /** invocable skill names: bare for personal/project, `plugin:skill` else. */
@@ -59,7 +67,12 @@ export function buildClaudeVkSessionOptions(args: {
     skills: null,
     strictMcpConfig: false,
   };
-  applyMcpPolicy(options, args.policy.mcpServers, inventory);
+  applyMcpPolicy(
+    options,
+    args.policy.mcpServers,
+    args.policy.nativePlugins,
+    inventory,
+  );
   applyNativePluginPolicy(options, args.policy.nativePlugins, inventory);
   applySkillPolicy(options, args.policy.skills, inventory, args.bbSkillNames);
   return options;
@@ -68,11 +81,24 @@ export function buildClaudeVkSessionOptions(args: {
 function applyMcpPolicy(
   options: ClaudeVkSessionOptions,
   filter: VkPolicyFilter | undefined,
+  pluginFilter: VkPolicyFilter | undefined,
   inventory: ClaudeNativeInventory,
 ): void {
   if (!filter) return;
   if (filter.mode === "allow") {
+    // Strict mode loads nothing Claude would find by itself, plugin servers
+    // included, so every allowed server is handed over explicitly. A plugin
+    // server passes under its bare or its `plugin:<plugin>:<server>` name,
+    // and only while its plugin is not switched off by the policy.
     options.strictMcpConfig = true;
+    for (const [name, server] of inventory.pluginMcpServers) {
+      if (
+        vkPolicyAllows(filter, name, `plugin:${server.pluginName}:${name}`) &&
+        vkPolicyAllows(pluginFilter, server.pluginId, server.pluginName)
+      ) {
+        options.mcpServers[name] = server.config;
+      }
+    }
     for (const [name, config] of inventory.mcpServers) {
       if (vkPolicyAllows(filter, name)) options.mcpServers[name] = config;
     }
@@ -146,6 +172,7 @@ function readClaudeNativeInventory(
 ): ClaudeNativeInventory {
   const inventory: ClaudeNativeInventory = {
     mcpServers: new Map(),
+    pluginMcpServers: new Map(),
     plugins: new Map(),
     skills: new Set(),
     personalSkills: new Set(),
@@ -193,12 +220,82 @@ function readClaudeNativeInventory(
       typeof manifestName === "string" ? manifestName : id.split("@")[0]!;
     inventory.plugins.set(id, name);
     if (typeof installPath === "string") {
+      addPluginMcpServers(inventory, id, name, installPath);
       for (const skill of listSkillDirs(join(installPath, "skills"))) {
         inventory.skills.add(`${name}:${skill}`);
       }
     }
   }
   return inventory;
+}
+
+/**
+ * The servers a Claude plugin declares: `mcpServers` in its manifest (a path
+ * or a list of paths inside the plugin) and its `.mcp.json`. Claude expands
+ * `${CLAUDE_PLUGIN_ROOT}` and `${VAR}` / `${VAR:-default}` when it loads them
+ * itself; an explicit config is passed as is, so they are expanded here.
+ */
+function addPluginMcpServers(
+  inventory: ClaudeNativeInventory,
+  pluginId: string,
+  pluginName: string,
+  installPath: string,
+): void {
+  const manifest = readJsonObject(
+    join(installPath, ".claude-plugin", "plugin.json"),
+  );
+  const declared = manifest?.mcpServers;
+  const paths = [join(installPath, ".mcp.json")];
+  const inline: Record<string, unknown>[] = [];
+  for (const entry of Array.isArray(declared) ? declared : [declared]) {
+    if (typeof entry === "string" && entry.trim()) {
+      const candidate = join(installPath, entry.trim());
+      if (candidate.startsWith(installPath)) paths.push(candidate);
+    } else if (asObject(entry)) {
+      inline.push(entry as Record<string, unknown>);
+    }
+  }
+  const sources = [
+    ...paths.map((path) => asObject(readJsonObject(path)?.mcpServers)),
+    ...inline,
+  ];
+  for (const servers of sources) {
+    for (const [name, config] of Object.entries(servers ?? {})) {
+      if (!asObject(config) || inventory.pluginMcpServers.has(name)) continue;
+      inventory.pluginMcpServers.set(name, {
+        config: expandPlaceholders(config, installPath) as McpServerConfig,
+        pluginId,
+        pluginName,
+      });
+    }
+  }
+}
+
+function expandPlaceholders(value: unknown, pluginRoot: string): unknown {
+  if (typeof value === "string") {
+    return value.replace(
+      /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/gu,
+      (_match, name: string, fallback: string | undefined) => {
+        if (name === "CLAUDE_PLUGIN_ROOT") return pluginRoot;
+        const current = process.env[name];
+        return current !== undefined && current !== ""
+          ? current
+          : (fallback ?? "");
+      },
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => expandPlaceholders(item, pluginRoot));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        expandPlaceholders(item, pluginRoot),
+      ]),
+    );
+  }
+  return value;
 }
 
 function addMcpServers(inventory: ClaudeNativeInventory, raw: unknown): void {
