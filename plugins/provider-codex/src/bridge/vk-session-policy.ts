@@ -17,9 +17,10 @@ import { join } from "node:path";
  * - MCP servers: `mcp_servers.<name>.enabled=false` for each server of
  *   `$CODEX_HOME/config.toml` the policy drops.
  * - Native plugins: `plugins.<id>.enabled=false`.
- * - Skills: one `skills.config=[{path, enabled=false}, …]` entry per native
- *   skill (`$CODEX_HOME/skills`, `~/.agents/skills`, project `.codex/skills`
- *   and `.agents/skills`) the policy drops.
+ * - Skills: one `skills.config=[{path|name, enabled=false}, …]` entry per
+ *   native skill the policy drops: skill roots (`$CODEX_HOME/skills` with
+ *   `.system`, `~/.agents/skills`, project `.codex/skills` and
+ *   `.agents/skills`, walked recursively) and plugin skills.
  *
  * Codex splits an override key on "." without honouring TOML quotes, so an
  * id is written raw and an id that itself contains "." cannot be addressed
@@ -61,8 +62,8 @@ export function buildCodexVkLaunchArgs(args: {
   if (args.policy.skills) {
     const disabled: string[] = [];
     for (const skill of listCodexNativeSkills(codexHome, home, args.cwd)) {
-      if (!vkPolicyAllows(args.policy.skills, skill.name)) {
-        disabled.push(`{path=${JSON.stringify(skill.path)},enabled=false}`);
+      if (!vkPolicyAllows(args.policy.skills, skill.name, skill.bare)) {
+        disabled.push(`{${skill.entry},enabled=false}`);
       }
     }
     if (disabled.length > 0) {
@@ -102,37 +103,75 @@ function readTomlTableNames(path: string): {
   return { mcpServers: [...mcpServers], plugins: [...plugins] };
 }
 
+/**
+ * Native skills Codex discovers by itself. Skill roots are walked
+ * recursively (`~/.agents/skills/<group>/<skill>/SKILL.md`, the bundled
+ * `.system` set) and addressed by path; plugin skills are addressed by their
+ * invocable `plugin:skill` name, the form Codex writes for them itself.
+ */
 function listCodexNativeSkills(
   codexHome: string,
   home: string,
   cwd: string,
-): { name: string; path: string }[] {
+): { name: string; bare: string; entry: string }[] {
+  const skills: { name: string; bare: string; entry: string }[] = [];
   const roots = [
     join(codexHome, "skills"),
     join(home, ".agents", "skills"),
     join(cwd, ".codex", "skills"),
     join(cwd, ".agents", "skills"),
   ];
-  const skills: { name: string; path: string }[] = [];
   for (const root of roots) {
-    if (!existsSync(root)) continue;
-    let names: string[] = [];
-    try {
-      names = readdirSync(root);
-    } catch {
-      continue;
+    for (const dir of findSkillDirs(root, 4)) {
+      const name = dir.slice(dir.lastIndexOf("/") + 1);
+      skills.push({
+        name,
+        bare: name,
+        entry: `path=${JSON.stringify(join(dir, "SKILL.md"))}`,
+      });
     }
-    for (const name of names) {
-      if (name.startsWith(".")) continue;
-      const skillFile = join(root, name, "SKILL.md");
-      try {
-        if (statSync(join(root, name)).isDirectory() && existsSync(skillFile)) {
-          skills.push({ name, path: skillFile });
-        }
-      } catch {
-        // An unreadable entry is not a skill Codex could load either.
+  }
+  const cache = join(codexHome, "plugins", "cache");
+  for (const market of safeReaddir(cache)) {
+    for (const plugin of safeReaddir(join(cache, market))) {
+      const versions = safeReaddir(join(cache, market, plugin)).sort();
+      const latest = versions[versions.length - 1];
+      if (!latest) continue;
+      const skillsDir = join(cache, market, plugin, latest, "skills");
+      for (const dir of findSkillDirs(skillsDir, 1)) {
+        const bare = dir.slice(dir.lastIndexOf("/") + 1);
+        const name = `${plugin}:${bare}`;
+        skills.push({ name, bare, entry: `name=${JSON.stringify(name)}` });
       }
     }
   }
   return skills;
+}
+
+/**
+ * Directories holding a SKILL.md under `root`. Codex also loads skills nested
+ * inside another skill's folder (`google/SKILL.md` and
+ * `google/google-ads/SKILL.md`), so the walk continues below a match.
+ */
+function findSkillDirs(root: string, depth: number): string[] {
+  const found: string[] = [];
+  for (const name of safeReaddir(root)) {
+    const dir = join(root, name);
+    try {
+      if (!statSync(dir).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    if (existsSync(join(dir, "SKILL.md"))) found.push(dir);
+    if (depth > 1) found.push(...findSkillDirs(dir, depth - 1));
+  }
+  return found;
+}
+
+function safeReaddir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
