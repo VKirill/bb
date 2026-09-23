@@ -2535,7 +2535,11 @@ async function handleRequest(
       const vkDialectId = decodeDialectId(params.options.providerOptions);
       const vkEnv = buildAcpVkEnv({
         cwd: params.cwd,
-        dialectId: vkDialectId,
+        // The registration may omit the dialect; the executable names it then.
+        dialectId: resolveAcpDialect({
+          dialectId: vkDialectId,
+          command: launchSpec.command,
+        }).id,
         envVars: params.options.envVars,
         policy: vkPolicy,
       });
