@@ -30,14 +30,14 @@ function cursorAgentCommand(command: string): boolean {
   );
 }
 
-function cursorProjectSlug(projectRoot: string): string {
+export function cursorProjectSlug(projectRoot: string): string {
   return projectRoot
     .replace(/[^a-zA-Z0-9]/gu, "-")
     .replace(/-+/gu, "-")
     .replace(/^-+|-+$/gu, "");
 }
 
-function cursorDataDirectory(
+export function cursorDataDirectory(
   env: Readonly<Record<string, string | undefined>>,
 ): string {
   const configured = env.CURSOR_DATA_DIR?.trim();

@@ -29,7 +29,7 @@ environment do not thrash the runtime.
 | Claude Code | filtered plugin dir | SDK `skills` allow list / `skillOverrides` + `Skill()` deny | `strictMcpConfig` + copied configs / `deniedMcpServers` | `enabledPlugins: false` |
 | Codex | filtered extra roots | `-c skills.config=[{path,enabled=false}]` | `-c mcp_servers.<n>.enabled=false` | `-c plugins.<id>.enabled=false` |
 | OpenCode (ACP) | instruction list filtered | `OPENCODE_CONFIG_CONTENT` `permission.skill` | `OPENCODE_CONFIG_CONTENT` `mcp.<n>.enabled=false` | — |
-| Cursor (ACP) | instruction list filtered | — | — | — |
+| Cursor (ACP) | instruction list filtered | — | per-policy `CURSOR_DATA_DIR` overlay: real project folder linked, own `mcp-disabled.json` | — |
 
 ### Hook points in upstream files
 
@@ -46,7 +46,8 @@ environment do not thrash the runtime.
 | `apps/server/src/services/threads/thread-commands.ts` | merge `vkSessionPolicy` into provider options |
 | `plugins/provider-claude-code/src/**` | params schema, session options, SDK options, filtered skill plugins |
 | `plugins/provider-codex/src/bridge/bridge.ts` | launch `-c` args, per-session skill roots, construction signature |
-| `packages/provider-bridge-acp/src/bridge/bridge.ts` | OpenCode env, filtered skill list |
+| `packages/provider-bridge-acp/src/bridge/bridge.ts` | OpenCode env, Cursor data dir, filtered skill list, same env on every turn |
+| `packages/provider-bridge-acp/src/bridge/cursor-mcp-approval.ts` | export `cursorProjectSlug`, `cursorDataDirectory` |
 | `plugins/bb-guide/skills/bb-plugin-authoring/references/*-api-index.md` | docs for new exports |
 | `apps/server/test/services/plugins/plugin-agent-tools.test.ts` | `bb.agents` key list |
 

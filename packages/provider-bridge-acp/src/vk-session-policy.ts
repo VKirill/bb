@@ -2,10 +2,25 @@ import {
   vkPolicyAllows,
   type VkRuntimeSessionPolicy,
 } from "@bb/domain/vk-session-policy";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { AcpSkillRoot } from "./session-params.js";
+import {
+  cursorDataDirectory,
+  cursorProjectSlug,
+} from "./bridge/cursor-mcp-approval.js";
 
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
@@ -18,8 +33,11 @@ import type { AcpSkillRoot } from "./session-params.js";
  *   layer) carries `mcp.<name>.enabled=false` for dropped MCP servers and a
  *   `permission.skill` map; OpenCode removes a skill whose permission
  *   evaluates to `deny` from the listing.
- * - Cursor and other ACP agents: no per-process switch exists for skills or
- *   MCP servers, so only the BB side (plugins, instructions, tools, BB
+ * - Cursor: MCP servers through a per-policy `CURSOR_DATA_DIR` whose
+ *   project folder links everything of the real one (transcripts, approvals,
+ *   terminals) except `mcp-disabled.json`, which adds the dropped servers to
+ *   the user's own list. Cursor has no per-process switch for skills.
+ * - Other ACP agents: only the BB side (plugins, instructions, tools, BB
  *   skills) applies.
  */
 export function vkFilterAcpSkillRoots(
@@ -43,7 +61,16 @@ export function buildAcpVkEnv(args: {
   home?: string;
   policy: VkRuntimeSessionPolicy | null;
 }): Record<string, string> {
-  if (args.policy === null || args.dialectId !== "opencode") return {};
+  if (args.policy === null) return {};
+  if (args.dialectId === "cursor") {
+    return buildCursorVkEnv({
+      cwd: args.cwd,
+      envVars: args.envVars,
+      home: args.home ?? homedir(),
+      policy: args.policy,
+    });
+  }
+  if (args.dialectId !== "opencode") return {};
   const overlay = buildOpenCodeOverlay(
     args.policy,
     args.cwd,
@@ -101,6 +128,111 @@ function buildOpenCodeOverlay(
     overlay.permission = { skill };
   }
   return overlay;
+}
+
+/** Folders Cursor fills later; linked up front so new files land in the real one. */
+const CURSOR_PROJECT_DIRS = [
+  "agent-transcripts",
+  "agent-tools",
+  "assets",
+  "terminals",
+];
+const CURSOR_DISABLED_FILE = "mcp-disabled.json";
+
+function buildCursorVkEnv(args: {
+  cwd: string;
+  envVars: Readonly<Record<string, string>> | undefined;
+  home: string;
+  policy: VkRuntimeSessionPolicy;
+}): Record<string, string> {
+  const filter = args.policy.mcpServers;
+  if (!filter) return {};
+  const projectRoot = cursorProjectRoot(args.cwd);
+  const known = new Set<string>();
+  for (const file of [
+    path.join(args.home, ".cursor", "mcp.json"),
+    path.join(projectRoot, ".cursor", "mcp.json"),
+  ]) {
+    for (const name of Object.keys(
+      asObject(parseJsonObject(readText(file)).mcpServers),
+    ))
+      known.add(name);
+  }
+  if (filter.mode === "deny")
+    for (const name of filter.names) if (!name.endsWith("*")) known.add(name);
+  const denied = [...known].filter((name) => !vkPolicyAllows(filter, name));
+  if (denied.length === 0) return {};
+
+  const realDataDir = cursorDataDirectory({
+    ...process.env,
+    HOME: args.home,
+    ...(args.envVars ?? {}),
+  });
+  const slug = cursorProjectSlug(projectRoot);
+  const realProject = path.join(realDataDir, "projects", slug);
+  let own: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(
+      readText(path.join(realProject, CURSOR_DISABLED_FILE)),
+    );
+    if (Array.isArray(parsed))
+      own = parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    // No list of the user's own yet.
+  }
+  const disabled = [...new Set([...own, ...denied])].sort();
+  const key = createHash("sha256")
+    .update(`${realDataDir}\0${projectRoot}\0${disabled.join("\0")}`)
+    .digest("hex")
+    .slice(0, 16);
+  const overlayRoot = path.join(realDataDir, "bb-vk-overlays", key);
+  const overlayProject = path.join(overlayRoot, "projects", slug);
+  if (!existsSync(path.join(overlayProject, CURSOR_DISABLED_FILE))) {
+    mkdirSync(realProject, { recursive: true });
+    for (const dir of CURSOR_PROJECT_DIRS)
+      mkdirSync(path.join(realProject, dir), { recursive: true });
+    const staging = `${overlayProject}.tmp-${process.pid}-${Date.now()}`;
+    mkdirSync(staging, { recursive: true });
+    for (const entry of readdirSync(realProject)) {
+      if (entry === CURSOR_DISABLED_FILE) continue;
+      symlinkSync(path.join(realProject, entry), path.join(staging, entry));
+    }
+    writeFileSync(
+      path.join(staging, CURSOR_DISABLED_FILE),
+      `${JSON.stringify(disabled, null, 2)}\n`,
+    );
+    try {
+      renameSync(staging, overlayProject);
+    } catch (error) {
+      rmSync(staging, { recursive: true, force: true });
+      if (!existsSync(overlayProject)) throw error;
+    }
+  }
+  return { CURSOR_DATA_DIR: overlayRoot };
+}
+
+/** The git top level Cursor keys its project data by, else the folder itself. */
+function cursorProjectRoot(cwd: string): string {
+  try {
+    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 5000,
+    }).trim();
+    if (root) return root;
+  } catch {
+    // Not a git checkout.
+  }
+  return path.resolve(cwd);
+}
+
+function readText(file: string): string {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
 }
 
 /** MCP server names from the global and project OpenCode config files. */
