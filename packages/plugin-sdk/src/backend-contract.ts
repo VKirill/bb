@@ -22,6 +22,12 @@ import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
 import type { ProviderFork } from "@bb/domain/provider-fork";
+import type { VkSessionPolicy } from "@bb/domain/vk-session-policy";
+// VK EXPERIMENTAL: re-exported so a plugin can type its session policy.
+export type {
+  VkPolicyFilter,
+  VkSessionPolicy,
+} from "@bb/domain/vk-session-policy";
 import type {
   BbSdk,
   PluginThreadMetadataListArgs,
@@ -1724,6 +1730,24 @@ export interface PluginAgents {
    */
   contributeInstructions(
     provider: (ctx: { threadId: string; projectId: string }) => string | null,
+  ): void;
+  /**
+   * VK EXPERIMENTAL — present only in VK builds of bb, absent upstream.
+   * Feature-test it: `typeof bb.agents.experimental_vkSessionPolicy === "function"`.
+   *
+   * Register a resolver that narrows what one agent session loads: BB
+   * plugins, skills, provider-native MCP servers and provider-native CLI
+   * plugins. It runs with the same context and at the same points as
+   * `configure` (thread.start / turn.submit). Return null to leave the session
+   * as bb builds it. When several plugins register, the first non-null answer
+   * in plugin id order wins. A throw, a malformed policy or a resolver slower
+   * than two seconds is logged and treated as null (fail open). One resolver
+   * per factory execution.
+   */
+  experimental_vkSessionPolicy?(
+    resolver: (
+      context: PluginAgentConfigurationContext,
+    ) => VkSessionPolicy | null | Promise<VkSessionPolicy | null>,
   ): void;
 }
 

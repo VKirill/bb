@@ -98,6 +98,11 @@
       "source": "./src/application-link-approvals.ts",
       "types": "./src/application-link-approvals.ts",
       "default": "./src/application-link-approvals.ts"
+    },
+    "./vk-session-policy": {
+      "source": "./src/vk-session-policy.ts",
+      "types": "./src/vk-session-policy.ts",
+      "default": "./src/vk-session-policy.ts"
     }
   },
   "types": "./src/index.ts",
