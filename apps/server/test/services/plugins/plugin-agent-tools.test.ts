@@ -624,6 +624,8 @@ describe("bb.agents.experimental_registerProvider (removed in SDK 0.4.16)", () =
     expect(Object.keys(api.agents).sort()).toEqual([
       "configure",
       "contributeInstructions",
+      // VK EXPERIMENTAL: absent from upstream bb.
+      "experimental_vkSessionPolicy",
       "registerTool",
     ]);
     expect(Object.keys({ ...api.agents })).not.toContain(
