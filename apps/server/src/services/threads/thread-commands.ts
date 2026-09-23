@@ -1,4 +1,8 @@
 import { environments, events, threads } from "@bb/db";
+import {
+  VK_SESSION_POLICY_PROVIDER_OPTION,
+  type VkRuntimeSessionPolicy,
+} from "@bb/domain/vk-session-policy";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   PromptInput,
@@ -129,6 +133,8 @@ interface RuntimeExecutionOptionsArgs {
   projectId: string;
   providerId: string;
   threadId: string;
+  /** VK EXPERIMENTAL: travels to the bridge as the `vkSessionPolicy` option. */
+  vkSessionPolicy?: VkRuntimeSessionPolicy | null;
 }
 
 interface BuildExecutionOptionsArgs {
@@ -202,7 +208,7 @@ function toRuntimeExecutionOptions(
     input: args.input,
     providerId: args.providerId,
   });
-  const providerOptions =
+  const derivedProviderOptions =
     args.deps.providerRegistry.get(args.providerId)?.deriveProviderOptions({
       threadId: args.threadId,
       projectId: args.projectId,
@@ -210,6 +216,12 @@ function toRuntimeExecutionOptions(
       permissionMode,
       ...(promptMode !== undefined ? { promptMode } : {}),
     }) ?? {};
+  const providerOptions = args.vkSessionPolicy
+    ? {
+        ...derivedProviderOptions,
+        [VK_SESSION_POLICY_PROVIDER_OPTION]: args.vkSessionPolicy,
+      }
+    : derivedProviderOptions;
   const base = {
     model: args.execution.model,
     serviceTier: args.execution.serviceTier,
@@ -293,6 +305,7 @@ export async function buildThreadStartCommand(
       hostId: args.environment.hostId,
       input: args.input,
       threadId: args.thread.id,
+      vkSessionPolicy: runtimeContext.vkSessionPolicy,
     }),
     instructions: runtimeContext.instructions,
     dynamicTools: runtimeContext.dynamicTools,
@@ -325,6 +338,7 @@ function buildPreparedTurnSubmitCommandPayload(
       input: args.input,
       projectId: args.runtimeContext.projectId,
       providerId: args.runtimeContext.providerId,
+      vkSessionPolicy: args.runtimeContext.vkSessionPolicy,
     }),
     target: args.target,
     resumeContext: {

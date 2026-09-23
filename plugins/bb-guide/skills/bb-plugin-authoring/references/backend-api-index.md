@@ -432,3 +432,9 @@ Read the installed declarations for exact current signatures.
 - `ExperimentalCreateHostEntryHarnessOptions`
 - `ExperimentalHostEntryHarness`
 - `ExperimentalHostHarnessSignal`
+
+## VK experimental (not in upstream bb)
+
+- `bb.agents.experimental_vkSessionPolicy(resolver)` — optional; present only in VK builds. The resolver gets the `configure` context and returns a `VkSessionPolicy` or null. Feature-test with `typeof bb.agents.experimental_vkSessionPolicy === "function"`.
+- `VkSessionPolicy` — `bbPlugins`, `skills`, `mcpServers`, `nativePlugins` (each a `VkPolicyFilter`) and `userInstructions`
+- `VkPolicyFilter` — `{ mode: "allow" | "deny", names }`; a trailing `*` matches a prefix

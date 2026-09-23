@@ -281,6 +281,8 @@ export interface PluginApiHandle {
   >;
   agentConfigurationProvider: PluginAgentConfigurationProvider | null;
   instructionProvider: PluginInstructionProvider | null;
+  /** VK EXPERIMENTAL: this plugin's session policy resolver, if any. */
+  vkSessionPolicyResolver: PluginVkSessionPolicyResolver | null;
   mentionProviders: PluginMentionProviderRecord[];
   activate(): void;
   closeWebSockets(): void;
@@ -308,6 +310,11 @@ type PluginInstructionProvider = (ctx: {
 type PluginAgentConfigurationProvider = (
   context: PluginAgentConfigurationContext,
 ) => PluginAgentConfiguration;
+
+/** VK EXPERIMENTAL: see `PluginAgents.experimental_vkSessionPolicy`. */
+export type PluginVkSessionPolicyResolver = (
+  context: PluginAgentConfigurationContext,
+) => unknown;
 
 export type PluginProviderEnvResolver = (
   context: ExperimentalPluginProviderEnvContext,
@@ -880,8 +887,22 @@ export function createPluginApi(options: {
   let agentConfigurationProvider: PluginAgentConfigurationProvider | null =
     null;
   let instructionProvider: PluginInstructionProvider | null = null;
+  let vkSessionPolicyResolver: PluginVkSessionPolicyResolver | null = null;
 
   const agents: PluginAgents = {
+    // VK EXPERIMENTAL — absent from upstream bb.
+    experimental_vkSessionPolicy(resolver) {
+      assertLive();
+      if (vkSessionPolicyResolver !== null) {
+        throw new Error("session policy resolver is already registered");
+      }
+      if (typeof resolver !== "function") {
+        throw new Error(
+          "experimental_vkSessionPolicy requires a resolver function (context) => policy | null",
+        );
+      }
+      vkSessionPolicyResolver = resolver;
+    },
     configure(provider) {
       assertLive();
       if (agentConfigurationProvider !== null) {
@@ -1369,6 +1390,9 @@ export function createPluginApi(options: {
     },
     get instructionProvider() {
       return instructionProvider;
+    },
+    get vkSessionPolicyResolver() {
+      return vkSessionPolicyResolver;
     },
     mentionProviders,
     activate() {

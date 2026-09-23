@@ -7,6 +7,11 @@ import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import type { ClaudePermissionMode } from "../interactive-contract.js";
+import type { VkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
+import {
+  buildClaudeVkSessionOptions,
+  listClaudeBbSkillNames,
+} from "./vk-session-policy.js";
 import type {
   ClaudeMutableFlagSettings,
   ClaudeSdkReasoningEffort,
@@ -27,6 +32,8 @@ export interface BuildSessionOptionsArgs {
   workflowsEnabled: boolean;
   chromeEnabled: boolean;
   memoryEnabled?: boolean;
+  /** VK EXPERIMENTAL: the bridge half of a session policy. */
+  vkSessionPolicy?: VkRuntimeSessionPolicy;
 }
 
 export interface PermissionEscalationWorkContext {
@@ -222,8 +229,22 @@ export function buildSessionOptions(
     ? (params.additionalWorkspaceWriteRoots ?? [])
     : [];
   const pathToClaudeCodeExecutable = resolveClaudeCodeExecutable({ env });
-  const flagSettings = buildFlagSettings(params);
+  const vk = params.vkSessionPolicy
+    ? buildClaudeVkSessionOptions({
+        bbSkillNames: listClaudeBbSkillNames(params.plugins),
+        cwd: params.cwd,
+        policy: params.vkSessionPolicy,
+      })
+    : null;
+  const flagSettings = {
+    ...(vk?.flagSettings ?? {}),
+    ...buildFlagSettings(params),
+  };
   const extraArgs = buildChromeExtraArgs(params.chromeEnabled);
+  const disallowedTools = [
+    ...(params.disallowedTools ?? []),
+    ...(vk?.disallowedTools ?? []),
+  ];
 
   return {
     cwd: params.cwd,
@@ -245,8 +266,14 @@ export function buildSessionOptions(
     ...(additionalDirectories.length > 0
       ? { additionalDirectories: [...additionalDirectories] }
       : {}),
-    ...(params.disallowedTools && params.disallowedTools.length > 0
-      ? { disallowedTools: [...params.disallowedTools] }
+    ...(disallowedTools.length > 0 ? { disallowedTools } : {}),
+    ...(vk && Object.keys(vk.mcpServers).length > 0
+      ? { mcpServers: vk.mcpServers }
+      : {}),
+    ...(vk?.strictMcpConfig ? { vkStrictMcpConfig: true } : {}),
+    ...(vk?.skills ? { vkSkills: vk.skills } : {}),
+    ...(vk && Object.keys(vk.flagSettings).length > 0
+      ? { vkFlagSettings: vk.flagSettings }
       : {}),
   };
 }

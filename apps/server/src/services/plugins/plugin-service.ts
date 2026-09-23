@@ -22,6 +22,10 @@ import {
   type ToolCallResponse,
 } from "@bb/domain";
 import {
+  vkSessionPolicySchema,
+  type VkSessionPolicy,
+} from "@bb/domain/vk-session-policy";
+import {
   type ExperimentalPluginWebSocketContext,
   type ExperimentalPluginWebSocketHandlers,
   type PluginCliExecutionResult,
@@ -380,6 +384,10 @@ export interface PluginService {
     context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
     skillIdsByPlugin: ReadonlyMap<string, readonly string[]>;
   }): Promise<PluginResolvedAgentConfiguration>;
+  /** VK EXPERIMENTAL: the first non-null session policy, or null. */
+  resolveVkSessionPolicy(args: {
+    context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
+  }): Promise<{ pluginId: string; policy: VkSessionPolicy } | null>;
   resolveProviderEnv(args: {
     providerId: string;
     context: ExperimentalPluginProviderEnvContext;
@@ -421,6 +429,8 @@ export interface PluginService {
 const DEFAULT_MENTION_SEARCH_TIMEOUT_MS = 2_000;
 const DEFAULT_MENTION_RESOLVE_TIMEOUT_MS = 10_000;
 const DEFAULT_PROVIDER_ENV_RESOLVE_TIMEOUT_MS = 5_000;
+/** VK EXPERIMENTAL: a session policy sits on the thread-start path. */
+const VK_SESSION_POLICY_TIMEOUT_MS = 2_000;
 const DEFAULT_STABILIZATION_WINDOW_MS = 30_000;
 const DEFAULT_ARTIFACT_RETENTION_MS = 7 * 24 * 60 * 60_000;
 const SCHEDULE_SWEEP_BATCH_SIZE = 100;
@@ -2048,6 +2058,43 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       }
 
       return { tools, selectedSkillIdsByPlugin, dynamicInstructions };
+    },
+
+    // VK EXPERIMENTAL — absent from upstream bb.
+    async resolveVkSessionPolicy({ context }) {
+      const resolvers = [...loaded.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .flatMap(([pluginId, plugin]) => {
+          const resolver = plugin.handle.vkSessionPolicyResolver;
+          return resolver === null ? [] : [{ pluginId, resolver }];
+        });
+      for (const { pluginId, resolver } of resolvers) {
+        const outcome = await invokeWrapped(
+          pluginId,
+          "vk session policy",
+          async () =>
+            raceTimeout(
+              Promise.resolve(
+                resolver({ ...context, pluginMetadata: {} }),
+              ).then((value) => {
+                if (value === null || value === undefined) return null;
+                const parsed = vkSessionPolicySchema.safeParse(value);
+                if (!parsed.success) {
+                  throw new Error(
+                    `invalid session policy: ${parsed.error.message}`,
+                  );
+                }
+                return parsed.data;
+              }),
+              VK_SESSION_POLICY_TIMEOUT_MS,
+              `timed out after ${VK_SESSION_POLICY_TIMEOUT_MS}ms`,
+            ),
+        );
+        if (outcome.ok && outcome.value !== null) {
+          return { pluginId, policy: outcome.value };
+        }
+      }
+      return null;
     },
 
     async resolveProviderEnv({ providerId, context }) {
