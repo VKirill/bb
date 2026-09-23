@@ -55,6 +55,12 @@ function stub(policy: VkSessionPolicy | null): void {
       contentItems: [{ type: "inputText", text: "unused" }],
     }),
     resolveMention: async () => ({ ok: false, error: "unused" }),
+    resolveProviderEnv: async () => ({
+      entries: [
+        { name: "KEEP_ENV", value: "1", source: { plugin: "keep" } },
+        { name: "DROP_ENV", value: "1", source: { plugin: "drop" } },
+      ],
+    }),
     resolveVkSessionPolicy: async () =>
       policy === null ? null : { pluginId: "project-folders", policy },
   });
@@ -109,6 +115,9 @@ describe("vk session policy", () => {
       expect(config.instructions).not.toContain("drop instructions");
       expect(config.instructions).not.toContain("Use drop_tool.");
       expect(config.instructions).not.toContain("user rules");
+      const envNames = config.contributedEnv.map((entry) => entry.name);
+      expect(envNames).toContain("KEEP_ENV");
+      expect(envNames).not.toContain("DROP_ENV");
       expect(config.vkSessionPolicy).toBeNull();
     });
   });
@@ -172,6 +181,9 @@ describe("vk session policy", () => {
         "drop_tool",
       );
       expect(config.instructions).toContain("drop instructions");
+      expect(config.contributedEnv.map((entry) => entry.name)).toContain(
+        "DROP_ENV",
+      );
       expect(config.vkSessionPolicy).toBeNull();
     });
   });
