@@ -2398,6 +2398,31 @@ function decodeAdditionalWorkspaceWriteRoots(
   );
 }
 
+/**
+ * VK EXPERIMENTAL: the child env a session policy adds for one ACP session.
+ * Start and every turn compute it the same way, so a turn never rebuilds the
+ * session without it. The registration may omit the dialect; the executable
+ * names it then.
+ */
+function vkSessionEnv(args: {
+  cwd: string;
+  launchCommand: string;
+  options: {
+    envVars?: Record<string, string> | undefined;
+    providerOptions?: Record<string, unknown> | undefined;
+  };
+}): Record<string, string> {
+  return buildAcpVkEnv({
+    cwd: args.cwd,
+    dialectId: resolveAcpDialect({
+      dialectId: decodeDialectId(args.options.providerOptions),
+      command: args.launchCommand,
+    }).id,
+    envVars: args.options.envVars,
+    policy: readVkRuntimeSessionPolicy(args.options.providerOptions),
+  });
+}
+
 function decodeDialectId(
   providerOptions: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -2533,15 +2558,10 @@ async function handleRequest(
         params.options.providerOptions,
       );
       const vkDialectId = decodeDialectId(params.options.providerOptions);
-      const vkEnv = buildAcpVkEnv({
+      const vkEnv = vkSessionEnv({
         cwd: params.cwd,
-        // The registration may omit the dialect; the executable names it then.
-        dialectId: resolveAcpDialect({
-          dialectId: vkDialectId,
-          command: launchSpec.command,
-        }).id,
-        envVars: params.options.envVars,
-        policy: vkPolicy,
+        launchCommand: launchSpec.command,
+        options: params.options,
       });
       const sessionParams = buildAcpSessionParams({
         additionalWorkspaceWriteRoots: decodeAdditionalWorkspaceWriteRoots(
@@ -2599,6 +2619,12 @@ async function handleRequest(
         const envVars = {
           ...(decodeLaunchSpec(params.options.providerOptions)?.env ?? {}),
           ...params.options.envVars,
+          // VK EXPERIMENTAL: the same policy env the session was built with.
+          ...vkSessionEnv({
+            cwd: session.construction.cwd,
+            launchCommand: session.construction.agent.command,
+            options: params.options,
+          }),
         };
         if (!isDeepStrictEqual(envVars, session.construction.envVars ?? {})) {
           const previousProviderThreadId = session.providerThreadId;
