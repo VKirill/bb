@@ -8,6 +8,11 @@ import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import type { ClaudePermissionMode } from "../interactive-contract.js";
+import type { VkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
+import {
+  buildClaudeVkSessionOptions,
+  listClaudeBbSkillNames,
+} from "./vk-session-policy.js";
 import type {
   ClaudeMutableFlagSettings,
   ClaudeSdkReasoningEffort,
@@ -31,6 +36,8 @@ export interface BuildSessionOptionsArgs {
   artifactsEnabled: boolean;
   sandboxEnabled: boolean;
   memoryEnabled?: boolean;
+  /** VK EXPERIMENTAL: the bridge half of a session policy. */
+  vkSessionPolicy?: VkRuntimeSessionPolicy;
 }
 
 type WorkspaceWriteSandboxArgs = Pick<
@@ -272,7 +279,17 @@ export function buildSessionOptions(
     ? (params.additionalWorkspaceWriteRoots ?? [])
     : [];
   const pathToClaudeCodeExecutable = resolveClaudeCodeExecutable({ env });
-  const flagSettings = buildFlagSettings(params);
+  const vk = params.vkSessionPolicy
+    ? buildClaudeVkSessionOptions({
+        bbSkillNames: listClaudeBbSkillNames(params.plugins),
+        cwd: params.cwd,
+        policy: params.vkSessionPolicy,
+      })
+    : null;
+  const flagSettings = {
+    ...(vk?.flagSettings ?? {}),
+    ...buildFlagSettings(params),
+  };
   const effort =
     params.reasoningLevel === undefined
       ? undefined
@@ -298,6 +315,17 @@ export function buildSessionOptions(
     ...(sandbox ? { sandbox } : {}),
     ...(additionalDirectories.length > 0
       ? { additionalDirectories: [...additionalDirectories] }
+      : {}),
+    ...(vk && vk.disallowedTools.length > 0
+      ? { vkDisallowedTools: vk.disallowedTools }
+      : {}),
+    ...(vk && Object.keys(vk.mcpServers).length > 0
+      ? { mcpServers: vk.mcpServers }
+      : {}),
+    ...(vk?.strictMcpConfig ? { vkStrictMcpConfig: true } : {}),
+    ...(vk?.skills ? { vkSkills: vk.skills } : {}),
+    ...(vk && Object.keys(vk.flagSettings).length > 0
+      ? { vkFlagSettings: vk.flagSettings }
       : {}),
   };
 }
