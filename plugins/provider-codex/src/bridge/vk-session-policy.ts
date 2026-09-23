@@ -123,7 +123,7 @@ function listCodexNativeSkills(
   ];
   for (const root of roots) {
     for (const dir of findSkillDirs(root, 4)) {
-      const name = dir.slice(dir.lastIndexOf("/") + 1);
+      const name = skillName(dir);
       skills.push({
         name,
         bare: name,
@@ -139,7 +139,7 @@ function listCodexNativeSkills(
       if (!latest) continue;
       const skillsDir = join(cache, market, plugin, latest, "skills");
       for (const dir of findSkillDirs(skillsDir, 1)) {
-        const bare = dir.slice(dir.lastIndexOf("/") + 1);
+        const bare = skillName(dir);
         const name = `${plugin}:${bare}`;
         skills.push({ name, bare, entry: `name=${JSON.stringify(name)}` });
       }
@@ -166,6 +166,22 @@ function findSkillDirs(root: string, depth: number): string[] {
     if (depth > 1) found.push(...findSkillDirs(dir, depth - 1));
   }
   return found;
+}
+
+/** The frontmatter `name` of a skill, else its folder name. */
+function skillName(dir: string): string {
+  try {
+    const head = readFileSync(join(dir, "SKILL.md"), "utf8").slice(0, 2000);
+    const match = /^---\s*\n([\s\S]*?)\n---/u.exec(head);
+    const name = match?.[1]
+      ?.split("\n")
+      .map((line) => /^name:\s*["']?([^"'\n]+?)["']?\s*$/u.exec(line)?.[1])
+      .find((value) => value !== undefined);
+    if (name) return name.trim();
+  } catch {
+    // Fall through to the folder name.
+  }
+  return dir.slice(dir.lastIndexOf("/") + 1);
 }
 
 function safeReaddir(dir: string): string[] {
