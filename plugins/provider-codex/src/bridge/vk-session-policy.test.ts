@@ -6,9 +6,12 @@ import { buildCodexVkLaunchArgs } from "./vk-session-policy.js";
 
 // VK EXPERIMENTAL: the Codex half of a session policy.
 
-function skill(dir: string): void {
+function skill(dir: string, name?: string): void {
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "SKILL.md"), "x");
+  writeFileSync(
+    join(dir, "SKILL.md"),
+    name ? `---\nname: ${name}\ndescription: d\n---\nbody` : "x",
+  );
 }
 
 function fixture(): { codexHome: string; home: string; cwd: string } {
@@ -30,6 +33,19 @@ function fixture(): { codexHome: string; home: string; cwd: string } {
       "skills",
       "brand-check",
     ),
+  );
+  skill(
+    join(
+      codexHome,
+      "plugins",
+      "cache",
+      "market",
+      "slides",
+      "2.0.0",
+      "skills",
+      "slides",
+    ),
+    "Presentations",
   );
   writeFileSync(
     join(codexHome, "config.toml"),
@@ -93,6 +109,7 @@ describe("buildCodexVkLaunchArgs", () => {
       join(codexHome, "skills", ".system", "imagegen", "SKILL.md"),
     );
     expect(config).toContain('{name="canva:brand-check",enabled=false}');
+    expect(config).toContain('{name="slides:Presentations",enabled=false}');
     expect(config).not.toContain("ru-text");
   });
 
