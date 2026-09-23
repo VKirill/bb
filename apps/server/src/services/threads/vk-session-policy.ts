@@ -21,6 +21,16 @@ export function vkPluginAllowed(
   return vkPolicyAllows(policy.bbPlugins, pluginId);
 }
 
+/** The plugin a contributed env entry came from, or null for host env. */
+export function vkEnvPluginId(entry: { source?: unknown }): string | null {
+  const source = entry.source;
+  if (source !== null && typeof source === "object" && "plugin" in source) {
+    const plugin = (source as { plugin: unknown }).plugin;
+    return typeof plugin === "string" ? plugin : null;
+  }
+  return null;
+}
+
 export function vkUserInstructionsAllowed(
   policy: VkSessionPolicy | null,
 ): boolean {

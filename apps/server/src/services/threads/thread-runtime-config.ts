@@ -30,6 +30,7 @@ import {
 import type { VkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
 import {
   buildVkRuntimeSessionPolicy,
+  vkEnvPluginId,
   vkPluginAllowed,
   vkUserInstructionsAllowed,
 } from "./vk-session-policy.js";
@@ -214,14 +215,17 @@ export async function resolveThreadRuntimeCommandConfig(
       hostId: host.id,
       projectId: project.id,
     }),
-    await resolvePluginProviderEnv({
-      providerId: args.thread.providerId,
-      context: {
-        threadId: args.thread.id,
-        projectId: project.id,
-        hostId: host.id,
-      },
-    }),
+    // VK EXPERIMENTAL: a plugin the policy drops contributes no env either.
+    (
+      await resolvePluginProviderEnv({
+        providerId: args.thread.providerId,
+        context: {
+          threadId: args.thread.id,
+          projectId: project.id,
+          hostId: host.id,
+        },
+      })
+    ).filter((entry) => vkPluginAllowed(vkPolicy, vkEnvPluginId(entry))),
   );
   const skillCatalog = resolveSkillCatalog(deps, {
     projectSkillSources,
