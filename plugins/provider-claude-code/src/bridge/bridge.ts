@@ -30,7 +30,9 @@ import {
   withoutBridgeRuntimeEnv,
   type BridgeToolCallRequest,
   experimental_defineProviderBridge,
+  vkFilterSkillRoot,
 } from "@get-bb/plugin-sdk/provider-bridge";
+import { readVkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
 import { randomUUID } from "node:crypto";
 import { join as joinPath, resolve as resolvePath } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -1028,6 +1030,9 @@ function toSessionConstructionConfig(
       permissionScope: params.permissionScope,
       plugins: params.plugins,
       sandboxEnabled: params.sandboxEnabled,
+      ...(params.vkSessionPolicy
+        ? { vkSessionPolicy: params.vkSessionPolicy }
+        : {}),
     },
   };
 }
@@ -2349,7 +2354,10 @@ function attachThreadSession(
       params.dynamicTools,
       createForwardToolCall(() => threadIdRef.current),
     );
-    sessionOptions.mcpServers = { [BB_BRIDGE_MCP_SERVER_NAME]: mcpServer };
+    sessionOptions.mcpServers = {
+      ...(sessionOptions.mcpServers ?? {}),
+      [BB_BRIDGE_MCP_SERVER_NAME]: mcpServer,
+    };
     sessionOptions.allowedTools = getAllowedToolNames(params.dynamicTools);
   }
 
@@ -2493,7 +2501,11 @@ async function toClaudeSessionParams(
       ? undefined
       : assembleSkillPlugins(
           await filterClaudeSkillRoots({
-            roots: configuredSkillRoots,
+            // VK EXPERIMENTAL: drop skills the session policy denies first.
+            roots: vkPolicySkillRoots(
+              configuredSkillRoots,
+              params.options.providerOptions,
+            ),
             cwd: params.cwd,
             pluginsRoot: requireSkillPluginsRoot(),
             claudeDir: claudeSkillsConfigDirectory(),
@@ -2507,6 +2519,25 @@ async function toClaudeSessionParams(
     dynamicTools: params.dynamicTools,
     skillRoots: roots,
   });
+}
+
+/**
+ * VK EXPERIMENTAL: the skill roots for one session. Without a policy that
+ * denies BB skills these are the configured roots; with one, each root is
+ * swapped for a filtered twin without the denied skills.
+ */
+function vkPolicySkillRoots(
+  roots: readonly { id: string; path: string }[],
+  providerOptions: unknown,
+): readonly { id: string; path: string }[] {
+  const denied = readVkRuntimeSessionPolicy(providerOptions)?.bbSkillsDenied;
+  if (!denied || denied.length === 0) return roots;
+  const deniedNames = new Set(denied);
+  const cacheDir = joinPath(requireSkillPluginsRoot(), "vk-filtered");
+  return roots.map((root) => ({
+    id: root.id,
+    path: vkFilterSkillRoot({ cacheDir, deniedNames, rootPath: root.path }),
+  }));
 }
 
 async function runTurnInput(
