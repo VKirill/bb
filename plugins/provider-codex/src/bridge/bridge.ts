@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
   isStandaloneBuiltinCompactCommand,
@@ -46,7 +48,11 @@ import {
   type ProviderRuntimeEvent,
   experimental_defineProviderBridge,
   type ProviderRecoveryHint,
+  readVkRuntimeSessionPolicy,
+  vkFilterSkillRoot,
+  type VkRuntimeSessionPolicy,
 } from "@get-bb/plugin-sdk/provider-bridge";
+import { buildCodexVkLaunchArgs } from "./vk-session-policy.js";
 import { z } from "zod";
 import {
   CODEX_MACOS_PERMISSION_EXTENSION_KIND,
@@ -487,6 +493,8 @@ interface CodexBridgeSession {
   closing: boolean;
   previousChildExit: Promise<void> | null;
   releasePromise: Promise<void> | null;
+  /** VK EXPERIMENTAL: BB skills this session's policy drops, or null. */
+  vkBbSkillsDenied: ReadonlySet<string> | null;
 }
 
 const sessionsByBbThreadId = new Map<string, CodexBridgeSession>();
@@ -501,6 +509,22 @@ let modelListConnectionPromise: {
 } | null = null;
 let sessionSerialCounter = 0;
 let configuredSkillExtraRoots: string[] | null = null;
+
+/**
+ * VK EXPERIMENTAL: the extra skill roots one session sees — the shared roots,
+ * each swapped for a filtered twin when the session's policy drops BB skills.
+ */
+function vkSessionSkillExtraRoots(
+  denied: ReadonlySet<string> | null,
+): string[] | null {
+  if (configuredSkillExtraRoots === null || denied === null) {
+    return configuredSkillExtraRoots;
+  }
+  const cacheDir = joinPath(tmpdir(), "bb-codex-vk-skills");
+  return configuredSkillExtraRoots.map((rootPath) =>
+    vkFilterSkillRoot({ cacheDir, deniedNames: denied, rootPath }),
+  );
+}
 
 const LEGACY_BRIDGE_MINTED_ID_PATTERN = /^bt[0-9a-f]{8}-\d+-/;
 
@@ -585,6 +609,7 @@ function requestedDaybreak(options: BridgeExecutionOptions): boolean | null {
 function constructionSignature(
   cwd: string,
   sessionOptions: CodexSessionOptions,
+  vkPolicy: VkRuntimeSessionPolicy | null,
 ): string {
   const poolBaseUrl = sessionOptions.envVars?.[CODEX_POOL_BASE_URL_ENV];
   const poolToken = sessionOptions.envVars?.[CODEX_POOL_AUTH_TOKEN_ENV];
@@ -593,6 +618,7 @@ function constructionSignature(
     reasoningLevel: sessionOptions.reasoningLevel ?? null,
     memoryEnabled: sessionOptions.memoryEnabled ?? null,
     providerSubagentsEnabled: sessionOptions.providerSubagentsEnabled ?? null,
+    vkSessionPolicy: vkPolicy,
     poolRoute:
       poolBaseUrl === undefined || poolToken === undefined
         ? null
@@ -978,6 +1004,8 @@ function handleChildExit(
 
 function spawnChildConnection(callbacks: {
   envVars?: Readonly<Record<string, string>>;
+  /** VK EXPERIMENTAL: extra `-c` overrides for this child only. */
+  vkLaunchArgs?: readonly string[];
   recordThreadId: string | null;
   onNotification: (method: string, params: unknown) => void;
   onRequest: (
@@ -989,10 +1017,10 @@ function spawnChildConnection(callbacks: {
 }): CodexAppServerConnection {
   const env = buildAppServerEnv(callbacks.envVars);
   const launch = resolveAppServerLaunch(appServerLaunchEnv(callbacks.envVars));
-  const { envVars: _envVars, ...connectionCallbacks } = callbacks;
+  const { envVars: _envVars, vkLaunchArgs, ...connectionCallbacks } = callbacks;
   return createCodexAppServerConnection({
     command: launch.command,
-    args: launch.args,
+    args: [...launch.args, ...(vkLaunchArgs ?? [])],
     cwd: process.cwd(),
     env,
     ...connectionCallbacks,
@@ -1003,6 +1031,7 @@ const ignoredChildResultSchema = z.unknown();
 
 async function initializeChild(
   connection: CodexAppServerConnection,
+  skillExtraRoots: string[] | null = configuredSkillExtraRoots,
 ): Promise<void> {
   await connection.request({
     method: "initialize",
@@ -1010,10 +1039,10 @@ async function initializeChild(
     resultSchema: ignoredChildResultSchema,
     timeoutMs: CHILD_REQUEST_TIMEOUT_MS,
   });
-  if (configuredSkillExtraRoots !== null) {
+  if (skillExtraRoots !== null) {
     await connection.request({
       method: "skills/extraRoots/set",
-      params: { extraRoots: configuredSkillExtraRoots },
+      params: { extraRoots: skillExtraRoots },
       resultSchema: ignoredChildResultSchema,
       timeoutMs: CHILD_REQUEST_TIMEOUT_MS,
     });
@@ -1187,6 +1216,7 @@ async function constructThreadSession(
 ): Promise<ConstructedCodexSession> {
   const existing = sessionsByBbThreadId.get(args.threadId);
   const decoded = decodeCodexOptions(args.options);
+  const vkPolicy = readVkRuntimeSessionPolicy(args.options.providerOptions);
   sessionSerialCounter += 1;
   const serial = sessionSerialCounter;
   const translator = createCodexEventTranslator({
@@ -1216,6 +1246,7 @@ async function constructThreadSession(
     constructionSignature: constructionSignature(
       args.cwd,
       decoded.sessionOptions,
+      vkPolicy,
     ),
     turnPermissionSettings: toCodexPermissionSettings({
       additionalWorkspaceWriteRoots: decoded.additionalWorkspaceWriteRoots,
@@ -1241,6 +1272,9 @@ async function constructThreadSession(
     closing: false,
     previousChildExit: null,
     releasePromise: null,
+    vkBbSkillsDenied: vkPolicy?.bbSkillsDenied?.length
+      ? new Set(vkPolicy.bbSkillsDenied)
+      : null,
   };
   sessionsByBbThreadId.set(args.threadId, session);
   if (existing) {
@@ -1266,6 +1300,14 @@ async function constructThreadSession(
   let notifications = Promise.resolve();
   const connection = spawnChildConnection({
     envVars: decoded.sessionOptions.envVars,
+    ...(vkPolicy
+      ? {
+          vkLaunchArgs: buildCodexVkLaunchArgs({
+            cwd: args.cwd,
+            policy: vkPolicy,
+          }),
+        }
+      : {}),
     recordThreadId: args.threadId,
     onNotification: (method, params) => {
       notifications = notifications
@@ -1290,7 +1332,10 @@ async function constructThreadSession(
   session.connection = connection;
 
   try {
-    await initializeChild(connection);
+    await initializeChild(
+      connection,
+      vkSessionSkillExtraRoots(session.vkBbSkillsDenied),
+    );
 
     const preparedGitRoots = translator.prepareWorkspaceWriteGitRoots({
       command: {
@@ -1430,6 +1475,7 @@ function registerResumableSession(session: CodexBridgeSession): void {
     construction: session.construction,
     constructionSignature: session.constructionSignature,
     turnPermissionSettings: session.turnPermissionSettings,
+    vkBbSkillsDenied: session.vkBbSkillsDenied,
     openCodexTurnIds: new Set(),
     responseOpenedTurns: new Map(),
     unopenedCompactionDispatches: [],
@@ -1741,6 +1787,7 @@ async function requireLiveSessionForTurn(
   const signature = constructionSignature(
     session.construction.cwd,
     decoded.sessionOptions,
+    readVkRuntimeSessionPolicy(params.options.providerOptions),
   );
   if (session.connection === null || session.connection.exited) {
     session = await rebuildThreadSession(
@@ -2434,7 +2481,9 @@ async function handleSkillsConfigure(
       }
       await session.connection.request({
         method: "skills/extraRoots/set",
-        params: { extraRoots: configuredSkillExtraRoots },
+        params: {
+          extraRoots: vkSessionSkillExtraRoots(session.vkBbSkillsDenied),
+        },
         resultSchema: ignoredChildResultSchema,
         timeoutMs: CHILD_REQUEST_TIMEOUT_MS,
       });

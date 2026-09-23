@@ -15,6 +15,8 @@ import type {
   SessionOptionSelections,
   ThreadSessionOption,
 } from "@bb/domain";
+import { readVkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
+import { buildAcpVkEnv, vkFilterAcpSkillRoots } from "../vk-session-policy.js";
 import { acpLaunchSpecSchema, type AcpLaunchSpec } from "../launch-spec.js";
 import {
   BRIDGE_INBOUND_REQUEST_METHODS,
@@ -3820,16 +3822,31 @@ async function handleRequest(
       const modelPicker = decodeAcpModelPickerOptions(
         params.options.providerOptions,
       );
+      // VK EXPERIMENTAL: a session policy narrows BB skills and, for agents
+      // with a per-process switch, what the agent loads by itself.
+      const vkPolicy = readVkRuntimeSessionPolicy(
+        params.options.providerOptions,
+      );
+      const vkDialectId = decodeDialectId(params.options.providerOptions);
+      const vkEnv = buildAcpVkEnv({
+        cwd: params.cwd,
+        dialectId: vkDialectId,
+        envVars: params.options.envVars,
+        policy: vkPolicy,
+      });
       const sessionParams = buildAcpSessionParams({
         additionalWorkspaceWriteRoots: decodeAdditionalWorkspaceWriteRoots(
           params.options.providerOptions,
         ),
-        dialectId: decodeDialectId(params.options.providerOptions),
+        dialectId: vkDialectId,
         cwd: params.cwd,
         dynamicTools: params.dynamicTools,
         options: {
           ...params.options,
-          skillRoots: configuredSkillRoots ?? undefined,
+          ...(Object.keys(vkEnv).length > 0
+            ? { envVars: { ...(params.options.envVars ?? {}), ...vkEnv } }
+            : {}),
+          skillRoots: vkFilterAcpSkillRoots(configuredSkillRoots, vkPolicy),
         },
         parameterizedModelPicker: modelPicker.parameterizedModelPicker,
         launchSpec,
