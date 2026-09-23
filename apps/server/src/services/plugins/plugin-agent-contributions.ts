@@ -26,6 +26,7 @@ type PluginAgentContributions = Pick<
     Pick<
       PluginService,
       | "resolveAgentConfiguration"
+      | "resolveVkSessionPolicy"
       | "resolveProviderEnv"
       | "resolveProviderEnvHealth"
     >
@@ -60,6 +61,13 @@ export async function resolvePluginAgentConfiguration(args: {
     };
   }
   return active.resolveAgentConfiguration(args);
+}
+
+/** VK EXPERIMENTAL: the session policy a plugin set for this thread, or null. */
+export async function resolvePluginVkSessionPolicy(args: {
+  context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
+}) {
+  return (await contributions?.resolveVkSessionPolicy?.(args)) ?? null;
 }
 
 export function listPluginInstructionContributions(): Array<{

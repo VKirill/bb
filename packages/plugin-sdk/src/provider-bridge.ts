@@ -233,6 +233,17 @@ export {
   ProviderRequestDecodeError,
   ProviderResponseEncodeError,
 } from "@bb/provider-bridge-protocol/bridge-kit";
+// VK EXPERIMENTAL — absent from upstream bb: per-session skill root filter.
+export { vkFilterSkillRoot } from "@bb/provider-bridge-protocol/bridge-kit";
+export {
+  readVkRuntimeSessionPolicy,
+  vkPolicyAllows,
+  vkRuntimeSessionPolicySchema,
+} from "@bb/domain/vk-session-policy";
+export type {
+  VkPolicyFilter,
+  VkRuntimeSessionPolicy,
+} from "@bb/domain/vk-session-policy";
 export type {
   BoundedLineReaderArgs,
   BridgeJsonRpcResponse,

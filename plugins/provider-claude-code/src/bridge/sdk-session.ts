@@ -3,7 +3,9 @@ import {
   query,
   type CanUseTool,
   type McpSdkServerConfigWithInstance,
+  type McpServerConfig,
   type Options,
+  type Settings,
   type Query,
   type SDKMessage,
   type SDKUserMessage,
@@ -32,7 +34,7 @@ export interface SdkSessionOptions {
   allowBypassPermissions: boolean;
   sandbox?: Options["sandbox"];
   hooks?: Options["hooks"];
-  mcpServers?: Record<string, McpSdkServerConfigWithInstance>;
+  mcpServers?: Record<string, McpSdkServerConfigWithInstance | McpServerConfig>;
   allowedTools?: string[];
   canUseTool?: CanUseTool;
   env?: NodeJS.ProcessEnv;
@@ -42,6 +44,11 @@ export interface SdkSessionOptions {
   settings?: Options["settings"];
   extraArgs?: Options["extraArgs"];
   recordThreadId?: () => string;
+  /** VK EXPERIMENTAL: session-policy switches (see vk-session-policy.ts). */
+  vkDisallowedTools?: string[];
+  vkStrictMcpConfig?: boolean;
+  vkSkills?: string[];
+  vkFlagSettings?: Settings;
 }
 
 export type ClaudeSdkReasoningEffort =
@@ -207,7 +214,11 @@ export class SdkSession {
     effort: ClaudeSdkReasoningEffort | undefined;
     settings: ClaudeMutableFlagSettings;
   }): Promise<void> {
-    await this.query?.applyFlagSettings(args.settings);
+    // The flag layer is replaced wholesale; keep the session policy in it.
+    await this.query?.applyFlagSettings({
+      ...(this.options.vkFlagSettings ?? {}),
+      ...args.settings,
+    });
     this.options.effort = args.effort;
     const { effortLevel: _effortLevel, ...sessionSettings } = args.settings;
     const currentSettings =
@@ -289,6 +300,11 @@ export class SdkSession {
         ...this.options.extraArgs,
         "replay-user-messages": null,
       },
+      ...(this.options.vkDisallowedTools
+        ? { disallowedTools: this.options.vkDisallowedTools }
+        : {}),
+      ...(this.options.vkStrictMcpConfig ? { strictMcpConfig: true } : {}),
+      ...(this.options.vkSkills ? { skills: this.options.vkSkills } : {}),
     };
 
     try {

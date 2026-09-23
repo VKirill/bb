@@ -27,7 +27,9 @@ import {
   withoutBridgeRuntimeEnv,
   type BridgeToolCallRequest,
   experimental_defineProviderBridge,
+  vkFilterSkillRoot,
 } from "@get-bb/plugin-sdk/provider-bridge";
+import { readVkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
 import { randomUUID } from "node:crypto";
 import { join as joinPath, resolve as resolvePath } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -357,6 +359,8 @@ function nextInteractiveRequestId(): string {
   return `interaction-${interactiveRequestIdCounter}`;
 }
 let configuredSkillRoots: ClaudeCodeSkillRoot[] | null = null;
+// VK EXPERIMENTAL: the raw roots, so a session policy can build filtered twins.
+let configuredRawSkillRoots: readonly { id: string; path: string }[] = [];
 let skillPluginsRoot: string | null = null;
 let bridgeTempDir: string | null = null;
 
@@ -913,6 +917,9 @@ function toSessionConstructionConfig(
       permissionScope: params.permissionScope,
       plugins: params.plugins,
       sandboxEnabled: params.sandboxEnabled,
+      ...(params.vkSessionPolicy
+        ? { vkSessionPolicy: params.vkSessionPolicy }
+        : {}),
     },
   };
 }
@@ -2135,6 +2142,7 @@ async function handleRequest(request: ClaudeCodeJsonRpcRequest): Promise<void> {
       break;
     case "skills/configure":
       configuredSkillRoots = assembleSkillPlugins(request.params.roots);
+      configuredRawSkillRoots = request.params.roots;
       sendResult(request.id, { ok: true });
       break;
   }
@@ -2158,7 +2166,10 @@ function attachThreadSession(
       params.dynamicTools,
       createForwardToolCall(() => threadIdRef.current),
     );
-    sessionOptions.mcpServers = { [BB_BRIDGE_MCP_SERVER_NAME]: mcpServer };
+    sessionOptions.mcpServers = {
+      ...(sessionOptions.mcpServers ?? {}),
+      [BB_BRIDGE_MCP_SERVER_NAME]: mcpServer,
+    };
     sessionOptions.allowedTools = getAllowedToolNames(params.dynamicTools);
   }
 
@@ -2302,8 +2313,28 @@ function toClaudeSessionParams(
     options: params.options,
     instructionMode: params.instructionMode,
     dynamicTools: params.dynamicTools,
-    skillRoots: configuredSkillRoots ?? undefined,
+    skillRoots: vkSkillRootsFor(params.options.providerOptions),
   });
+}
+
+/**
+ * VK EXPERIMENTAL: the skill plugins for one session. Without a policy that
+ * denies BB skills this is the shared set; with one, each root is swapped for
+ * a filtered twin assembled into its own local plugin.
+ */
+function vkSkillRootsFor(
+  providerOptions: unknown,
+): ClaudeCodeSkillRoot[] | undefined {
+  const denied = readVkRuntimeSessionPolicy(providerOptions)?.bbSkillsDenied;
+  if (!denied || denied.length === 0) return configuredSkillRoots ?? undefined;
+  const deniedNames = new Set(denied);
+  const cacheDir = joinPath(requireSkillPluginsRoot(), "vk-filtered");
+  return assembleSkillPlugins(
+    configuredRawSkillRoots.map((root) => ({
+      id: root.id,
+      path: vkFilterSkillRoot({ cacheDir, deniedNames, rootPath: root.path }),
+    })),
+  );
 }
 
 async function runTurnInput(

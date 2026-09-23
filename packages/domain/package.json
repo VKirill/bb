@@ -68,6 +68,11 @@
       "source": "./src/prompt-attachment-limits.ts",
       "types": "./src/prompt-attachment-limits.ts",
       "default": "./src/prompt-attachment-limits.ts"
+    },
+    "./vk-session-policy": {
+      "source": "./src/vk-session-policy.ts",
+      "types": "./src/vk-session-policy.ts",
+      "default": "./src/vk-session-policy.ts"
     }
   },
   "types": "./src/index.ts",
