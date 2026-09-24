@@ -31,6 +31,12 @@ environment do not thrash the runtime.
 | OpenCode (ACP) | instruction list filtered | `OPENCODE_CONFIG_CONTENT` `permission.skill` | `OPENCODE_CONFIG_CONTENT` `mcp.<n>.enabled=false` | — |
 | Cursor (ACP) | instruction list filtered | — | per-policy `CURSOR_DATA_DIR` overlay: real project folder linked, own `mcp-disabled.json` | — |
 
+Switches: `projectInstructions: false` drops the workspace `.bb/AGENTS.md` in core,
+and in the CLI — Claude `claudeMdExcludes` (folder, parents, subfolders; the
+user's `~/.claude` stays), Codex `-c project_doc_max_bytes=0`, OpenCode
+`OPENCODE_DISABLE_PROJECT_CONFIG=1`; Cursor has no switch. `claudeAiSync: false`
+sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false.
+
 ### Hook points in upstream files
 
 | File | What |
