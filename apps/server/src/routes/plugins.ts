@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { resolveVkExcludedPluginIds } from "../services/threads/vk-excluded-plugins.js";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
@@ -425,6 +426,27 @@ export function registerPluginRoutes(
       threadId: threadId !== null && threadId.length > 0 ? threadId : null,
     });
     return context.json({ ok: true, groups });
+  });
+
+  // VK EXPERIMENTAL: plugins the session policy of a place leaves out; the
+  // composer hides their UI there.
+  app.get("/plugins/vk-excluded-plugins", async (context) => {
+    const problem = localAuthProblem(context, deps);
+    if (problem) {
+      return context.json({ ok: false, error: problem.error }, problem.status);
+    }
+    const read = (name: string) => {
+      const value = context.req.query(name);
+      return value !== undefined && value.length > 0 ? value : null;
+    };
+    const excluded = await resolveVkExcludedPluginIds(deps.db, {
+      projectId: read("projectId"),
+      hostId: read("hostId"),
+      environmentId: read("environmentId"),
+      path: read("path"),
+      threadId: read("threadId"),
+    });
+    return context.json({ ok: true, pluginIds: [...excluded].sort() });
   });
 
   app.post("/plugins/:id/cli", async (context) => {

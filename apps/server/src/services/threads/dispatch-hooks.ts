@@ -1,4 +1,5 @@
 import { getEnvironment } from "@bb/db";
+import { resolveVkExcludedPluginIds } from "./vk-excluded-plugins.js";
 import {
   QUEUED_MESSAGE_WAIT_REASON_MAX_LENGTH,
   type Environment,
@@ -401,12 +402,28 @@ export async function runMessageDispatchHookPass(
   if (hooks.length === 0) {
     return { kind: "proceed" };
   }
+  // VK EXPERIMENTAL: a plugin the place's session policy leaves out does not
+  // take part in dispatch there. Resolved before the lock, which is shared.
+  const excluded = await resolveVkExcludedPluginIds(deps.db, {
+    threadId: request.thread.id,
+    projectId: request.project.id,
+    environmentId: request.environmentId,
+    hostId: request.intendedHostId,
+    path: vkIntentPath(request.environmentIntent),
+  });
 
   return withEvaluationLock(async () => {
     const context = buildHookContext(deps, request);
+    if (
+      context.experimental_submission !== null &&
+      excluded.has(context.experimental_submission.pluginId)
+    ) {
+      context.experimental_submission = null;
+    }
     const waits: MessageDispatchWaitDecision[] = [];
 
     for (const hook of hooks) {
+      if (excluded.has(hook.pluginId)) continue;
       const invocation = await provider.invokeHook(
         hook.pluginId,
         "message.dispatch hook",
@@ -491,4 +508,16 @@ export function dispatchExecutionSources(args: {
     serviceTier: args.serviceTier ?? null,
     permissionMode: args.permissionMode ?? null,
   };
+}
+
+/** VK EXPERIMENTAL: the workspace path a start intent names, if any. */
+function vkIntentPath(
+  intent: PluginDispatchEnvironmentIntent | null,
+): string | null {
+  const inputs = intent?.kind === "provider" ? intent.inputs : null;
+  if (inputs !== null && typeof inputs === "object" && !Array.isArray(inputs)) {
+    const path = (inputs as Record<string, unknown>).path;
+    if (typeof path === "string" && path.length > 0) return path;
+  }
+  return null;
 }
