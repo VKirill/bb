@@ -113,6 +113,11 @@ export function applyBbAppManagedConfig(
     managedConfig.BB_INFERENCE_FALLBACK !== undefined
       ? validateInferenceFallbackModel(managedConfig.BB_INFERENCE_FALLBACK)
       : args.baseConfig.inferenceFallbackModel;
+  // VK EXPERIMENTAL: service tier for helper inference.
+  args.targetConfig.inferenceServiceTier =
+    managedConfig.BB_INFERENCE_SERVICE_TIER ??
+    args.baseConfig.inferenceServiceTier ??
+    null;
   args.targetConfig.transcriptionModel =
     managedConfig.BB_TRANSCRIPTION !== undefined
       ? validateTranscriptionModel(managedConfig.BB_TRANSCRIPTION)

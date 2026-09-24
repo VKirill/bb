@@ -31,6 +31,8 @@ export interface ServerRuntimeConfig {
   inheritedSkillsRootPaths: string[];
   inferenceFallbackModel: string;
   inferenceModel: string;
+  /** VK EXPERIMENTAL: service tier for helper inference; null = default. */
+  inferenceServiceTier?: "fast" | "default" | null;
   isDevelopment: boolean;
   marketplaceUrl: string;
   openAiApiKey: string;

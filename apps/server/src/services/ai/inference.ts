@@ -261,6 +261,10 @@ async function completeWithAiService<T extends TSchema>(
       serviceId: service.id,
       model: modelInfo.modelId,
       reasoningEffort: "none",
+      // VK EXPERIMENTAL: the user's service tier for helper inference.
+      ...(deps.config.inferenceServiceTier === "fast"
+        ? { serviceTier: "fast" as const }
+        : {}),
       prompt: args.prompt,
       outputSchema: jsonObjectSchema.parse(args.schema),
       timeoutMs,
