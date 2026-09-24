@@ -6,7 +6,7 @@ import {
 } from "@get-bb/plugin-sdk/provider-bridge";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
@@ -75,7 +75,53 @@ export function buildClaudeVkSessionOptions(args: {
   );
   applyNativePluginPolicy(options, args.policy.nativePlugins, inventory);
   applySkillPolicy(options, args.policy.skills, inventory, args.bbSkillNames);
+  // Keys newer than the SDK's Settings type; the user's CLI reads them.
+  const flags = options.flagSettings as Record<string, unknown>;
+  if (args.policy.projectInstructions === false) {
+    flags.claudeMdExcludes = claudeMdExcludePatterns(
+      args.cwd,
+      args.home ?? homedir(),
+    );
+  }
+  if (args.policy.claudeAiSync === false) {
+    flags.syncClaudeAiSkills = false;
+    flags.syncClaudeAiPlugins = false;
+  }
   return options;
+}
+
+/**
+ * The project instruction files Claude would load for `cwd`: `CLAUDE.md`,
+ * `CLAUDE.local.md`, `AGENTS.md` and `.claude/` rules in the folder, every
+ * parent and every subfolder. The user's own `~/.claude/CLAUDE.md` and rules
+ * are personal, not project, instructions and stay loaded.
+ */
+export function claudeMdExcludePatterns(cwd: string, home: string): string[] {
+  const patterns: string[] = [];
+  const userDir = join(home, ".claude");
+  let dir = resolve(cwd);
+  for (;;) {
+    patterns.push(
+      join(dir, "CLAUDE.md"),
+      join(dir, "CLAUDE.local.md"),
+      join(dir, "AGENTS.md"),
+    );
+    if (join(dir, ".claude") !== userDir) {
+      patterns.push(
+        join(dir, ".claude", "CLAUDE.md"),
+        join(dir, ".claude", "rules", "**"),
+      );
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  patterns.push(
+    join(resolve(cwd), "**", "CLAUDE.md"),
+    join(resolve(cwd), "**", "CLAUDE.local.md"),
+    join(resolve(cwd), "**", "AGENTS.md"),
+  );
+  return patterns;
 }
 
 function applyMcpPolicy(
