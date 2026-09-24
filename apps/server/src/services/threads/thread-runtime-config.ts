@@ -1,8 +1,18 @@
 import {
+  readVkRequiredSessionPolicy,
+  narrowVkRequiredSessionPolicy,
+} from "@bb/db";
+import { assertVkRequiredPolicyProvider } from "@bb/domain/vk-session-policy";
+import {
   resolveHostEnvironment,
   mergeHostAndProviderEnvironment,
 } from "../hosts/host-environment.js";
-import { getEnvironment, getHost, getProject } from "@bb/db";
+import {
+  getEnvironment,
+  getHost,
+  getProject,
+  readVkCompiledMainAgentSnapshot,
+} from "@bb/db";
 import type {
   DynamicTool,
   InstructionMode,
@@ -28,6 +38,7 @@ import {
   resolvePluginVkSessionPolicy,
 } from "../plugins/plugin-agent-contributions.js";
 import type { VkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
+import { type VkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
 import {
   buildVkRuntimeSessionPolicy,
   vkEnvPluginId,
@@ -81,6 +92,7 @@ export interface ResolvedThreadRuntimeCommandConfig {
   threadStoragePath: string;
   /** VK EXPERIMENTAL: the bridge half of the thread's session policy. */
   vkSessionPolicy: VkRuntimeSessionPolicy | null;
+  vkCompiledMainAgent: VkCompiledMainAgent | null;
   workspacePath: string;
 }
 
@@ -131,6 +143,12 @@ export async function resolveThreadRuntimeCommandConfig(
   deps: LoggedWorkSessionDeps,
   args: ResolveThreadRuntimeCommandConfigArgs,
 ): Promise<ResolvedThreadRuntimeCommandConfig> {
+  const requiredPolicy = readVkRequiredSessionPolicy(deps.db, args.thread.id);
+  if (requiredPolicy)
+    assertVkRequiredPolicyProvider(
+      args.thread.providerId,
+      requiredPolicy.policy,
+    );
   const workspacePath = requireWorkspacePath(args.environment);
   const project = getProject(deps.db, args.thread.projectId);
   if (!project) {
@@ -209,8 +227,17 @@ export async function resolveThreadRuntimeCommandConfig(
   // VK EXPERIMENTAL: a plugin may narrow what this session loads.
   const vkResolved = await resolvePluginVkSessionPolicy({
     context: agentContext,
+    required: requiredPolicy !== null,
   });
-  const vkPolicy = vkResolved?.policy ?? null;
+  const vkPolicy = requiredPolicy
+    ? narrowVkRequiredSessionPolicy(
+        deps.db,
+        args.thread.id,
+        vkResolved?.policy ?? {},
+      ).policy
+    : (vkResolved?.policy ?? null);
+  if (requiredPolicy && vkPolicy)
+    assertVkRequiredPolicyProvider(args.thread.providerId, vkPolicy);
   const contributedEnv = mergeHostAndProviderEnvironment(
     await resolveHostEnvironment(deps, {
       hostId: host.id,
@@ -234,7 +261,11 @@ export async function resolveThreadRuntimeCommandConfig(
     pluginSkillSelections: conditionalConfiguration.selectedSkillIdsByPlugin,
   });
   const injectedSkillSources = skillCatalog.map((entry) => entry.runtimeSource);
-  const vkSessionPolicy = buildVkRuntimeSessionPolicy(vkPolicy, skillCatalog);
+  const builtPolicy = buildVkRuntimeSessionPolicy(vkPolicy, skillCatalog);
+  const vkSessionPolicy = requiredPolicy
+    ? { ...builtPolicy, version: 1 as const, required: true as const }
+    : builtPolicy;
+  const vkCompiledMainAgent = readPersistedCompiledMainAgent(deps, args.thread);
   if (vkResolved !== null) {
     deps.logger.info(
       {
@@ -329,6 +360,26 @@ export async function resolveThreadRuntimeCommandConfig(
     providerId: args.thread.providerId,
     threadStoragePath,
     vkSessionPolicy,
+    vkCompiledMainAgent,
     workspacePath,
   };
+}
+
+function readPersistedCompiledMainAgent(
+  deps: LoggedWorkSessionDeps,
+  thread: Thread,
+): VkCompiledMainAgent | null {
+  try {
+    const stored = readVkCompiledMainAgentSnapshot(deps.db, thread.id);
+    if (!stored.required) return null;
+    if (thread.providerId !== "claude-code")
+      throw new Error("vk_compiled_main_agent_unsupported_provider");
+    return stored.profile;
+  } catch (error) {
+    throw new ApiError(
+      400,
+      "vk_compiled_main_agent_dropped",
+      error instanceof Error ? error.message : "vk_compiled_main_agent_dropped",
+    );
+  }
 }

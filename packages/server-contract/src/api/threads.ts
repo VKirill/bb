@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   activeThinkingSchema,
+  vkRequiredSessionPolicySchema,
   callerExecutionInputSourceSchema,
   completedTurnDisplaySchema,
   environmentSchema,
@@ -120,6 +121,22 @@ export const createThreadRequestSchema = z
     sendAt: z.number().int().nonnegative().optional(),
     pluginSubmission: z
       .object({ pluginId: pluginIdSchema, data: jsonValueSchema })
+      .optional(),
+    experimental_vkRequiredSessionPolicy:
+      vkRequiredSessionPolicySchema.optional(),
+    experimental_vkCompiledMainAgent: z
+      .object({
+        id: z.string().min(1).max(80),
+        sourceVersion: z.string().min(1).max(80),
+        sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+        description: z.string().min(1).max(400),
+        prompt: z.string().min(1).max(32_000),
+        tools: z.array(z.string().min(1)).max(64).optional(),
+        disallowedTools: z.array(z.string().min(1)).max(64).optional(),
+        skills: z.array(z.string().min(1)).max(64).optional(),
+        mcpServers: z.array(z.string().min(1)).max(64).optional(),
+      })
+      .strict()
       .optional(),
   })
   .superRefine((value, ctx) => {

@@ -868,9 +868,7 @@ function rewindMachineProvidersMigration(db: DbConnection): void {
     "requested_by_thread_id",
   ]) {
     if (!queuedDispatchOrigin.some((column) => column.name === name)) continue;
-    db.$client.exec(
-      `ALTER TABLE queued_thread_messages DROP COLUMN ${name}`,
-    );
+    db.$client.exec(`ALTER TABLE queued_thread_messages DROP COLUMN ${name}`);
   }
   db.$client.exec("DROP TABLE IF EXISTS thread_pruning_cursors");
   db.$client.exec("DROP TABLE IF EXISTS project_attachment_threads");
@@ -929,6 +927,8 @@ function rewindMachineProvidersMigration(db: DbConnection): void {
   db.$client
     .prepare<[number]>("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
     .run(machineProvidersMigrationWhen);
+  db.$client.exec("DROP TABLE IF EXISTS thread_vk_session_policy_required");
+  db.$client.exec("DROP TABLE IF EXISTS thread_vk_compiled_main_required");
 }
 
 function rewindEnvironmentProvidersMigration(db: DbConnection): void {

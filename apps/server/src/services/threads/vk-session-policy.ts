@@ -97,8 +97,10 @@ export function buildVkRuntimeSessionPolicy(
  */
 function vkKeepBridgeMcp(filter: VkPolicyFilter): VkPolicyFilter {
   const others = filter.names.filter((name) => name !== VK_BRIDGE_MCP_SERVER);
+  const allOf = filter.allOf?.map(vkKeepBridgeMcp);
   return {
     mode: filter.mode,
+    ...(allOf ? { allOf } : {}),
     names: filter.mode === "allow" ? [VK_BRIDGE_MCP_SERVER, ...others] : others,
   };
 }

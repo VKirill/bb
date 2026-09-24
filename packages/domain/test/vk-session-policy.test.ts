@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   readVkRuntimeSessionPolicy,
+  intersectVkSessionPolicies,
+  vkRequiredSessionPolicySchema,
   vkPolicyAllows,
   vkSessionPolicySchema,
 } from "../src/vk-session-policy.js";
@@ -45,5 +47,38 @@ describe("vk session policy", () => {
       vkSessionPolicySchema.safeParse({ skills: { mode: "only", names: [] } })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("required policy contract", () => {
+  it("rejects unsupported fields and versions at the boundary", () => {
+    expect(() =>
+      vkRequiredSessionPolicySchema.parse({ version: 2, policy: {} }),
+    ).toThrow();
+    expect(() =>
+      vkRequiredSessionPolicySchema.parse({
+        version: 1,
+        policy: { inventedSetting: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      readVkRuntimeSessionPolicy({
+        vkRequiredSessionPolicy: 1,
+        vkSessionPolicy: { version: 1, required: true, inventedSetting: true },
+      }),
+    ).toThrow();
+  });
+  it("intersects alias and prefix clauses without child all widening parent", () => {
+    const policy = intersectVkSessionPolicies([
+      { skills: { mode: "allow", names: ["plugin:*"] } },
+      { skills: { mode: "allow", names: ["reader"] } },
+      { skills: { mode: "deny", names: ["secret"] } },
+      {},
+    ]);
+    expect(vkPolicyAllows(policy.skills, "plugin:reader", "reader")).toBe(true);
+    expect(vkPolicyAllows(policy.skills, "plugin:secret", "secret")).toBe(
+      false,
+    );
+    expect(vkPolicyAllows(policy.skills, "other:reader", "reader")).toBe(false);
   });
 });

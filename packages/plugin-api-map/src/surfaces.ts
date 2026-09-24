@@ -663,8 +663,9 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Register tools an agent calls the same way it calls bb's built-in tools",
           "Decide per thread which of its tools and skills are available",
           "Append instructions to a session's system prompt as that session starts",
+          "Feature-test the VK required-session capability before spawning a thread with a durable resource ceiling",
         ],
-        apiSymbols: ["PluginAgents"],
+        apiSymbols: ["PluginAgents", "VkRequiredSessionPolicy"],
         firstParty: [
           "Ask User Question",
           "Custom instructions",

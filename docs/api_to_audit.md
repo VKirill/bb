@@ -3188,3 +3188,13 @@ new unprefixed public API member is introduced. Audit before stabilization:
 immutable cross-project ownership, cross-host cleanup, archive/delete retries,
 creation races, and preservation of existing unowned threads. The Plugin Guide SDK card
 describes the public behavior.
+
+## `PluginAgents.experimental_vkRequiredSessionPolicy`
+
+**VK experimental.** Returns the source-build capability facts for static required thread resource snapshots. Lane Pilot must check the complete capability object before spawning a selected or empty policy. Session creation validates and persists a strict typed snapshot with an independent full-payload digest and an atomic required marker; ordinary plugin metadata cannot write or remove it. Parent, fork-source, and lifecycle-owner ceilings are intersected at child creation. A required policy whose provider groups or instruction switches are unsupported fails before the first provider request. The live provider bridge separately advertises required-policy version `1` during its handshake; old bridges reject the session request.
+
+Compiled MAIN `sourceHash` follows the Lane Pilot `lp-owned-1` ordered serialization or newer versioned canonical body digest, and core verifies it on create/read. A separate database digest covers the entire validated profile snapshot, including its provenance hash.
+
+The current source capability matrix is in `VK_REQUIRED_SESSION_POLICY_CAPABILITY` in `packages/domain/src/vk-session-policy.ts`. Claude Code and Codex enforce the four resource groups (`bbPlugins`, `skills`, `mcpServers`, `nativePlugins`); OpenCode enforces the first three; Cursor enforces `bbPlugins` and `mcpServers`. Claude instruction switches are user/project instructions and Claude.ai sync; Codex and OpenCode enforce user/project instructions; Cursor enforces BB user instructions only. Environment-project-checkout, project-folders and `bb-bridge` remain required. Provider support means the core source/bridge implementation advertises and validates that matrix; it does not claim an installed Hub has the capability or provide an OS sandbox.
+
+**Audit before stabilizing.** Verify the matrix against each supported host's bridge build and provider version, full effective native inventories, retry/fork/nested spawn ceilings, and fallback paths. Add a provider/version keyed handshake only if the live protocol requires finer support than the bridge protocol version. Confirm the Lane Pilot full-text reader tool's exact registration and workspace binding before enabling its per-session read guard.

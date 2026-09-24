@@ -675,6 +675,27 @@ export const threadPluginMetadata = sqliteTable(
   (table) => [primaryKey({ columns: [table.threadId, table.pluginId] })],
 );
 
+export const threadVkSessionPolicyRequired = sqliteTable(
+  "thread_vk_session_policy_required",
+  {
+    threadId: text("thread_id")
+      .primaryKey()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    snapshotDigest: text("snapshot_digest").notNull(),
+  },
+);
+
+export const threadVkCompiledMainRequired = sqliteTable(
+  "thread_vk_compiled_main_required",
+  {
+    threadId: text("thread_id")
+      .primaryKey()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    sourceHash: text("source_hash").notNull(),
+    snapshotDigest: text("snapshot_digest").notNull().default(""),
+  },
+);
+
 export const threadTabs = sqliteTable("thread_tabs", {
   threadId: text("thread_id")
     .primaryKey()

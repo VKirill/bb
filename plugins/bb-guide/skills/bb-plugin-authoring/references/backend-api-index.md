@@ -436,7 +436,9 @@ Read the installed declarations for exact current signatures.
 ## VK experimental (not in upstream bb)
 
 - `bb.agents.experimental_vkSessionPolicy(resolver)` — optional; present only in VK builds. The resolver gets the `configure` context and returns a `VkSessionPolicy` or null. Feature-test with `typeof bb.agents.experimental_vkSessionPolicy === "function"`.
-- `VkSessionPolicy` — `bbPlugins`, `skills`, `mcpServers`, `nativePlugins` (each a `VkPolicyFilter`) and `userInstructions`
+- `VkSessionPolicy` — `bbPlugins`, `skills`, `mcpServers`, `nativePlugins` (each a `VkPolicyFilter`) plus user/project instruction and Claude.ai sync switches
+- `bb.agents.experimental_vkRequiredSessionPolicy()` — static source capability matrix for required spawn snapshots; feature-test it and verify the requested provider groups before spawning selected or empty policy
+- `VkRequiredSessionPolicy` — `{ version: 1, policy }`; pass through `threads.spawn` as `experimental_vkRequiredSessionPolicy`, never plugin metadata; empty allow lists retain only mandatory core resources. Parent ceilings carry across child/fork/lifecycle-owner relationships
 - `VkPolicyFilter` — `{ mode: "allow" | "deny", names }`; a trailing `*` matches a prefix
 - `bb.agents.experimental_vkContextContributions()` — optional, VK builds only: what each running plugin adds to agent sessions
 - `VkContextContribution` — `{ pluginId, instructions, configure, tools, skills }`

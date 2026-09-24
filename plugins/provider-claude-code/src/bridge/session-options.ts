@@ -8,6 +8,7 @@ import { delimiter, join } from "node:path";
 import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import type { ClaudePermissionMode } from "../interactive-contract.js";
 import type { VkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
+import { vkPolicyAllows } from "@get-bb/plugin-sdk/provider-bridge";
 import {
   buildClaudeVkSessionOptions,
   listClaudeBbSkillNames,
@@ -34,6 +35,17 @@ export interface BuildSessionOptionsArgs {
   memoryEnabled?: boolean;
   /** VK EXPERIMENTAL: the bridge half of a session policy. */
   vkSessionPolicy?: VkRuntimeSessionPolicy;
+  vkCompiledMainAgent?: {
+    id: string;
+    sourceVersion: string;
+    sourceHash: string;
+    description: string;
+    prompt: string;
+    tools?: string[];
+    disallowedTools?: string[];
+    skills?: string[];
+    mcpServers?: string[];
+  };
 }
 
 export interface PermissionEscalationWorkContext {
@@ -243,11 +255,15 @@ export function buildSessionOptions(
   const extraArgs = buildChromeExtraArgs(params.chromeEnabled);
   const disallowedTools = [
     ...(params.disallowedTools ?? []),
+    ...(params.vkCompiledMainAgent?.disallowedTools ?? []),
     ...(vk?.disallowedTools ?? []),
   ];
 
   return {
     cwd: params.cwd,
+    ...(params.vkCompiledMainAgent?.tools
+      ? { tools: params.vkCompiledMainAgent.tools }
+      : {}),
     systemPrompt,
     model,
     env,
@@ -275,5 +291,65 @@ export function buildSessionOptions(
     ...(vk && Object.keys(vk.flagSettings).length > 0
       ? { vkFlagSettings: vk.flagSettings }
       : {}),
+    ...compiledMainAgentQueryOptions(
+      params.vkCompiledMainAgent,
+      params.vkSessionPolicy,
+    ),
   };
+}
+
+function compiledMainAgentQueryOptions(
+  profile: BuildSessionOptionsArgs["vkCompiledMainAgent"],
+  policy: VkRuntimeSessionPolicy | undefined,
+): Pick<SdkSessionOptions, "agent" | "agents"> {
+  if (!profile) return {};
+  if (
+    !profile.id ||
+    !profile.prompt ||
+    !profile.sourceHash ||
+    !profile.description
+  ) {
+    throw new Error("vk_compiled_main_agent_incomplete");
+  }
+  const definition: NonNullable<Options["agents"]>[string] = {
+    description: profile.description,
+    prompt: profile.prompt,
+    ...(profile.tools ? { tools: profile.tools } : {}),
+    ...(profile.disallowedTools
+      ? { disallowedTools: profile.disallowedTools }
+      : {}),
+    ...(profile.skills
+      ? {
+          skills: profile.skills.filter(
+            (name) =>
+              !policy?.skills ||
+              vkPolicyAllows(
+                policy.skills,
+                name,
+                name.includes(":") ? name.slice(name.indexOf(":") + 1) : name,
+              ),
+          ),
+        }
+      : {}),
+    ...(profile.mcpServers
+      ? {
+          mcpServers: [
+            ...new Set([
+              "bb-bridge",
+              ...profile.mcpServers.filter(
+                (name) =>
+                  !policy?.mcpServers ||
+                  vkPolicyAllows(policy.mcpServers, name),
+              ),
+            ]),
+          ],
+        }
+      : {}),
+  };
+  if ("model" in definition || "permissionMode" in definition) {
+    throw new Error(
+      "vk_compiled_main_agent_must_omit_model_and_permissionMode",
+    );
+  }
+  return { agent: profile.id, agents: { [profile.id]: definition } };
 }
