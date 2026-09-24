@@ -128,8 +128,26 @@ function buildOpenCodeOverlay(
     // OpenCode: the last matching rule wins, and `*` is a wildcard.
     const skill: Record<string, "allow" | "deny"> =
       policy.skills.mode === "allow" ? { "*": "deny" } : {};
-    for (const name of policy.skills.names) {
+    const clauses = [policy.skills, ...(policy.skills.allOf ?? [])];
+    let names = policy.skills.names;
+    for (const clause of clauses
+      .slice(1)
+      .filter((clause) => clause.mode === "allow")) {
+      names = names.flatMap((left) =>
+        clause.names.flatMap((right) => {
+          if (left === right) return [left];
+          if (left.endsWith("*") && right.startsWith(left.slice(0, -1)))
+            return [right];
+          if (right.endsWith("*") && left.startsWith(right.slice(0, -1)))
+            return [left];
+          return [];
+        }),
+      );
+    }
+    for (const name of names)
       skill[name] = policy.skills.mode === "allow" ? "allow" : "deny";
+    for (const clause of clauses.filter((clause) => clause.mode === "deny")) {
+      for (const name of clause.names) skill[name] = "deny";
     }
     overlay.permission = { skill };
   }
