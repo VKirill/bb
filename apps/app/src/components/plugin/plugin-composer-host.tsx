@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import type { VkComposerPlace } from "@/hooks/queries/vk-excluded-plugins-queries";
 import type {
   ComposerSelection,
   ComposerSubmitOptions,
@@ -35,6 +36,11 @@ export interface PluginComposerHost {
     pluginSubmission: { pluginId: string; data: JsonValue } | undefined,
   ): Promise<void>;
   setSelection?(selection: ComposerSelection): Promise<ComposerSelection>;
+  /**
+   * VK EXPERIMENTAL: where the composer sits, beyond its scope (machine,
+   * environment, workspace path), so a session policy can leave plugins out.
+   */
+  vkPlace?: VkComposerPlace;
 }
 
 export function composerScopeIdentity(scope: PluginComposerScope): string {
