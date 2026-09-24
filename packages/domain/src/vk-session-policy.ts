@@ -20,6 +20,19 @@ export const VK_SESSION_POLICY_VERSION = 1;
 /** The provider option key a bridge reads the runtime policy from. */
 export const VK_SESSION_POLICY_PROVIDER_OPTION = "vkSessionPolicy";
 
+/**
+ * BB plugins no session policy may leave out: BB cannot start or show
+ * threads without them, so when one is installed it is always in the session
+ * and never excluded from a place. `environment-project-checkout` provisions
+ * the environments threads run in.
+ */
+export const VK_REQUIRED_PLUGIN_IDS: readonly string[] = [
+  "environment-project-checkout",
+];
+
+/** BB's own MCP server, which carries BB's and every plugin's tools. */
+export const VK_BRIDGE_MCP_SERVER = "bb-bridge";
+
 /** Features this build supports; a plugin feature-tests against these. */
 export const VK_EXPERIMENTAL_FEATURES = ["session-policy"] as const;
 
@@ -93,6 +106,8 @@ export type VkRuntimeSessionPolicy = z.infer<
  */
 export interface VkContextContribution {
   pluginId: string;
+  /** No policy can leave this plugin out (see `VK_REQUIRED_PLUGIN_IDS`). */
+  required: boolean;
   instructions: boolean;
   configure: boolean;
   tools: string[];

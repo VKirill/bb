@@ -193,6 +193,54 @@ describe("vk session policy", () => {
     });
   });
 
+  it("keeps required plugins and bb-bridge whatever the policy says", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, thread } = await seed(harness, "host-vk-required");
+      setPluginAgentContributions({
+        listSkillRootContributions: () => [],
+        listAgentTools: () => [
+          {
+            pluginId: "environment-project-checkout",
+            tool: { name: "checkout_tool", description: "c", inputSchema: {} },
+            instructions: "Use checkout_tool.",
+          },
+        ],
+        listInstructionContributions: () => [
+          {
+            pluginId: "environment-project-checkout",
+            provider: () => "checkout instructions",
+          },
+        ],
+        findAgentTool: () => undefined,
+        invokeAgentTool: async () => ({
+          success: false,
+          contentItems: [{ type: "inputText", text: "unused" }],
+        }),
+        resolveMention: async () => ({ ok: false, error: "unused" }),
+        resolveVkSessionPolicy: async () => ({
+          pluginId: "project-folders",
+          policy: {
+            bbPlugins: { mode: "allow", names: ["env-catalog"] },
+            mcpServers: { mode: "deny", names: ["bb-bridge", "discord-web"] },
+          },
+        }),
+      });
+      const config = await resolveThreadRuntimeCommandConfig(harness.deps, {
+        thread,
+        model: "test-model",
+        environment,
+      });
+      expect(config.dynamicTools.map((tool) => tool.name)).toContain(
+        "checkout_tool",
+      );
+      expect(config.instructions).toContain("checkout instructions");
+      expect(config.vkSessionPolicy?.mcpServers).toEqual({
+        mode: "deny",
+        names: ["discord-web"],
+      });
+    });
+  });
+
   it("leaves the session as bb builds it when no plugin answers", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = await seed(harness, "host-vk-none");
@@ -231,8 +279,14 @@ describe("vk excluded plugins", () => {
         }),
         resolveMention: async () => ({ ok: false, error: "unused" }),
         listVkContextContributions: () =>
-          ["agency", "env-catalog", "project-folders"].map((pluginId) => ({
+          [
+            "agency",
+            "env-catalog",
+            "environment-project-checkout",
+            "project-folders",
+          ].map((pluginId) => ({
             pluginId,
+            required: pluginId === "environment-project-checkout",
             instructions: false,
             configure: false,
             tools: [],
