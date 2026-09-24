@@ -150,6 +150,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     featureFlags: serverConfig.featureFlags,
     hostDaemonPort: serverConfig.BB_HOST_DAEMON_PORT,
     inheritedSkillsRootPaths: serverConfig.BB_INHERITED_SKILLS_ROOTS,
+    inferenceServiceTier: null,
     isDevelopment: !isProduction,
     serverPort: serverConfig.BB_SERVER_PORT,
     sharedSkillRoots: { user: [], project: [] },

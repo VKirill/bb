@@ -112,6 +112,8 @@ interface CodexResponsesRequest {
   };
   store: boolean;
   stream: boolean;
+  /** VK EXPERIMENTAL: `priority` is what Codex's "fast" tier sends. */
+  service_tier?: "priority";
   input: CodexInputMessage[];
 }
 
@@ -667,6 +669,9 @@ function buildCodexResponsesRequest(
     reasoning: { effort: "none" },
     store: false,
     stream: true,
+    ...(command.serviceTier === "fast"
+      ? { service_tier: "priority" as const }
+      : {}),
     input: [
       {
         role: "user",
