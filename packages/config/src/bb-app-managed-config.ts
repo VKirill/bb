@@ -12,10 +12,14 @@ const BUNDLED_PROVIDER_IDS = [
 const BB_APP_CONFIG_FILE_NAME = "config.json";
 const BB_APP_ENV_FILE_NAME = "env.json";
 
-export type BbAppManagedConfigKey = "BB_APP_URL" | "BB_LOG_LEVEL";
+export type BbAppManagedConfigKey =
+  | "BB_APP_URL"
+  | "BB_INFERENCE_SERVICE_TIER"
+  | "BB_LOG_LEVEL";
 
 export const BB_APP_MANAGED_CONFIG_KEYS: BbAppManagedConfigKey[] = [
   "BB_APP_URL",
+  "BB_INFERENCE_SERVICE_TIER",
   "BB_LOG_LEVEL",
 ];
 
@@ -44,6 +48,8 @@ interface ParseBbAppManagedConfigOptions {
 const bbAppManagedConfigValuesSchema = z
   .object({
     BB_APP_URL: z.string().optional(),
+    // VK EXPERIMENTAL: service tier for helper inference (titles, metadata).
+    BB_INFERENCE_SERVICE_TIER: z.enum(["fast", "default"]).optional(),
     BB_LOG_LEVEL: z.string().optional(),
   })
   .strict();
