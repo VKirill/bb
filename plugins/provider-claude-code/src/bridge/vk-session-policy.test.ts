@@ -2,7 +2,10 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildClaudeVkSessionOptions } from "./vk-session-policy.js";
+import {
+  buildClaudeVkSessionOptions,
+  claudeMdExcludePatterns,
+} from "./vk-session-policy.js";
 
 // VK EXPERIMENTAL: the Claude half of a session policy.
 
@@ -186,5 +189,28 @@ describe("buildClaudeVkSessionOptions", () => {
       },
     });
     expect(Object.keys(pluginOff.mcpServers)).toEqual(["gitnexus"]);
+  });
+
+  it("excludes project instruction files but keeps the user's own", () => {
+    const patterns = claudeMdExcludePatterns("/Users/u/work/app", "/Users/u");
+    expect(patterns).toContain("/Users/u/work/app/CLAUDE.md");
+    expect(patterns).toContain("/Users/u/work/AGENTS.md");
+    expect(patterns).toContain("/Users/u/work/app/**/AGENTS.md");
+    expect(patterns).toContain("/Users/u/work/.claude/rules/**");
+    expect(patterns).not.toContain("/Users/u/.claude/CLAUDE.md");
+    expect(patterns).not.toContain("/Users/u/.claude/rules/**");
+  });
+
+  it("turns off project instructions and claude.ai sync through flags", () => {
+    const { home, cwd } = fixture();
+    const flags = buildClaudeVkSessionOptions({
+      bbSkillNames: [],
+      cwd,
+      home,
+      policy: { version: 1, projectInstructions: false, claudeAiSync: false },
+    }).flagSettings as Record<string, unknown>;
+    expect(flags.claudeMdExcludes).toEqual(claudeMdExcludePatterns(cwd, home));
+    expect(flags.syncClaudeAiSkills).toBe(false);
+    expect(flags.syncClaudeAiPlugins).toBe(false);
   });
 });
