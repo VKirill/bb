@@ -36,6 +36,8 @@ export * from "./thread-conversation-outlines.js";
 export * from "./thread-plugin-metadata.js";
 export * from "./thread-pruning.js";
 export * from "./thread-purges.js";
+// VK EXPERIMENTAL: required session policy per thread.
+export * from "./thread-required-session-policy.js";
 export * from "./thread-run-state.js";
 export * from "./thread-sections.js";
 export * from "./thread-tabs.js";

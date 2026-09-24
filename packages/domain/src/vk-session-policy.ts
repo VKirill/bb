@@ -28,45 +28,48 @@ export const VK_SESSION_POLICY_PROVIDER_OPTION = "vkSessionPolicy";
  */
 export const VK_REQUIRED_PLUGIN_IDS: readonly string[] = [
   "environment-project-checkout",
+  "project-folders",
 ];
 
 /** BB's own MCP server, which carries BB's and every plugin's tools. */
 export const VK_BRIDGE_MCP_SERVER = "bb-bridge";
 
 /** Features this build supports; a plugin feature-tests against these. */
-export const VK_EXPERIMENTAL_FEATURES = ["session-policy"] as const;
+export const VK_EXPERIMENTAL_FEATURES = [
+  "session-policy",
+  "compiled-main-agent",
+] as const;
 
 const VK_POLICY_NAME_MAX = 200;
 const VK_POLICY_NAMES_MAX = 500;
 
-export const vkPolicyFilterSchema = z.object({
-  mode: z.enum(["allow", "deny"]),
-  names: z
-    .array(z.string().trim().min(1).max(VK_POLICY_NAME_MAX))
-    .max(VK_POLICY_NAMES_MAX),
-});
+const vkPolicyClauseSchema = z
+  .object({
+    mode: z.enum(["allow", "deny"]),
+    names: z
+      .array(z.string().trim().min(1).max(VK_POLICY_NAME_MAX))
+      .max(VK_POLICY_NAMES_MAX),
+  })
+  .strict();
+
+export const vkPolicyFilterSchema = vkPolicyClauseSchema
+  .extend({
+    allOf: z.array(vkPolicyClauseSchema).max(64).optional(),
+  })
+  .strict();
 export type VkPolicyFilter = z.infer<typeof vkPolicyFilterSchema>;
 
-export const vkSessionPolicySchema = z.object({
-  /** BB plugin ids: their instructions, agent tools and skills. */
-  bbPlugins: vkPolicyFilterSchema.optional(),
-  /** Skill names as the agent invokes them (`ru-text`, `lane-stack:ru-text`). */
-  skills: vkPolicyFilterSchema.optional(),
-  /** Provider-native MCP server names (`~/.claude.json`, codex config.toml, …). */
-  mcpServers: vkPolicyFilterSchema.optional(),
-  /** Provider-native CLI plugins (Claude `name@marketplace`, codex plugin ids). */
-  nativePlugins: vkPolicyFilterSchema.optional(),
-  /** Whether `<dataDir>/AGENTS.md` user instructions load. Default true. */
-  userInstructions: z.boolean().optional(),
-  /**
-   * Whether project instructions load: the workspace `.bb/AGENTS.md` BB adds,
-   * and the `CLAUDE.md` / `AGENTS.md` files the CLI finds in the folder and
-   * its parents. Default true.
-   */
-  projectInstructions: z.boolean().optional(),
-  /** Whether Claude Code syncs skills and plugins from claude.ai. Default true. */
-  claudeAiSync: z.boolean().optional(),
-});
+export const vkSessionPolicySchema = z
+  .object({
+    bbPlugins: vkPolicyFilterSchema.optional(),
+    skills: vkPolicyFilterSchema.optional(),
+    mcpServers: vkPolicyFilterSchema.optional(),
+    nativePlugins: vkPolicyFilterSchema.optional(),
+    userInstructions: z.boolean().optional(),
+    projectInstructions: z.boolean().optional(),
+    claudeAiSync: z.boolean().optional(),
+  })
+  .strict();
 export type VkSessionPolicy = z.infer<typeof vkSessionPolicySchema>;
 
 /**
@@ -74,26 +77,21 @@ export type VkSessionPolicy = z.infer<typeof vkSessionPolicySchema>;
  * `bbPlugins` (instructions, agent tools) and `userInstructions`, and turned
  * the BB side of `skills` and `bbPlugins` into `bbSkillsDenied`.
  */
-export const vkRuntimeSessionPolicySchema = z.object({
-  version: z.literal(VK_SESSION_POLICY_VERSION),
-  /**
-   * BB-delivered skills (plugin, `<dataDir>/skills`, project `.bb/skills`)
-   * the bridge must drop. Core computes the exact names from its catalog, so
-   * this is always a deny list.
-   */
-  bbSkillsDenied: z
-    .array(z.string().trim().min(1).max(VK_POLICY_NAME_MAX))
-    .max(VK_POLICY_NAMES_MAX * 4)
-    .optional(),
-  /** Provider-native skills (the CLI's own skill directories and plugins). */
-  skills: vkPolicyFilterSchema.optional(),
-  mcpServers: vkPolicyFilterSchema.optional(),
-  nativePlugins: vkPolicyFilterSchema.optional(),
-  /** Set to false when the CLI must skip project instruction files. */
-  projectInstructions: z.literal(false).optional(),
-  /** Set to false when Claude Code must not sync from claude.ai. */
-  claudeAiSync: z.literal(false).optional(),
-});
+export const vkRuntimeSessionPolicySchema = z
+  .object({
+    version: z.literal(VK_SESSION_POLICY_VERSION),
+    required: z.literal(true).optional(),
+    bbSkillsDenied: z
+      .array(z.string().trim().min(1).max(VK_POLICY_NAME_MAX))
+      .max(VK_POLICY_NAMES_MAX * 4)
+      .optional(),
+    skills: vkPolicyFilterSchema.optional(),
+    mcpServers: vkPolicyFilterSchema.optional(),
+    nativePlugins: vkPolicyFilterSchema.optional(),
+    projectInstructions: z.literal(false).optional(),
+    claudeAiSync: z.literal(false).optional(),
+  })
+  .strict();
 export type VkRuntimeSessionPolicy = z.infer<
   typeof vkRuntimeSessionPolicySchema
 >;
@@ -131,6 +129,8 @@ export function vkPolicyAllows(
   ...names: readonly string[]
 ): boolean {
   if (!filter) return true;
+  if (filter.allOf?.some((clause) => !vkPolicyAllows(clause, ...names)))
+    return false;
   const listed = names.some((name) =>
     filter.names.some((pattern) => vkPolicyNameMatches(pattern, name)),
   );
@@ -151,7 +151,137 @@ export function readVkRuntimeSessionPolicy(
   const raw = (providerOptions as Record<string, unknown>)[
     VK_SESSION_POLICY_PROVIDER_OPTION
   ];
-  if (raw === undefined || raw === null) return null;
+  const required = "vkRequiredSessionPolicy" in providerOptions;
+  if (required && providerOptions.vkRequiredSessionPolicy !== 1)
+    throw new Error("vk_required_session_policy_unsupported_version");
+  if (raw === undefined || raw === null) {
+    if (required) throw new Error("vk_required_session_policy_dropped");
+    return null;
+  }
   const parsed = vkRuntimeSessionPolicySchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success || (required && parsed.data.required !== true)) {
+    if (!required) return null;
+    throw new Error("vk_required_session_policy_invalid");
+  }
+  if (!required && parsed.data.required === true) {
+    throw new Error("vk_required_session_policy_marker_dropped");
+  }
+  return parsed.data;
 }
+
+export const VK_REQUIRED_SESSION_POLICY_METADATA_KEY =
+  "experimental_vkRequiredSessionPolicy";
+export const VK_REQUIRED_SESSION_POLICY_PLUGIN_ID =
+  "__vk.required-session-policy";
+export const vkRequiredSessionPolicySchema = z
+  .object({
+    version: z.literal(1),
+    policy: vkSessionPolicySchema,
+  })
+  .strict();
+export type VkRequiredSessionPolicy = z.infer<
+  typeof vkRequiredSessionPolicySchema
+>;
+
+export function intersectVkPolicyFilters(
+  filters: readonly (VkPolicyFilter | undefined)[],
+): VkPolicyFilter | undefined {
+  const clauses = filters.flatMap((filter) =>
+    filter
+      ? [{ mode: filter.mode, names: filter.names }, ...(filter.allOf ?? [])]
+      : [],
+  );
+  if (clauses.length === 0) return undefined;
+  const unique = [
+    ...new Map(
+      clauses.map((clause) => [JSON.stringify(clause), clause]),
+    ).values(),
+  ];
+  const allow = unique.find((clause) => clause.mode === "allow");
+  if (!allow)
+    return {
+      mode: "deny",
+      names: [...new Set(unique.flatMap((clause) => clause.names))].sort(),
+    };
+  return vkPolicyFilterSchema.parse({
+    ...allow,
+    allOf: unique.filter((clause) => clause !== allow),
+  });
+}
+
+export function intersectVkSessionPolicies(
+  policies: readonly VkSessionPolicy[],
+): VkSessionPolicy {
+  const result: VkSessionPolicy = {};
+  for (const key of [
+    "bbPlugins",
+    "skills",
+    "mcpServers",
+    "nativePlugins",
+  ] as const) {
+    const filter = intersectVkPolicyFilters(
+      policies.map((policy) => policy[key]),
+    );
+    if (filter) result[key] = filter;
+  }
+  for (const key of [
+    "userInstructions",
+    "projectInstructions",
+    "claudeAiSync",
+  ] as const) {
+    if (policies.some((policy) => policy[key] === false)) result[key] = false;
+  }
+  return vkSessionPolicySchema.parse(result);
+}
+
+export function assertVkRequiredPolicyProvider(
+  providerId: string,
+  policy: VkSessionPolicy,
+): void {
+  if (
+    !["claude-code", "codex", "acp-opencode", "acp-cursor"].includes(providerId)
+  ) {
+    throw new Error("vk_required_session_policy_unsupported_provider");
+  }
+  if (providerId !== "claude-code" && policy.claudeAiSync === false) {
+    throw new Error("vk_required_session_policy_unsupported_claude_ai_sync");
+  }
+  if (
+    (providerId === "acp-opencode" || providerId === "acp-cursor") &&
+    policy.nativePlugins
+  ) {
+    throw new Error("vk_required_session_policy_unsupported_native_plugins");
+  }
+  if (
+    providerId === "acp-cursor" &&
+    (policy.skills || policy.projectInstructions === false)
+  ) {
+    throw new Error(
+      "vk_required_session_policy_unsupported_cursor_instructions_or_skills",
+    );
+  }
+}
+
+export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
+  version: 1,
+  persist: true,
+  requiredMarker: true,
+  snapshotDigest: true,
+  parentCeiling: true,
+  bridgeHandshakeVersion: 1,
+  hostDaemonProtocolVersion: 216,
+  providerGroups: {
+    "claude-code": ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
+    codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
+    "acp-opencode": ["bbPlugins", "skills", "mcpServers"],
+    "acp-cursor": ["bbPlugins", "mcpServers"],
+  },
+  instructionSwitches: {
+    "claude-code": ["userInstructions", "projectInstructions", "claudeAiSync"],
+    codex: ["userInstructions", "projectInstructions"],
+    "acp-opencode": ["userInstructions", "projectInstructions"],
+    "acp-cursor": ["userInstructions"],
+  },
+  mandatoryBbPlugins: VK_REQUIRED_PLUGIN_IDS,
+  mandatoryMcpServers: [VK_BRIDGE_MCP_SERVER],
+} as const;

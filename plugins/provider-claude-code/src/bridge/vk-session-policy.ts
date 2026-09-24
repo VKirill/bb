@@ -59,7 +59,11 @@ export function buildClaudeVkSessionOptions(args: {
   home?: string;
   policy: VkRuntimeSessionPolicy;
 }): ClaudeVkSessionOptions {
-  const inventory = readClaudeNativeInventory(args.cwd, args.home ?? homedir());
+  const inventory = readClaudeNativeInventory(
+    args.cwd,
+    args.home ?? homedir(),
+    args.policy.required === true,
+  );
   const options: ClaudeVkSessionOptions = {
     disallowedTools: [],
     flagSettings: {},
@@ -184,7 +188,11 @@ function applySkillPolicy(
     }
     // Literal names the inventory cannot see (bundled skills) still pass.
     for (const pattern of filter.names) {
-      if (!pattern.endsWith("*")) allowed.add(pattern);
+      if (
+        !pattern.endsWith("*") &&
+        vkPolicyAllows(filter, pattern, bareSkillName(pattern))
+      )
+        allowed.add(pattern);
     }
     options.skills = [...allowed].sort();
     return;
@@ -215,7 +223,9 @@ function bareSkillName(name: string): string {
 function readClaudeNativeInventory(
   cwd: string,
   home: string,
+  required: boolean,
 ): ClaudeNativeInventory {
+  const readJson = (file: string) => readJsonObject(file, required);
   const inventory: ClaudeNativeInventory = {
     mcpServers: new Map(),
     pluginMcpServers: new Map(),
@@ -223,9 +233,9 @@ function readClaudeNativeInventory(
     skills: new Set(),
     personalSkills: new Set(),
   };
-  const claudeJson = readJsonObject(join(home, ".claude.json"));
+  const claudeJson = readJson(join(home, ".claude.json"));
   addMcpServers(inventory, claudeJson?.mcpServers);
-  addMcpServers(inventory, readJsonObject(join(cwd, ".mcp.json"))?.mcpServers);
+  addMcpServers(inventory, readJson(join(cwd, ".mcp.json"))?.mcpServers);
   const projects = asObject(claudeJson?.projects);
   addMcpServers(inventory, asObject(projects?.[cwd])?.mcpServers);
 
@@ -241,14 +251,20 @@ function readClaudeNativeInventory(
 
   const enabled = {
     ...asObject(
-      readJsonObject(join(home, ".claude", "settings.json"))?.enabledPlugins,
+      readJson(join(home, ".claude", "settings.json"))?.enabledPlugins,
     ),
     ...asObject(
-      readJsonObject(join(cwd, ".claude", "settings.json"))?.enabledPlugins,
+      readJson(join(cwd, ".claude", "settings.json"))?.enabledPlugins,
     ),
   };
+  Object.assign(
+    enabled,
+    asObject(
+      readJson(join(cwd, ".claude", "settings.local.json"))?.enabledPlugins,
+    ),
+  );
   const installed = asObject(
-    readJsonObject(join(home, ".claude", "plugins", "installed_plugins.json"))
+    readJson(join(home, ".claude", "plugins", "installed_plugins.json"))
       ?.plugins,
   );
   for (const [id, on] of Object.entries(enabled)) {
@@ -259,14 +275,13 @@ function readClaudeNativeInventory(
       : undefined;
     const manifestName =
       typeof installPath === "string"
-        ? readJsonObject(join(installPath, ".claude-plugin", "plugin.json"))
-            ?.name
+        ? readJson(join(installPath, ".claude-plugin", "plugin.json"))?.name
         : undefined;
     const name =
       typeof manifestName === "string" ? manifestName : id.split("@")[0]!;
     inventory.plugins.set(id, name);
     if (typeof installPath === "string") {
-      addPluginMcpServers(inventory, id, name, installPath);
+      addPluginMcpServers(inventory, id, name, installPath, required);
       for (const skill of listSkillDirs(join(installPath, "skills"))) {
         inventory.skills.add(`${name}:${skill}`);
       }
@@ -286,9 +301,11 @@ function addPluginMcpServers(
   pluginId: string,
   pluginName: string,
   installPath: string,
+  required: boolean,
 ): void {
   const manifest = readJsonObject(
     join(installPath, ".claude-plugin", "plugin.json"),
+    required,
   );
   const declared = manifest?.mcpServers;
   const paths = [join(installPath, ".mcp.json")];
@@ -302,7 +319,9 @@ function addPluginMcpServers(
     }
   }
   const sources = [
-    ...paths.map((path) => asObject(readJsonObject(path)?.mcpServers)),
+    ...paths.map((path) =>
+      asObject(readJsonObject(path, required)?.mcpServers),
+    ),
     ...inline,
   ];
   for (const servers of sources) {
@@ -372,10 +391,26 @@ function listSkillDirs(dir: string): string[] {
   }
 }
 
-function readJsonObject(path: string): Record<string, unknown> | null {
+function readJsonObject(
+  path: string,
+  required = false,
+): Record<string, unknown> | null {
   try {
-    return asObject(JSON.parse(readFileSync(path, "utf8")));
-  } catch {
+    const object = asObject(JSON.parse(readFileSync(path, "utf8")));
+    if (required && !object)
+      throw new Error("vk_required_session_policy_invalid_inventory");
+    return object;
+  } catch (error) {
+    if (
+      required &&
+      !(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+    )
+      throw error;
     return null;
   }
 }
