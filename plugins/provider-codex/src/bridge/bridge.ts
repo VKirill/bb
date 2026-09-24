@@ -1631,6 +1631,7 @@ function handleInitialize(id: string | number): void {
   const result: InitializeResult = {
     protocolVersion: PROVIDER_BRIDGE_PROTOCOL_VERSION,
     capabilities: {
+      experimental_vkRequiredSessionPolicy: 1,
       sessionRestore: true,
       threadArchive: true,
       threadRename: true,

@@ -1,3 +1,4 @@
+import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type {
   EnvironmentRemoval,
   Environment,
@@ -1754,6 +1755,15 @@ export interface PluginAgents {
       context: PluginAgentConfigurationContext,
     ) => VkSessionPolicy | null | Promise<VkSessionPolicy | null>,
   ): void;
+  experimental_vkRequiredSessionPolicy?(): typeof VK_REQUIRED_SESSION_POLICY_CAPABILITY;
+  experimental_vkCompiledMainAgent?(): {
+    persist: true;
+    bridgeAgentOptions: true;
+    requiredMarker: true;
+    snapshotDigest: true;
+    bridgeHandshakeVersion: 1;
+    providerIds: readonly ["claude-code"];
+  };
   /**
    * VK EXPERIMENTAL — what every running plugin contributes to agent
    * sessions: instructions, agent tools and skills.
