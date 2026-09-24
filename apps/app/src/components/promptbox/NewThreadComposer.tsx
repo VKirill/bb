@@ -1722,13 +1722,22 @@ export function NewThreadComposer({
 
   // VK EXPERIMENTAL: the new thread's place for the session policy. A section
   // environment names its folder in the provider inputs.
+  // A provider without an inputs form (project checkout) drops the seed's
+  // inputs from the submission, so the seed is read too while it still
+  // stands (the plugin-embedded section composer passes its folder there).
+  const vkRawInputs: unknown =
+    submissionProviderInputs ??
+    (!seedOverridden &&
+    environmentSeed !== null &&
+    effectiveEnvironmentValue === environmentSeed.selectionValue
+      ? environmentSeed.providerInputs
+      : null);
   const vkInputsPath =
-    submissionProviderInputs !== null &&
-    typeof submissionProviderInputs === "object" &&
-    !Array.isArray(submissionProviderInputs) &&
-    typeof (submissionProviderInputs as Record<string, unknown>).path ===
-      "string"
-      ? ((submissionProviderInputs as Record<string, unknown>).path as string)
+    vkRawInputs !== null &&
+    typeof vkRawInputs === "object" &&
+    !Array.isArray(vkRawInputs) &&
+    typeof (vkRawInputs as Record<string, unknown>).path === "string"
+      ? ((vkRawInputs as Record<string, unknown>).path as string)
       : null;
   const vkComposerPlace = useMemo(
     () => ({
