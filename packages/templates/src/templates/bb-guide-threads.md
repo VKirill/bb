@@ -178,3 +178,5 @@ Lifecycle ownership:
   dependents; deleting it deletes them. Unarchive the owner before explicitly
   restoring a dependent. Stop does not cascade. Sidebar parents and ordinary
   forks keep their own policies.
+
+VK builds may accept JSON snapshots with `--vk-required-session-policy-file PATH` and `--vk-compiled-main-agent-file PATH`. Required resource policies are checked against the provider bridge before the first turn; unsupported groups fail the spawn. Parent limits apply to children. These experimental options are source capabilities and do not indicate that a Hub build has installed them.

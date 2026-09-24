@@ -90,6 +90,44 @@ describe("SdkSession", () => {
     vi.restoreAllMocks();
   });
 
+  it("forwards compiled main agent id and definition and refuses a dropped agents map", () => {
+    keepSdkStreamOpen();
+    const session = new SdkSession(
+      {
+        ...defaultOptions,
+        agent: "seo-specialist",
+        agents: {
+          "seo-specialist": {
+            description: "Lane Pilot SEO specialist",
+            prompt: "You are the Lane Pilot SEO specialist.",
+          },
+        },
+      },
+      vi.fn(),
+      vi.fn(),
+    );
+    session.start();
+    const options = getLatestQueryCall().options;
+    expect(options.agent).toBe("seo-specialist");
+    expect(options.agents?.["seo-specialist"]).toEqual({
+      description: "Lane Pilot SEO specialist",
+      prompt: "You are the Lane Pilot SEO specialist.",
+    });
+    expect(options.agents?.["seo-specialist"]).not.toHaveProperty("model");
+    expect(options.agents?.["seo-specialist"]).not.toHaveProperty(
+      "permissionMode",
+    );
+    session.stop();
+
+    const dropped = new SdkSession(
+      { ...defaultOptions, agent: "seo-specialist" },
+      vi.fn(),
+      vi.fn(),
+    );
+    expect(() => dropped.start()).toThrow(/vk_compiled_main_agent_dropped/);
+    expect(queryMock.mock.calls.length).toBe(1);
+  });
+
   it("rejects queued input when the SDK input stream closes before consumption", async () => {
     const session = new SdkSession(defaultOptions, vi.fn(), vi.fn());
     const consumed = session.pushInput("hello");

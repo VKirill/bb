@@ -244,6 +244,13 @@ export type {
   VkPolicyFilter,
   VkRuntimeSessionPolicy,
 } from "@bb/domain/vk-session-policy";
+export {
+  parseVkCompiledMainAgent,
+  readVkCompiledMainAgent,
+  vkCompiledMainAgentSchema,
+  VK_COMPILED_MAIN_AGENT_PROVIDER_OPTION,
+} from "@bb/domain/vk-compiled-main-agent";
+export type { VkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
 export type {
   BoundedLineReaderArgs,
   BridgeJsonRpcResponse,
