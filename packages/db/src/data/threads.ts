@@ -388,21 +388,27 @@ export function createThread(
         });
       }
       const parentIds = [input.parentThreadId, input.sourceThreadId, input.lifecycleOwnerThreadId].filter((id): id is string => typeof id === "string");
-      const parentPolicies = [...new Set(parentIds)].flatMap((id) => {
-        const stored = readVkRequiredSessionPolicy(tx, id);
-        return stored ? [stored.policy] : [];
+      const parentSnapshots = [...new Set(parentIds)].map((id) => {
+        const policy = readVkRequiredSessionPolicy(tx, id);
+        const agent = readVkCompiledMainAgentSnapshot(tx, id);
+        if (agent.required && policy === null) {
+          throw new Error("vk_required_session_policy_dropped");
+        }
+        return { agent, policy };
       });
-      const parentAgents = [...new Set(parentIds)].flatMap((id) => {
-        const stored = readVkCompiledMainAgentSnapshot(tx, id);
-        return stored.required ? [stored.profile] : [];
-      });
+      const parentPolicies = parentSnapshots.flatMap(({ policy }) =>
+        policy ? [policy.policy] : [],
+      );
+      const parentAgents = parentSnapshots.flatMap(({ agent }) =>
+        agent.required ? [agent.profile] : [],
+      );
       if (input.vkCompiledMainAgent) {
         const { sourceHash, ...sourceBody } = input.vkCompiledMainAgent;
         if (digestVkCompiledMainAgentSource(sourceBody) !== sourceHash) {
           throw new Error("vk_compiled_main_agent_source_hash_mismatch");
         }
       }
-      let compiled = input.vkCompiledMainAgent ?? parentAgents[0];
+      let compiled = input.vkCompiledMainAgent;
       let agentPolicy: ReturnType<typeof intersectVkSessionPolicies> | null = null;
       if (compiled) {
         if (input.providerId !== "claude-code") throw new Error("vk_compiled_main_agent_unsupported_provider");

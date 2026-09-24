@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
+import { encodeClientTurnRequestIdNumber } from "@bb/domain";
 import {
   insertVkCompiledMainAgentSnapshot,
+  insertVkRequiredSessionPolicy,
+  readVkRequiredSessionPolicy,
   readVkCompiledMainAgentSnapshot,
   threadPluginMetadata,
+  threadVkSessionPolicyRequired,
 } from "@bb/db";
 import { ApiError } from "../../src/errors.js";
 import { createThreadFromRequest } from "../../src/services/threads/thread-create.js";
 import { resolveThreadRuntimeCommandConfig } from "../../src/services/threads/thread-runtime-config.js";
+import { buildThreadStartCommand } from "../../src/services/threads/thread-commands.js";
 import {
   seedEnvironment,
   seedHostSession,
@@ -27,6 +32,84 @@ const compiled = {
 };
 
 describe("compiled main agent create path", () => {
+  it("builds a Codex child start with the parent policy ceiling and no inherited Claude role", async () => {
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps, {
+        id: "host-vk-cross-provider",
+      });
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/tmp/vk-cross-provider",
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+        path: "/tmp/vk-cross-provider",
+      });
+      const parent = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+        providerId: "claude-code",
+      });
+      harness.deps.db.transaction((tx) => {
+        insertVkRequiredSessionPolicy(tx, {
+          threadId: parent.id,
+          providerId: "claude-code",
+          requested: { version: 1, policy: { projectInstructions: false } },
+          parentIds: [],
+        });
+      });
+      insertVkCompiledMainAgentSnapshot(harness.deps.db, {
+        threadId: parent.id,
+        profile: compiled,
+      });
+      const child = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+        providerId: "codex",
+        parentThreadId: parent.id,
+      });
+
+      expect(
+        readVkCompiledMainAgentSnapshot(harness.deps.db, child.id),
+      ).toEqual({
+        required: false,
+        profile: null,
+      });
+      expect(
+        readVkRequiredSessionPolicy(harness.deps.db, child.id)?.policy,
+      ).toMatchObject({ projectInstructions: false });
+      const command = await buildThreadStartCommand(harness.deps, {
+        environment,
+        execution: {
+          model: "gpt-5.3-codex",
+          permissionMode: "accept-edits",
+          reasoningLevel: "medium",
+          serviceTier: "default",
+          source: "client/turn/requested",
+        },
+        fork: null,
+        permissionEscalation: "ask",
+        input: textInput("write"),
+        projectId: project.id,
+        providerId: "codex",
+        requestId: encodeClientTurnRequestIdNumber({ value: 2 }),
+        syncGeneratedTitle: false,
+        thread: child,
+      });
+      expect(command.providerId).toBe("codex");
+      expect(command.options.providerOptions).not.toHaveProperty(
+        "vkCompiledMainAgent",
+      );
+      expect(command.options.providerOptions).toMatchObject({
+        vkSessionPolicy: {
+          projectInstructions: false,
+        },
+        vkRequiredSessionPolicy: 1,
+      });
+    });
+  });
+
   it("rejects a reserved key in ordinary pluginMetadata", async () => {
     await withTestHarness(async (harness) => {
       const { host } = seedHostSession(harness.deps, { id: "host-vk-meta" });
@@ -175,6 +258,68 @@ describe("compiled main agent create path", () => {
         }),
       ).rejects.toMatchObject({
         body: { code: "vk_compiled_main_agent_dropped" },
+      });
+    });
+  });
+
+  it("rejects a compiled start when both required-policy rows are lost", async () => {
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps, {
+        id: "host-vk-policy-lost",
+      });
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/tmp/vk-policy-lost",
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+        path: "/tmp/vk-policy-lost",
+      });
+      const thread = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+        providerId: "claude-code",
+      });
+      insertVkCompiledMainAgentSnapshot(harness.deps.db, {
+        threadId: thread.id,
+        profile: compiled,
+      });
+      harness.deps.db
+        .delete(threadVkSessionPolicyRequired)
+        .where(eq(threadVkSessionPolicyRequired.threadId, thread.id))
+        .run();
+      harness.deps.db
+        .delete(threadPluginMetadata)
+        .where(
+          and(
+            eq(threadPluginMetadata.threadId, thread.id),
+            eq(threadPluginMetadata.pluginId, "__vk.required-session-policy"),
+          ),
+        )
+        .run();
+
+      await expect(
+        buildThreadStartCommand(harness.deps, {
+          environment,
+          execution: {
+            model: "claude-sonnet-5",
+            permissionMode: "accept-edits",
+            reasoningLevel: "medium",
+            serviceTier: "default",
+            source: "client/turn/requested",
+          },
+          fork: null,
+          permissionEscalation: "ask",
+          input: textInput("resume"),
+          projectId: project.id,
+          providerId: "claude-code",
+          requestId: encodeClientTurnRequestIdNumber({ value: 1 }),
+          syncGeneratedTitle: false,
+          thread,
+        }),
+      ).rejects.toMatchObject({
+        body: { code: "vk_required_session_policy_dropped" },
       });
     });
   });
