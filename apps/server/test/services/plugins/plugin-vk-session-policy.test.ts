@@ -2,7 +2,12 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createConnection, migrate, type DbConnection } from "@bb/db";
+import {
+  createConnection,
+  insertThreadPluginMetadata,
+  migrate,
+  type DbConnection,
+} from "@bb/db";
 import type { Logger } from "@bb/logger";
 import { createAiServiceRegistry } from "../../../src/services/ai/ai-service-registry.js";
 import {
@@ -123,6 +128,36 @@ describe("bb.agents.experimental_vkSessionPolicy", () => {
     await expect(service.resolveVkSessionPolicy({ context })).resolves.toEqual({
       pluginId: "bbb-good",
       policy: { bbPlugins: { mode: "deny", names: ["noise"] } },
+    });
+  });
+
+  it("passes the thread's metadata under the resolver's own plugin id", async () => {
+    db.run("PRAGMA foreign_keys = OFF");
+    insertThreadPluginMetadata(db, {
+      threadId: "thr_1",
+      pluginId: "roles",
+      metadata: { role: "reviewer" },
+    });
+    insertThreadPluginMetadata(db, {
+      threadId: "thr_1",
+      pluginId: "other",
+      metadata: { role: "leak" },
+    });
+    await service.installPath(
+      await writePlugin(
+        workDir,
+        "bb-plugin-roles",
+        `export default function plugin(bb: any) {
+          bb.agents.experimental_vkSessionPolicy((ctx: any) =>
+            ctx.pluginMetadata.role === "reviewer"
+              ? { skills: { mode: "allow", names: ["review"] } }
+              : null);
+        }`,
+      ),
+    );
+    await expect(service.resolveVkSessionPolicy({ context })).resolves.toEqual({
+      pluginId: "roles",
+      policy: { skills: { mode: "allow", names: ["review"] } },
     });
   });
 
