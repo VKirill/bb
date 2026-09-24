@@ -85,6 +85,20 @@ export type VkRuntimeSessionPolicy = z.infer<
   typeof vkRuntimeSessionPolicySchema
 >;
 
+/**
+ * What one BB plugin puts into agent sessions, so a policy editor can tell
+ * plugins that shape the context from plugins that only add UI.
+ * `configure` means the plugin selects its tools and skills (and may add
+ * instructions) per thread, so what reaches a given session can be less.
+ */
+export interface VkContextContribution {
+  pluginId: string;
+  instructions: boolean;
+  configure: boolean;
+  tools: string[];
+  skills: string[];
+}
+
 /** Whether `name` matches one entry: exact, or a `prefix*` wildcard. */
 export function vkPolicyNameMatches(pattern: string, name: string): boolean {
   if (pattern.endsWith("*")) return name.startsWith(pattern.slice(0, -1));

@@ -10,6 +10,7 @@ import {
   type PluginService,
 } from "../../../src/services/plugins/plugin-service.js";
 import { createNoopTelemetryService } from "../../../src/services/system/telemetry.js";
+import { setPluginAgentContributions } from "../../../src/services/plugins/plugin-agent-contributions.js";
 import { testLogger } from "../../helpers/test-app.js";
 
 // VK EXPERIMENTAL: bb.agents.experimental_vkSessionPolicy end to end through
@@ -153,5 +154,49 @@ describe("bb.agents.experimental_vkSessionPolicy", () => {
     expect((globalThis as { __vkTwice?: string }).__vkTwice).toBe(
       "session policy resolver is already registered",
     );
+  });
+
+  it("lists what each plugin adds to agent sessions", async () => {
+    const rootDir = await writePlugin(
+      workDir,
+      "bb-plugin-contrib",
+      `export default function plugin(bb: any) {
+        bb.agents.contributeInstructions(() => "hello");
+        bb.agents.registerTool({
+          name: "contrib_tool",
+          description: "t",
+          parameters: { type: "object" },
+          execute: () => "ok",
+        });
+      }`,
+    );
+    await service.installPath(rootDir);
+    await service.installPath(
+      await writePlugin(
+        workDir,
+        "bb-plugin-ui-only",
+        "export default function plugin() {}",
+      ),
+    );
+    setPluginAgentContributions(service);
+    const api = service.getApi("contrib")!;
+    const listed = api.agents.experimental_vkContextContributions?.();
+    setPluginAgentContributions(undefined);
+    expect(listed).toEqual([
+      {
+        pluginId: "contrib",
+        instructions: true,
+        configure: false,
+        tools: ["contrib_tool"],
+        skills: [],
+      },
+      {
+        pluginId: "ui-only",
+        instructions: false,
+        configure: false,
+        tools: [],
+        skills: [],
+      },
+    ]);
   });
 });
