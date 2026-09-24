@@ -213,6 +213,7 @@ interface ThreadTitlePromptContext {
 function renderThreadTitlePrompt(
   input: PromptInput[],
   context: ThreadTitlePromptContext,
+  titleLanguage?: string | null,
 ): string | null {
   if (!cleanPromptText(input)) {
     return null;
@@ -225,6 +226,8 @@ function renderThreadTitlePrompt(
       titlePromptText(input),
       hasLaterMessages ? MAX_TITLE_TASK_WIDTH : MAX_TITLE_PROMPT_WIDTH,
     ),
+    // VK EXPERIMENTAL: BB_THREAD_TITLE_LANGUAGE; unset keeps the task's language.
+    ...(titleLanguage ? { titleLanguage } : {}),
     ...(commands.length > 0
       ? { invokedCommands: formatInvokedCommands(commands) }
       : {}),
@@ -238,12 +241,19 @@ function renderThreadTitlePrompt(
   });
 }
 
-export function buildThreadTitlePrompt(input: PromptInput[]): string | null {
-  return renderThreadTitlePrompt(input, {
-    agentReplies: null,
-    currentTitle: null,
-    followUps: null,
-  });
+export function buildThreadTitlePrompt(
+  input: PromptInput[],
+  titleLanguage?: string | null,
+): string | null {
+  return renderThreadTitlePrompt(
+    input,
+    {
+      agentReplies: null,
+      currentTitle: null,
+      followUps: null,
+    },
+    titleLanguage,
+  );
 }
 
 interface ThreadTitleRegenerationContext {
@@ -255,18 +265,23 @@ interface ThreadTitleRegenerationContext {
 
 function buildThreadTitleRegenerationPrompt(
   context: ThreadTitleRegenerationContext,
+  titleLanguage?: string | null,
 ): string | null {
-  return renderThreadTitlePrompt(context.task, {
-    agentReplies: formatListItems(
-      context.agentReplies,
-      MAX_TITLE_AGENT_REPLY_WIDTH,
-    ),
-    currentTitle: context.currentTitle,
-    followUps: formatListItems(
-      context.followUps.map(cleanPromptText),
-      MAX_TITLE_FOLLOW_UP_WIDTH,
-    ),
-  });
+  return renderThreadTitlePrompt(
+    context.task,
+    {
+      agentReplies: formatListItems(
+        context.agentReplies,
+        MAX_TITLE_AGENT_REPLY_WIDTH,
+      ),
+      currentTitle: context.currentTitle,
+      followUps: formatListItems(
+        context.followUps.map(cleanPromptText),
+        MAX_TITLE_FOLLOW_UP_WIDTH,
+      ),
+    },
+    titleLanguage,
+  );
 }
 
 export async function generateThreadMetadataWithOutcome(
@@ -283,7 +298,10 @@ export async function generateThreadMetadataWithOutcome(
     ...(reason ? { reason } : {}),
   });
 
-  const prompt = buildThreadTitlePrompt(args.input);
+  const prompt = buildThreadTitlePrompt(
+    args.input,
+    deps.config.threadTitleLanguage,
+  );
   if (prompt === null) {
     return complete(null, "empty-input");
   }
@@ -396,7 +414,12 @@ export async function regenerateThreadTitle(
 ): Promise<Thread> {
   const context = loadThreadTitleRegenerationContext(deps, args.thread);
   const prompt =
-    context === null ? null : buildThreadTitleRegenerationPrompt(context);
+    context === null
+      ? null
+      : buildThreadTitleRegenerationPrompt(
+          context,
+          deps.config.threadTitleLanguage,
+        );
   if (prompt === null) {
     throw new ApiError(
       409,

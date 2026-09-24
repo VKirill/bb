@@ -106,4 +106,24 @@ describe("@bb/templates", () => {
       ).not.toThrow();
     }
   });
+
+  it("asks for thread titles in the configured language", () => {
+    const prompt = renderTemplate("generateThreadMetadata", {
+      cleanedPrompt: "Починить медленный запуск тредов",
+      titleLanguage: "Russian",
+    });
+    expect(prompt).toContain("written in Russian");
+    expect(prompt.endsWith("Write the title in Russian, keeping product names, code identifiers, commands, and quoted words as written.")).toBe(true);
+    expect(prompt).not.toContain("the language the task's sentences");
+  });
+
+  it("keeps the task's language when no title language is configured", () => {
+    const prompt = renderTemplate("generateThreadMetadata", {
+      cleanedPrompt: "Fix slow thread start",
+    });
+    expect(prompt).toContain("in the same language as the task");
+    expect(prompt).toContain(
+      "Write the title in the language the task's sentences are written in",
+    );
+  });
 });
