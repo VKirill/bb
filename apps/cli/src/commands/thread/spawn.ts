@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { vkRequiredSessionPolicySchema } from "@bb/domain/vk-session-policy";
+import { vkCompiledMainAgentSchema } from "@bb/domain/vk-compiled-main-agent";
 import { Command } from "commander";
 import {
   jsonValueSchema,
@@ -45,6 +48,8 @@ const PROVIDER_HELP =
 interface ThreadSpawnCommandOptions {
   prompt?: string;
   promptFile?: string;
+  vkRequiredSessionPolicyFile?: string;
+  vkCompiledMainAgentFile?: string;
   json?: boolean;
   project?: string;
   environment?: string;
@@ -361,6 +366,14 @@ export function registerSpawnCommand(
     )
     .option("--parent-thread <id>", "Parent thread ID for worker thread links")
     .option("--parent-self", "Parent the new thread to BB_THREAD_ID")
+    .option(
+      "--vk-required-session-policy-file <path>",
+      "VK experimental: required resource policy JSON snapshot",
+    )
+    .option(
+      "--vk-compiled-main-agent-file <path>",
+      "VK experimental: compiled MAIN agent JSON snapshot",
+    )
     .option("--provider <id>", PROVIDER_HELP)
     .option(
       "--model <model>",
@@ -583,7 +596,28 @@ export function registerSpawnCommand(
             resolveProjectId: async () => projectId,
             sdk,
           });
+          const experimental_vkRequiredSessionPolicy =
+            opts.vkRequiredSessionPolicyFile
+              ? vkRequiredSessionPolicySchema.parse(
+                  JSON.parse(
+                    await readFile(opts.vkRequiredSessionPolicyFile, "utf8"),
+                  ),
+                )
+              : undefined;
+          const experimental_vkCompiledMainAgent = opts.vkCompiledMainAgentFile
+            ? vkCompiledMainAgentSchema.parse(
+                JSON.parse(
+                  await readFile(opts.vkCompiledMainAgentFile, "utf8"),
+                ),
+              )
+            : undefined;
           thread = await sdk.threads.spawn({
+            ...(experimental_vkRequiredSessionPolicy
+              ? { experimental_vkRequiredSessionPolicy }
+              : {}),
+            ...(experimental_vkCompiledMainAgent
+              ? { experimental_vkCompiledMainAgent }
+              : {}),
             origin: "cli",
             projectId,
             ...(providerId ? { providerId } : {}),

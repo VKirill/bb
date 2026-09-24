@@ -492,3 +492,5 @@ directories are inside that storage before removing files, including dev
 servers in nested checkouts. On macOS and Linux this uses the same SIGTERM
 grace period and SIGKILL fallback as worktree removal. Windows does not
 enumerate process working directories.
+
+VK builds may accept JSON snapshots with `--vk-required-session-policy-file PATH` and `--vk-compiled-main-agent-file PATH`. Required resource policies are checked against the provider bridge before the first turn; unsupported groups fail the spawn. Parent limits apply to children. These experimental options are source capabilities and do not indicate that a Hub build has installed them.

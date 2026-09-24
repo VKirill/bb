@@ -38,3 +38,5 @@ Modal connection and machine commands are documented in [modal-sandboxes](../plu
 `--environment-provider`; a composition rejects separate machine selectors.
 
 Modal image debugging uses `bb modal image build`, `bb modal sandbox run`, `bb modal sandbox exec ID [--json] -- COMMAND...`, and `bb modal sandbox stop ID`. Debug compute expires after 30 minutes and skips BB enrollment and project setup. See the plugin skill for output limits and typed RPC equivalents.
+
+VK source builds add `bb thread spawn --vk-required-session-policy-file PATH` and `--vk-compiled-main-agent-file PATH`. The files contain strict JSON objects matching the server-contract schemas. Required policy capability must be feature-tested by SDK callers; unsupported provider groups fail before provider dispatch. These switches do not establish installed-Hub support.

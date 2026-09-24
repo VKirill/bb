@@ -664,6 +664,45 @@ describe("createAgentRuntime command contracts", () => {
     await runtime.shutdown();
   });
 
+  it.each([
+    [
+      "an old bridge",
+      {
+        vkRequiredSessionPolicy: 1,
+        vkSessionPolicy: {
+          version: 1,
+          required: true,
+          skills: { mode: "allow", names: [] },
+        },
+      },
+    ],
+    ["a missing required snapshot", { vkRequiredSessionPolicy: 1 }],
+    [
+      "a dropped independent marker",
+      {
+        vkSessionPolicy: {
+          version: 1,
+          required: true,
+          skills: { mode: "allow", names: [] },
+        },
+      },
+    ],
+  ])("starts no provider session for %s", async (_case, providerOptions) => {
+    const { record, runtime } = createContractRuntime();
+
+    await expect(
+      runtime.startThread({
+        environmentId: "env-1",
+        threadId: "t-required",
+        projectId: "p1",
+        providerId: "fake",
+        options: { ...fullRuntimeOptions, providerOptions },
+      }),
+    ).rejects.toThrow();
+    expect(record.last("thread/start")).toBeUndefined();
+    await runtime.shutdown();
+  });
+
   it("interrupts an active turn on stop and releases an idle thread", async () => {
     const events: ThreadEvent[] = [];
     const { record, runtime } = createContractRuntime({

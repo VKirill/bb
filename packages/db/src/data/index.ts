@@ -57,6 +57,10 @@ export {
 } from "./project-sources.js";
 export {
   getThreadPluginMetadata,
+  digestVkCompiledMainAgent,
+  digestVkCompiledMainAgentSource,
+  insertVkCompiledMainAgentSnapshot,
+  readVkCompiledMainAgentSnapshot,
   insertThreadPluginMetadata,
   listPluginThreadMetadata,
   listThreadPluginMetadataRows,
@@ -518,3 +522,5 @@ export {
 export * from "./project-attachments.js";
 
 export * from "./project-attachment-backfill.js";
+
+export { readVkRequiredSessionPolicy, insertVkRequiredSessionPolicy, narrowVkRequiredSessionPolicy } from "./thread-required-session-policy.js";

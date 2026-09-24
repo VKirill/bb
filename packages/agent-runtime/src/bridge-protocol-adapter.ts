@@ -1,3 +1,7 @@
+import {
+  readVkRuntimeSessionPolicy,
+  assertVkRequiredPolicyProvider,
+} from "@bb/domain/vk-session-policy";
 import type {
   AvailableModel,
   ProviderCapabilities,
@@ -199,6 +203,23 @@ export function createBridgeProtocolAdapter(
     process: options.process,
 
     buildCommandPlan(command: AdapterCommand): ProviderCommandPlan {
+      if (
+        "options" in command &&
+        command.options &&
+        "providerOptions" in command.options
+      ) {
+        const providerOptions = command.options.providerOptions;
+        const policy = readVkRuntimeSessionPolicy(providerOptions);
+        if (policy?.required) {
+          if (handshake.experimental_vkRequiredSessionPolicy !== 1)
+            throw new Error("vk_required_session_policy_bridge_unsupported");
+          assertVkRequiredPolicyProvider(options.id, policy);
+        }
+        if (providerOptions && "vkCompiledMainAgent" in providerOptions) {
+          if (handshake.experimental_vkCompiledMainAgent !== 1)
+            throw new Error("vk_compiled_main_agent_bridge_unsupported");
+        }
+      }
       switch (command.type) {
         case "model/list":
           return {

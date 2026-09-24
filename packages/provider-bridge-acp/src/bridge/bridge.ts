@@ -2830,6 +2830,7 @@ async function handleRequest(
         ok: true,
         protocolVersion: PROVIDER_BRIDGE_PROTOCOL_VERSION,
         capabilities: {
+          experimental_vkRequiredSessionPolicy: 1,
           sessionRestore: false,
           threadArchive: false,
           threadRename: false,
