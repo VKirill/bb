@@ -143,6 +143,14 @@ export async function resolveThreadRuntimeCommandConfig(
 ): Promise<ResolvedThreadRuntimeCommandConfig> {
   markTurnTraceSpan("runtimeConfig.started");
   const requiredPolicy = readVkRequiredSessionPolicy(deps.db, args.thread.id);
+  const vkCompiledMainAgent = readPersistedCompiledMainAgent(deps, args.thread);
+  if (vkCompiledMainAgent && requiredPolicy === null) {
+    throw new ApiError(
+      400,
+      "vk_required_session_policy_dropped",
+      "Compiled main agent is missing its required session policy",
+    );
+  }
   if (requiredPolicy)
     assertVkRequiredPolicyProvider(
       args.thread.providerId,
@@ -257,7 +265,6 @@ export async function resolveThreadRuntimeCommandConfig(
   const vkSessionPolicy = requiredPolicy
     ? { ...builtPolicy, version: 1 as const, required: true as const }
     : builtPolicy;
-  const vkCompiledMainAgent = readPersistedCompiledMainAgent(deps, args.thread);
   if (vkResolved !== null) {
     deps.logger.info(
       {
