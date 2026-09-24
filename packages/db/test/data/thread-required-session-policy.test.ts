@@ -9,7 +9,12 @@ import { createThread } from "../../src/data/threads.js";
 import { readVkRequiredSessionPolicy, narrowVkRequiredSessionPolicy } from "../../src/data/thread-required-session-policy.js";
 import { patchThreadPluginMetadata, insertThreadPluginMetadata } from "../../src/data/thread-plugin-metadata.js";
 import { digestVkCompiledMainAgentSource, readVkCompiledMainAgentSnapshot } from "../../src/data/thread-plugin-metadata.js";
-import { threads, threadPluginMetadata, threadVkSessionPolicyRequired } from "../../src/schema.js";
+import {
+  threads,
+  threadPluginMetadata,
+  threadVkCompiledMainRequired,
+  threadVkSessionPolicyRequired,
+} from "../../src/schema.js";
 
 function setup() {
   const db = createMigratedConnection();
@@ -60,6 +65,101 @@ describe("required policy persistence", () => {
       const child = spawn({}, { parentThreadId: parent.id });
       expect(vkPolicyAllows(readVkRequiredSessionPolicy(db, child.id)!.policy.bbPlugins, "unrelated")).toBe(false);
     } finally { db.$client.close(); }
+  });
+
+  it.each(["codex", "claude-code"] as const)(
+    "inherits the required ceiling without inheriting a compiled MAIN role on %s",
+    (providerId) => {
+      const { db, spawn } = setup();
+      try {
+        const sourceBody = {
+          id: "copy-lead",
+          sourceVersion: "lp-owned-1",
+          description: "Copy lead",
+          prompt: "Write clearly.",
+          skills: ["safe-skill"],
+        };
+        const parent = spawn(undefined, {}, "claude-code", {
+          ...sourceBody,
+          sourceHash: digestVkCompiledMainAgentSource(sourceBody),
+        });
+        const child = spawn(undefined, { parentThreadId: parent.id }, providerId);
+
+        expect(readVkCompiledMainAgentSnapshot(db, child.id)).toEqual({
+          required: false,
+          profile: null,
+        });
+        expect(readVkRequiredSessionPolicy(db, child.id)?.policy.skills).toEqual({
+          mode: "allow",
+          names: ["safe-skill"],
+          allOf: [],
+        });
+      } finally {
+        db.$client.close();
+      }
+    },
+  );
+
+  it("still rejects an explicitly selected compiled MAIN role on an unsupported provider", () => {
+    const { db, spawn } = setup();
+    try {
+      const sourceBody = {
+        id: "copy-lead",
+        sourceVersion: "lp-owned-1",
+        description: "Copy lead",
+        prompt: "Write clearly.",
+      };
+      const explicit = {
+        ...sourceBody,
+        sourceHash: digestVkCompiledMainAgentSource(sourceBody),
+      };
+      const parent = spawn(undefined, {}, "claude-code", explicit);
+      expect(
+        () => spawn(undefined, { parentThreadId: parent.id }, "codex", explicit),
+      ).toThrow(
+        "vk_compiled_main_agent_unsupported_provider",
+      );
+      expect(db.select().from(threads).all()).toHaveLength(1);
+    } finally {
+      db.$client.close();
+    }
+  });
+
+  it("rejects child creation when a compiled parent has lost both required-policy rows", () => {
+    const { db, spawn } = setup();
+    try {
+      const sourceBody = {
+        id: "copy-lead",
+        sourceVersion: "lp-owned-1",
+        description: "Copy lead",
+        prompt: "Write clearly.",
+      };
+      const parent = spawn(undefined, {}, "claude-code", {
+        ...sourceBody,
+        sourceHash: digestVkCompiledMainAgentSource(sourceBody),
+      });
+      db.delete(threadVkSessionPolicyRequired)
+        .where(eq(threadVkSessionPolicyRequired.threadId, parent.id))
+        .run();
+      db.delete(threadPluginMetadata)
+        .where(
+          and(
+            eq(threadPluginMetadata.threadId, parent.id),
+            eq(threadPluginMetadata.pluginId, "__vk.required-session-policy"),
+          ),
+        )
+        .run();
+
+      expect(
+        () => spawn(undefined, { parentThreadId: parent.id }, "codex"),
+      ).toThrow(
+        "vk_required_session_policy_dropped",
+      );
+      expect(db.select().from(threads).all()).toHaveLength(1);
+      expect(db.select().from(threadVkCompiledMainRequired).all()).toHaveLength(1);
+    } finally {
+      db.$client.close();
+    }
   });
 
   it("re-hashes compiled resources after intersecting the durable parent ceiling", () => {
