@@ -9,6 +9,7 @@ import {
   buildThreadStartCommand,
 } from "../../src/services/threads/thread-commands.js";
 import { resolveThreadRuntimeCommandConfig } from "../../src/services/threads/thread-runtime-config.js";
+import { resolveVkExcludedPluginIds } from "../../src/services/threads/vk-excluded-plugins.js";
 import {
   seedEnvironment,
   seedHostSession,
@@ -209,6 +210,52 @@ describe("vk session policy", () => {
         "DROP_ENV",
       );
       expect(config.vkSessionPolicy).toBeNull();
+    });
+  });
+});
+
+describe("vk excluded plugins", () => {
+  afterEach(() => setPluginAgentContributions(undefined));
+
+  it("lists plugins a place's policy leaves out, never the policy owner", async () => {
+    await withTestHarness(async (harness) => {
+      const { project, thread } = await seed(harness, "host-vk-excluded");
+      setPluginAgentContributions({
+        listSkillRootContributions: () => [],
+        listAgentTools: () => [],
+        listInstructionContributions: () => [],
+        findAgentTool: () => undefined,
+        invokeAgentTool: async () => ({
+          success: false,
+          contentItems: [{ type: "inputText", text: "unused" }],
+        }),
+        resolveMention: async () => ({ ok: false, error: "unused" }),
+        listVkContextContributions: () =>
+          ["agency", "env-catalog", "project-folders"].map((pluginId) => ({
+            pluginId,
+            instructions: false,
+            configure: false,
+            tools: [],
+            skills: [],
+          })),
+        resolveVkSessionPolicy: async () => ({
+          pluginId: "project-folders",
+          policy: { bbPlugins: { mode: "allow", names: ["env-catalog"] } },
+        }),
+      });
+      expect([
+        ...(await resolveVkExcludedPluginIds(harness.deps.db, {
+          threadId: thread.id,
+        })),
+      ]).toEqual(["agency"]);
+      expect([
+        ...(await resolveVkExcludedPluginIds(harness.deps.db, {
+          projectId: project.id,
+        })),
+      ]).toEqual(["agency"]);
+      expect((await resolveVkExcludedPluginIds(harness.deps.db, {})).size).toBe(
+        0,
+      );
     });
   });
 });

@@ -56,6 +56,11 @@ sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false.
 | `packages/provider-bridge-acp/src/bridge/cursor-mcp-approval.ts` | export `cursorProjectSlug`, `cursorDataDirectory` |
 | `plugins/bb-guide/skills/bb-plugin-authoring/references/*-api-index.md` | docs for new exports |
 | `apps/server/test/services/plugins/plugin-agent-tools.test.ts` | `bb.agents` key list |
+| `apps/server/src/routes/plugins.ts` | `GET /plugins/vk-excluded-plugins` |
+| `apps/server/src/services/threads/dispatch-hooks.ts` | skip excluded plugins' hooks and submission |
+| `apps/app/src/components/plugin/composer-slot-hooks.ts` | hide excluded plugins' composer UI |
+| `apps/app/src/components/plugin/plugin-composer-host.tsx` | optional `vkPlace` on the host |
+| `apps/app/src/components/promptbox/NewThreadComposer.tsx` | new thread's place (host, environment, section path) |
 
 New files (no conflicts): `packages/domain/src/vk-session-policy.ts`,
 `packages/provider-bridge-protocol/src/bridge-kit/vk-skill-roots.ts`,
@@ -66,6 +71,13 @@ New files (no conflicts): `packages/domain/src/vk-session-policy.ts`,
 
 `bb.agents.experimental_vkContextContributions()` lists what each running plugin
 adds to agent sessions (instructions, configure, tools, skills) for the editor.
+
+A plugin the policy leaves out is absent at that place, not only from the
+session: `GET /api/v1/plugins/vk-excluded-plugins` (thread, or project + host +
+environment/path) lists them; the composer hides their customizations
+(`composer-slot-hooks.ts`), and `message.dispatch` skips their hooks and drops
+their composer submission (`dispatch-hooks.ts`). The policy owner is never
+excluded.
 
 Consumer: plugin `project-folders` (VKirill/bb-plugin-project-folders), tab
 «Контекст сессии», shown only when the API above exists.
