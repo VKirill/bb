@@ -22,9 +22,13 @@ import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
 import type { ProviderFork } from "@bb/domain/provider-fork";
-import type { VkSessionPolicy } from "@bb/domain/vk-session-policy";
+import type {
+  VkContextContribution,
+  VkSessionPolicy,
+} from "@bb/domain/vk-session-policy";
 // VK EXPERIMENTAL: re-exported so a plugin can type its session policy.
 export type {
+  VkContextContribution,
   VkPolicyFilter,
   VkSessionPolicy,
 } from "@bb/domain/vk-session-policy";
@@ -1749,6 +1753,11 @@ export interface PluginAgents {
       context: PluginAgentConfigurationContext,
     ) => VkSessionPolicy | null | Promise<VkSessionPolicy | null>,
   ): void;
+  /**
+   * VK EXPERIMENTAL — what every running plugin contributes to agent
+   * sessions: instructions, agent tools and skills.
+   */
+  experimental_vkContextContributions?(): VkContextContribution[];
 }
 
 /**
