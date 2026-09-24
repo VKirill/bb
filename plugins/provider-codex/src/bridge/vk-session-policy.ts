@@ -70,6 +70,10 @@ export function buildCodexVkLaunchArgs(args: {
       overrides.push(`skills.config=[${disabled.join(",")}]`);
     }
   }
+  // Codex reads no AGENTS.md project doc when its byte budget is zero.
+  if (args.policy.projectInstructions === false) {
+    overrides.push("project_doc_max_bytes=0");
+  }
   return overrides.flatMap((override) => ["-c", override]);
 }
 

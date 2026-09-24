@@ -57,8 +57,18 @@ function stub(policy: VkSessionPolicy | null): void {
     resolveMention: async () => ({ ok: false, error: "unused" }),
     resolveProviderEnv: async () => ({
       entries: [
-        { name: "KEEP_ENV", value: "1", source: { plugin: "keep" } },
-        { name: "DROP_ENV", value: "1", source: { plugin: "drop" } },
+        {
+          name: "KEEP_ENV",
+          value: "1",
+          source: { plugin: "keep" },
+          reason: "test",
+        },
+        {
+          name: "DROP_ENV",
+          value: "1",
+          source: { plugin: "drop" },
+          reason: "test",
+        },
       ],
     }),
     resolveVkSessionPolicy: async () =>
@@ -96,10 +106,20 @@ describe("vk session policy", () => {
         "user rules",
         "utf8",
       );
-      const { environment, thread } = await seed(harness, "host-vk-drop");
+      const { environment, thread, workspacePath } = await seed(
+        harness,
+        "host-vk-drop",
+      );
+      await mkdir(path.join(workspacePath, ".bb"), { recursive: true });
+      await writeFile(
+        path.join(workspacePath, ".bb", "AGENTS.md"),
+        "project rules",
+        "utf8",
+      );
       stub({
         bbPlugins: { mode: "deny", names: ["drop"] },
         userInstructions: false,
+        projectInstructions: false,
       });
       const config = await resolveThreadRuntimeCommandConfig(harness.deps, {
         thread,
@@ -115,10 +135,14 @@ describe("vk session policy", () => {
       expect(config.instructions).not.toContain("drop instructions");
       expect(config.instructions).not.toContain("Use drop_tool.");
       expect(config.instructions).not.toContain("user rules");
+      expect(config.instructions).not.toContain("project rules");
       const envNames = config.contributedEnv.map((entry) => entry.name);
       expect(envNames).toContain("KEEP_ENV");
       expect(envNames).not.toContain("DROP_ENV");
-      expect(config.vkSessionPolicy).toBeNull();
+      expect(config.vkSessionPolicy).toEqual({
+        version: 1,
+        projectInstructions: false,
+      });
     });
   });
 
