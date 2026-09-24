@@ -23,6 +23,8 @@ export type BridgeSteerMode = z.infer<typeof bridgeSteerModeSchema>;
 
 export const bridgeCapabilitiesSchema = z
   .object({
+    experimental_vkRequiredSessionPolicy: z.literal(1).optional(),
+    experimental_vkCompiledMainAgent: z.literal(1).optional(),
     sessionRestore: z.boolean().default(false),
     threadArchive: z.boolean().default(false),
     threadRename: z.boolean().default(false),
