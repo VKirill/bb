@@ -156,7 +156,10 @@ export function sanitizeGeneratedBranchSlug(value: string): string | null {
   return slug.length > 0 ? slug : null;
 }
 
-export function buildThreadTitlePrompt(input: PromptInput[]): string | null {
+export function buildThreadTitlePrompt(
+  input: PromptInput[],
+  titleLanguage?: string | null,
+): string | null {
   const fallback = deriveTitleFallback(input);
   if (!fallback) {
     return null;
@@ -165,6 +168,8 @@ export function buildThreadTitlePrompt(input: PromptInput[]): string | null {
   const body = promptTextWithoutCommands(input, commands);
   return renderTemplate("generateThreadMetadata", {
     cleanedPrompt: body.length > 0 ? clampPromptText(body) : fallback,
+    // VK EXPERIMENTAL: BB_THREAD_TITLE_LANGUAGE, else the task's language.
+    titleLanguage: titleLanguage ?? "the same language as the task",
     ...(commands.length > 0
       ? { invokedCommands: formatInvokedCommands(commands) }
       : {}),
@@ -185,7 +190,10 @@ export async function generateThreadMetadataWithOutcome(
     ...(reason ? { reason } : {}),
   });
 
-  const prompt = buildThreadTitlePrompt(args.input);
+  const prompt = buildThreadTitlePrompt(
+    args.input,
+    deps.config.threadTitleLanguage,
+  );
   if (prompt === null) {
     return complete(null, "empty-input");
   }

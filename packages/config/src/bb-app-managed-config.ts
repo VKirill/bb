@@ -23,12 +23,14 @@ const BB_APP_ENV_FILE_NAME = "env.json";
 export type BbAppManagedConfigKey =
   | "BB_APP_URL"
   | "BB_INFERENCE_SERVICE_TIER"
-  | "BB_LOG_LEVEL";
+  | "BB_LOG_LEVEL"
+  | "BB_THREAD_TITLE_LANGUAGE";
 
 export const BB_APP_MANAGED_CONFIG_KEYS: BbAppManagedConfigKey[] = [
   "BB_APP_URL",
   "BB_INFERENCE_SERVICE_TIER",
   "BB_LOG_LEVEL",
+  "BB_THREAD_TITLE_LANGUAGE",
 ];
 
 export const REMOVED_AI_SERVICE_CONFIG_KEYS: readonly string[] = [
@@ -58,6 +60,8 @@ const bbAppManagedConfigValuesSchema = z
     // VK EXPERIMENTAL: service tier for helper inference (titles, metadata).
     BB_INFERENCE_SERVICE_TIER: z.enum(["fast", "default"]).optional(),
     BB_LOG_LEVEL: z.string().optional(),
+    // VK EXPERIMENTAL: language of generated thread titles, e.g. "Russian".
+    BB_THREAD_TITLE_LANGUAGE: z.string().trim().min(1).max(40).optional(),
   })
   .strict();
 

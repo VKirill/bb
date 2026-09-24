@@ -32,6 +32,8 @@ export interface ServerRuntimeConfig {
   inheritedSkillsRootPaths: string[];
   /** VK EXPERIMENTAL: service tier for helper inference; null = default. */
   inferenceServiceTier?: "fast" | "default" | null;
+  /** VK EXPERIMENTAL: language of generated thread titles; null = the task's. */
+  threadTitleLanguage?: string | null;
   isDevelopment: boolean;
   marketplaceUrl: string;
   serverPort: number;

@@ -108,6 +108,11 @@ export function applyBbAppManagedConfig(
   } else if (managedConfig.BB_INFERENCE_SERVICE_TIER === "default") {
     delete process.env.BB_INFERENCE_SERVICE_TIER;
   }
+  // VK EXPERIMENTAL: language of generated thread titles.
+  args.targetConfig.threadTitleLanguage =
+    managedConfig.BB_THREAD_TITLE_LANGUAGE ??
+    args.baseConfig.threadTitleLanguage ??
+    null;
 
   setOptionalAppUrl(
     args.targetConfig,
