@@ -98,6 +98,16 @@ export function applyBbAppManagedConfig(
     args.managedConfig.customModels ?? args.baseConfig.customModels;
   args.targetConfig.sharedSkillRoots =
     args.managedConfig.sharedSkillRoots ?? args.baseConfig.sharedSkillRoots;
+  // VK EXPERIMENTAL: service tier for helper inference.
+  args.targetConfig.inferenceServiceTier =
+    managedConfig.BB_INFERENCE_SERVICE_TIER ??
+    args.baseConfig.inferenceServiceTier ??
+    null;
+  if (args.targetConfig.inferenceServiceTier === "fast") {
+    process.env.BB_INFERENCE_SERVICE_TIER = "fast";
+  } else if (managedConfig.BB_INFERENCE_SERVICE_TIER === "default") {
+    delete process.env.BB_INFERENCE_SERVICE_TIER;
+  }
 
   setOptionalAppUrl(
     args.targetConfig,

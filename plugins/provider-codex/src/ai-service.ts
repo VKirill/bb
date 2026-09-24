@@ -47,7 +47,15 @@ export function registerCodexAiService(bb: BbPluginApi): void {
       for (const model of CODEX_TEXT_MODELS) {
         last = await host.call(
           "codex.ai.complete",
-          { model, prompt, timeoutMs: COMPLETE_TIMEOUT_MS },
+          {
+            model,
+            prompt,
+            timeoutMs: COMPLETE_TIMEOUT_MS,
+            // VK EXPERIMENTAL: helper inference service tier.
+            ...(process.env.BB_INFERENCE_SERVICE_TIER === "fast"
+              ? { serviceTier: "fast" as const }
+              : {}),
+          },
           {
             hostId,
             signal,

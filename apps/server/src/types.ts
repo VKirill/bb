@@ -31,6 +31,8 @@ export interface ServerRuntimeConfig {
   featureFlags: FeatureFlags;
   hostDaemonPort: number;
   inheritedSkillsRootPaths: string[];
+  /** VK EXPERIMENTAL: service tier for helper inference; null = default. */
+  inferenceServiceTier?: "fast" | "default" | null;
   isDevelopment: boolean;
   performanceDiagnosticsAvailable: boolean;
   marketplaceUrl: string;
