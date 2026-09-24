@@ -45,6 +45,14 @@ export const vkSessionPolicySchema = z.object({
   nativePlugins: vkPolicyFilterSchema.optional(),
   /** Whether `<dataDir>/AGENTS.md` user instructions load. Default true. */
   userInstructions: z.boolean().optional(),
+  /**
+   * Whether project instructions load: the workspace `.bb/AGENTS.md` BB adds,
+   * and the `CLAUDE.md` / `AGENTS.md` files the CLI finds in the folder and
+   * its parents. Default true.
+   */
+  projectInstructions: z.boolean().optional(),
+  /** Whether Claude Code syncs skills and plugins from claude.ai. Default true. */
+  claudeAiSync: z.boolean().optional(),
 });
 export type VkSessionPolicy = z.infer<typeof vkSessionPolicySchema>;
 
@@ -68,6 +76,10 @@ export const vkRuntimeSessionPolicySchema = z.object({
   skills: vkPolicyFilterSchema.optional(),
   mcpServers: vkPolicyFilterSchema.optional(),
   nativePlugins: vkPolicyFilterSchema.optional(),
+  /** Set to false when the CLI must skip project instruction files. */
+  projectInstructions: z.literal(false).optional(),
+  /** Set to false when Claude Code must not sync from claude.ai. */
+  claudeAiSync: z.literal(false).optional(),
 });
 export type VkRuntimeSessionPolicy = z.infer<
   typeof vkRuntimeSessionPolicySchema
