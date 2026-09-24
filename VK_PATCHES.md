@@ -2,7 +2,8 @@
 
 Branch `vk/experimental` on top of an upstream `desktop-v*` tag. Everything
 here is marked `VK EXPERIMENTAL` in code, uses the `vk` prefix in names, and
-is absent from upstream bb. Rebase this branch on each new upstream tag; a
+is absent from upstream bb. A guide to the functions for plugin authors (in
+Russian) is in [VK_FUNCTIONS.md](VK_FUNCTIONS.md). Rebase this branch on each new upstream tag; a
 conflict can only happen at the hook points listed below.
 
 ## Session policy (`session-policy`, v1)
