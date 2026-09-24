@@ -27,6 +27,7 @@ type PluginAgentContributions = Pick<
       PluginService,
       | "resolveAgentConfiguration"
       | "resolveVkSessionPolicy"
+      | "listVkContextContributions"
       | "resolveProviderEnv"
       | "resolveProviderEnvHealth"
     >
@@ -61,6 +62,11 @@ export async function resolvePluginAgentConfiguration(args: {
     };
   }
   return active.resolveAgentConfiguration(args);
+}
+
+/** VK EXPERIMENTAL: what each running plugin adds to agent sessions. */
+export function listPluginVkContextContributions() {
+  return contributions?.listVkContextContributions?.() ?? [];
 }
 
 /** VK EXPERIMENTAL: the session policy a plugin set for this thread, or null. */
