@@ -1685,8 +1685,9 @@ export interface PluginAgents {
    *
    * Register a resolver that narrows what one agent session loads: BB
    * plugins, skills, provider-native MCP servers and provider-native CLI
-   * plugins. It runs with the same context and at the same points as
-   * `configure` (thread.start / turn.submit). Return null to leave the session
+   * plugins. It runs with the same context (including this plugin's thread
+   * metadata) and at the same points as `configure` (thread.start /
+   * turn.submit). Return null to leave the session
    * as bb builds it. When several plugins register, the first non-null answer
    * in plugin id order wins. A throw, a malformed policy or a resolver slower
    * than two seconds is logged and treated as null (fail open). One resolver

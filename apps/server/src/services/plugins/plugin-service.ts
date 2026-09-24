@@ -2090,6 +2090,21 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           const resolver = plugin.handle.vkSessionPolicyResolver;
           return resolver === null ? [] : [{ pluginId, resolver }];
         });
+      // The resolver sees the thread's metadata under its own id, as
+      // `configure` does, so a plugin can recognise threads it started.
+      const metadataByPluginId = new Map<string, JsonObject>();
+      if (context.thread.id !== "") {
+        for (const row of listThreadPluginMetadataRows(
+          deps.db,
+          context.thread.id,
+          resolvers.map(({ pluginId }) => pluginId),
+        )) {
+          const metadata = parsePersistedPluginMetadata(row.metadataJson);
+          if (metadata !== undefined) {
+            metadataByPluginId.set(row.pluginId, metadata);
+          }
+        }
+      }
       for (const { pluginId, resolver } of resolvers) {
         const outcome = await invokeWrapped(
           pluginId,
@@ -2097,7 +2112,12 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           async () =>
             raceTimeout(
               Promise.resolve(
-                resolver({ ...context, pluginMetadata: {} }),
+                resolver({
+                  ...context,
+                  pluginMetadata: deepFreezePluginMetadata(
+                    metadataByPluginId.get(pluginId) ?? {},
+                  ),
+                }),
               ).then((value) => {
                 if (value === null || value === undefined) return null;
                 const parsed = vkSessionPolicySchema.safeParse(value);
