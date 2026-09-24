@@ -71,8 +71,8 @@ experimental_vkSessionPolicy?(
 | `environment` | `id`, `name`, `path` (папка сессии), `branchName` |
 | `host` | `id`, `name` |
 | `provider` | `id` (`claude-code`, `codex`, `opencode`, `cursor`…), `model`, `capabilities` |
-| `origin` | `kind` (`"fork"` или `null`), `pluginId` — происхождение треда (заполняется не всегда) |
-| `pluginMetadata` | метаданные треда под id вашего плагина (недоверенные данные) |
+| `origin` | `kind`, `pluginId` — для тредов, созданных плагином через `bb.sdk.threads.spawn`, здесь его id |
+| `pluginMetadata` | метаданные треда под id вашего плагина, как в `configure` (недоверенные данные) |
 
 **Правила работы:**
 
@@ -113,8 +113,8 @@ export const vkAvailable = typeof agents.experimental_vkSessionPolicy === "funct
 
 if (vkAvailable) {
   agents.experimental_vkSessionPolicy!((ctx) => {
-    const role = ctx.pluginMetadata.role; // set by Agency on its own threads
-    if (typeof role !== "string") return null; // not our thread
+    if (ctx.origin.pluginId !== "agency") return null; // not our thread
+    const role = ctx.pluginMetadata.role; // written by Agency at spawn
     return policyForRole(role);
   });
 }
@@ -245,7 +245,7 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 
 Рекомендуемая схема — как у Multica: правила по роли агента.
 
-1. **Отвечать только за свои треды.** Для остальных возвращать `null`. Надёжный признак своего треда — метаданные, которые Агентство само записывает при создании треда (`ctx.pluginMetadata`, например `role`). `ctx.origin.pluginId` заполняется не всегда, полагаться только на него не стоит. Обычные треды пользователя пусть остаются за project-folders.
+1. **Отвечать только за свои треды.** Для остальных возвращать `null`. Треды, созданные через `bb.sdk.threads.spawn`, ядро помечает id плагина: `ctx.origin.pluginId === "agency"`. Роль сотрудника удобно записать в метаданные треда при создании (`pluginMetadata`) и прочитать в резолвере из `ctx.pluginMetadata`. Обычные треды пользователя пусть остаются за project-folders.
 2. **Хранить правила у роли:** какие навыки, MCP, плагины CLI и BB нужны копирайтеру, ревьюеру и т. д. Резолвер собирает из них `VkSessionPolicy`.
 3. **Держать себя в `bbPlugins`, если нужны свои инструменты.** Технически владелец правил и так не исключается, но явное указание понятнее.
 4. **Показывать настройку только при `vkAvailable`.** На обычном BB Агентство должно работать как сейчас.
