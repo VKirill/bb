@@ -2,7 +2,7 @@ import type {
   PluginRpcDiscoveryQuery,
   PublishedPluginRpcMethod,
 } from "@bb/server-contract";
-import { watch } from "node:fs";
+import { existsSync, readdirSync, watch } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -23,6 +23,7 @@ import {
 } from "@bb/domain";
 import {
   vkSessionPolicySchema,
+  type VkContextContribution,
   type VkSessionPolicy,
 } from "@bb/domain/vk-session-policy";
 import {
@@ -415,6 +416,8 @@ export interface PluginService {
     context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
     skillIdsByPlugin: ReadonlyMap<string, readonly string[]>;
   }): Promise<PluginResolvedAgentConfiguration>;
+  /** VK EXPERIMENTAL: what each running plugin adds to agent sessions. */
+  listVkContextContributions(): VkContextContribution[];
   /** VK EXPERIMENTAL: the first non-null session policy, or null. */
   resolveVkSessionPolicy(args: {
     context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
@@ -2241,6 +2244,25 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     },
 
     // VK EXPERIMENTAL — absent from upstream bb.
+    listVkContextContributions() {
+      const tools = collectAgentTools();
+      return [...loaded.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([pluginId, plugin]) => ({
+          pluginId,
+          instructions: plugin.handle.instructionProvider !== null,
+          configure: plugin.handle.agentConfigurationProvider !== null,
+          tools: tools
+            .filter((entry) => entry.pluginId === pluginId)
+            .map(({ record }) => record.name)
+            .sort(),
+          skills: plugin.manifest.skillsRootPaths
+            .flatMap((root) => vkListSkillDirs(root))
+            .sort(),
+        }));
+    },
+
+    // VK EXPERIMENTAL — absent from upstream bb.
     async resolveVkSessionPolicy({ context }) {
       const resolvers = [...loaded.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
@@ -2670,4 +2692,15 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       }
     },
   };
+}
+
+/** VK EXPERIMENTAL: skill folder names directly under a plugin skills root. */
+function vkListSkillDirs(root: string): string[] {
+  try {
+    return readdirSync(root).filter((name) =>
+      existsSync(join(root, name, "SKILL.md")),
+    );
+  } catch {
+    return [];
+  }
 }
