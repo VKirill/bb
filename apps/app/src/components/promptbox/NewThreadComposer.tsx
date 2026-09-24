@@ -1936,9 +1936,29 @@ export function NewThreadComposer({
     [applySelection],
   );
 
+  // VK EXPERIMENTAL: the new thread's place for the session policy. A section
+  // environment names its folder in the provider inputs.
+  const vkInputsPath =
+    submissionProviderInputs !== null &&
+    typeof submissionProviderInputs === "object" &&
+    !Array.isArray(submissionProviderInputs) &&
+    typeof (submissionProviderInputs as Record<string, unknown>).path ===
+      "string"
+      ? ((submissionProviderInputs as Record<string, unknown>).path as string)
+      : null;
+  const vkComposerPlace = useMemo(
+    () => ({
+      projectId,
+      hostId: projectHostId,
+      environmentId: reuseEnvironmentId,
+      path: vkInputsPath,
+    }),
+    [projectId, projectHostId, reuseEnvironmentId, vkInputsPath],
+  );
   const pluginComposerHost = useMemo<PluginComposerHost>(
     () => ({
       scope: { kind: "new-thread", projectId },
+      vkPlace: vkComposerPlace,
       textEffectKey: promptDraft.storageKey,
       getCurrent: promptDraft.getCurrent,
       subscribeDraft: promptDraft.subscribe,
@@ -1953,6 +1973,7 @@ export function NewThreadComposer({
       focusPromptBox,
       getSelection,
       projectId,
+      vkComposerPlace,
       promptDraft.getCurrent,
       promptDraft.setDraft,
       promptDraft.storageKey,
