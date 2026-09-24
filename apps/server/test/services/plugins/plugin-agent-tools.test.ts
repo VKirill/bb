@@ -625,6 +625,7 @@ describe("bb.agents.experimental_registerProvider (removed in SDK 0.4.16)", () =
       "configure",
       "contributeInstructions",
       // VK EXPERIMENTAL: absent from upstream bb.
+      "experimental_vkContextContributions",
       "experimental_vkSessionPolicy",
       "registerTool",
     ]);

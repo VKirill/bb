@@ -64,5 +64,8 @@ New files (no conflicts): `packages/domain/src/vk-session-policy.ts`,
 `plugins/provider-codex/src/bridge/vk-session-policy.ts`,
 `packages/provider-bridge-acp/src/vk-session-policy.ts`, and their tests.
 
+`bb.agents.experimental_vkContextContributions()` lists what each running plugin
+adds to agent sessions (instructions, configure, tools, skills) for the editor.
+
 Consumer: plugin `project-folders` (VKirill/bb-plugin-project-folders), tab
 «Контекст сессии», shown only when the API above exists.
