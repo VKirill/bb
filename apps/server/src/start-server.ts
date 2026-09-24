@@ -151,6 +151,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     inferenceFallbackModel: serverConfig.BB_INFERENCE_FALLBACK,
     inferenceModel: serverConfig.BB_INFERENCE,
     inferenceServiceTier: null,
+    threadTitleLanguage: null,
     isDevelopment: !isProduction,
     openAiApiKey: serverConfig.OPENAI_API_KEY,
     serverPort: serverConfig.BB_SERVER_PORT,
