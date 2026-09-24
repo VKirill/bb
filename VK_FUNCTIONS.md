@@ -158,7 +158,11 @@ if (vkAvailable) {
 ```
 
 > [!IMPORTANT]
-> `bb-bridge` — служебный MCP самого BB: через него идут инструменты плагинов. Он остаётся всегда, фильтр `mcpServers` его не трогает.
+> Некоторые элементы ядро не даёт исключить никаким правилам:
+> - плагин `environment-project-checkout`, если он установлен (`VK_REQUIRED_PLUGIN_IDS`): без него BB не запускает и не показывает треды. Он остаётся в сессии, в композере и в хуках, даже если указан в `deny` или не указан в `allow`;
+> - `bb-bridge`, служебный MCP самого BB, через который идут инструменты плагинов. Ядро убирает его из `deny` и добавляет в `allow`, прежде чем правила попадут в мост.
+>
+> В `experimental_vkContextContributions()` у таких плагинов `required: true`: редактору стоит показывать их заблокированными.
 
 ---
 
@@ -169,6 +173,7 @@ if (vkAvailable) {
 ```ts
 interface VkContextContribution {
   pluginId: string;
+  required: boolean;     // no policy can leave it out
   instructions: boolean; // adds instructions (contributeInstructions / dynamic)
   configure: boolean;    // chooses its tools and skills per thread via configure
   tools: string[];       // agent tool names

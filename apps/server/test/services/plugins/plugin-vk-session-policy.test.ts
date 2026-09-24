@@ -220,6 +220,7 @@ describe("bb.agents.experimental_vkSessionPolicy", () => {
     expect(listed).toEqual([
       {
         pluginId: "contrib",
+        required: false,
         instructions: true,
         configure: false,
         tools: ["contrib_tool"],
@@ -227,6 +228,7 @@ describe("bb.agents.experimental_vkSessionPolicy", () => {
       },
       {
         pluginId: "ui-only",
+        required: false,
         instructions: false,
         configure: false,
         tools: [],
