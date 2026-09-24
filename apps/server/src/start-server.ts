@@ -181,6 +181,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     hostDaemonPort: serverConfig.BB_HOST_DAEMON_PORT,
     inheritedSkillsRootPaths: serverConfig.BB_INHERITED_SKILLS_ROOTS,
     inferenceServiceTier: null,
+    threadTitleLanguage: null,
     isDevelopment: !isProduction,
     performanceDiagnosticsAvailable: serverConfig.BB_PERF_DIAGNOSTICS,
     serverPort: serverConfig.BB_SERVER_PORT,
