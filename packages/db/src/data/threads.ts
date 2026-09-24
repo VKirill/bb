@@ -1,3 +1,8 @@
+import {
+  insertVkRequiredSessionPolicy,
+  readVkRequiredSessionPolicy,
+} from "./thread-required-session-policy.js";
+import { intersectVkSessionPolicies, intersectVkPolicyFilters, vkPolicyAllows, type VkRequiredSessionPolicy } from "@bb/domain/vk-session-policy";
 import { copyProjectAttachmentOwnership } from "./project-attachments.js";
 import {
   and,
@@ -45,7 +50,13 @@ import {
 import { createThreadId } from "../ids.js";
 import { NON_TERMINAL_SESSION_STATUSES } from "./terminal-sessions.js";
 import { createOrderKeyBetween } from "./order-keys.js";
-import { insertThreadPluginMetadata } from "./thread-plugin-metadata.js";
+import {
+  insertThreadPluginMetadata,
+  insertVkCompiledMainAgentSnapshot,
+  readVkCompiledMainAgentSnapshot,
+  digestVkCompiledMainAgentSource,
+} from "./thread-plugin-metadata.js";
+import type { VkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
 
 type ThreadWriteConnection = DbConnection | DbTransaction;
 
@@ -274,6 +285,8 @@ export interface CreateThreadInput {
   pluginMetadata?: { pluginId: string; metadata: JsonObject } | null;
   startupContext?: string;
   visibility?: ThreadVisibility;
+  vkCompiledMainAgent?: VkCompiledMainAgent;
+  vkRequiredSessionPolicy?: VkRequiredSessionPolicy;
 }
 
 export class InvalidLifecycleOwnerError extends Error {
@@ -374,6 +387,64 @@ export function createThread(
           metadata: input.pluginMetadata.metadata,
         });
       }
+      const parentIds = [input.parentThreadId, input.sourceThreadId, input.lifecycleOwnerThreadId].filter((id): id is string => typeof id === "string");
+      const parentPolicies = [...new Set(parentIds)].flatMap((id) => {
+        const stored = readVkRequiredSessionPolicy(tx, id);
+        return stored ? [stored.policy] : [];
+      });
+      const parentAgents = [...new Set(parentIds)].flatMap((id) => {
+        const stored = readVkCompiledMainAgentSnapshot(tx, id);
+        return stored.required ? [stored.profile] : [];
+      });
+      if (input.vkCompiledMainAgent) {
+        const { sourceHash, ...sourceBody } = input.vkCompiledMainAgent;
+        if (digestVkCompiledMainAgentSource(sourceBody) !== sourceHash) {
+          throw new Error("vk_compiled_main_agent_source_hash_mismatch");
+        }
+      }
+      let compiled = input.vkCompiledMainAgent ?? parentAgents[0];
+      let agentPolicy: ReturnType<typeof intersectVkSessionPolicies> | null = null;
+      if (compiled) {
+        if (input.providerId !== "claude-code") throw new Error("vk_compiled_main_agent_unsupported_provider");
+        const definitions = [compiled, ...parentAgents];
+        const allowed = definitions.flatMap((profile) => profile.tools ? [profile.tools] : []);
+        const denied = [...new Set(definitions.flatMap((profile) => profile.disallowedTools ?? []))];
+        compiled = {
+          ...compiled,
+          ...(allowed.length ? { tools: allowed[0]!.filter((name) => allowed.every((names) => vkPolicyAllows({ mode: "allow", names }, name))) } : {}),
+          ...(denied.length ? { disallowedTools: denied } : {}),
+        };
+        agentPolicy = {
+          skills: intersectVkPolicyFilters(definitions.map((profile) => profile.skills ? { mode: "allow", names: profile.skills } : undefined)),
+          mcpServers: intersectVkPolicyFilters(definitions.map((profile) => profile.mcpServers ? { mode: "allow", names: profile.mcpServers } : undefined)),
+        };
+        const effectivePolicy = intersectVkSessionPolicies([
+          ...parentPolicies,
+          ...(input.vkRequiredSessionPolicy ? [input.vkRequiredSessionPolicy.policy] : []),
+          agentPolicy,
+        ]);
+        const narrowed = {
+          ...compiled,
+          ...(compiled.skills
+            ? { skills: compiled.skills.filter((name) => vkPolicyAllows(effectivePolicy.skills, name, name.includes(":") ? name.slice(name.indexOf(":") + 1) : name)) }
+            : {}),
+          ...(compiled.mcpServers
+            ? { mcpServers: compiled.mcpServers.filter((name) => vkPolicyAllows(effectivePolicy.mcpServers, name)) }
+            : {}),
+        };
+        const { sourceHash: _sourceHash, ...sourceBody } = narrowed;
+        compiled = {
+          ...sourceBody,
+          sourceHash: digestVkCompiledMainAgentSource(sourceBody),
+        };
+        insertVkCompiledMainAgentSnapshot(tx, { threadId: createdThread.id, profile: compiled });
+      }
+      insertVkRequiredSessionPolicy(tx, {
+        threadId: createdThread.id,
+        providerId: input.providerId,
+        requested: compiled ? { version: 1, policy: intersectVkSessionPolicies([input.vkRequiredSessionPolicy?.policy ?? {}, agentPolicy ?? {}]) } : input.vkRequiredSessionPolicy,
+        parentIds,
+      });
       return createdThread;
     },
     { behavior: "immediate" },

@@ -920,6 +920,9 @@ function toSessionConstructionConfig(
       ...(params.vkSessionPolicy
         ? { vkSessionPolicy: params.vkSessionPolicy }
         : {}),
+      ...(params.vkCompiledMainAgent
+        ? { vkCompiledMainAgent: params.vkCompiledMainAgent }
+        : {}),
     },
   };
 }
@@ -2050,6 +2053,8 @@ async function handleRequest(request: ClaudeCodeJsonRpcRequest): Promise<void> {
       const result: InitializeResult = {
         protocolVersion: PROVIDER_BRIDGE_PROTOCOL_VERSION,
         capabilities: {
+          experimental_vkRequiredSessionPolicy: 1,
+          experimental_vkCompiledMainAgent: 1,
           sessionRestore: true,
           threadArchive: false,
           threadRename: false,

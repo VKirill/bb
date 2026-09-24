@@ -290,6 +290,8 @@
     "badge": "optional"
   },
   "capabilities": {
+    "experimental_vkRequiredSessionPolicy": "optional",
+    "experimental_vkCompiledMainAgent": "optional",
     "sessionRestore": "default",
     "threadArchive": "default",
     "threadRename": "default",

@@ -9,6 +9,7 @@ import { delimiter, join } from "node:path";
 import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import type { ClaudePermissionMode } from "../interactive-contract.js";
 import type { VkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
+import { vkPolicyAllows } from "@get-bb/plugin-sdk/provider-bridge";
 import {
   buildClaudeVkSessionOptions,
   listClaudeBbSkillNames,
@@ -37,6 +38,17 @@ export interface BuildSessionOptionsArgs {
   memoryEnabled?: boolean;
   /** VK EXPERIMENTAL: the bridge half of a session policy. */
   vkSessionPolicy?: VkRuntimeSessionPolicy;
+  vkCompiledMainAgent?: {
+    id: string;
+    sourceVersion: string;
+    sourceHash: string;
+    description: string;
+    prompt: string;
+    tools?: string[];
+    disallowedTools?: string[];
+    skills?: string[];
+    mcpServers?: string[];
+  };
 }
 
 type WorkspaceWriteSandboxArgs = Pick<
@@ -264,9 +276,17 @@ export function buildSessionOptions(
     ...buildFlagSettings(params),
   };
   const extraArgs = buildChromeExtraArgs(params.chromeEnabled);
+  // VK EXPERIMENTAL: the bridge-level tool denials of a compiled MAIN agent and a session policy.
+  const vkDisallowedTools = [
+    ...(params.vkCompiledMainAgent?.disallowedTools ?? []),
+    ...(vk?.disallowedTools ?? []),
+  ];
 
   return {
     cwd: params.cwd,
+    ...(params.vkCompiledMainAgent?.tools
+      ? { tools: params.vkCompiledMainAgent.tools }
+      : {}),
     systemPrompt,
     model,
     env: {
@@ -289,9 +309,7 @@ export function buildSessionOptions(
     ...(additionalDirectories.length > 0
       ? { additionalDirectories: [...additionalDirectories] }
       : {}),
-    ...(vk && vk.disallowedTools.length > 0
-      ? { vkDisallowedTools: vk.disallowedTools }
-      : {}),
+    ...(vkDisallowedTools.length > 0 ? { vkDisallowedTools } : {}),
     ...(vk && Object.keys(vk.mcpServers).length > 0
       ? { mcpServers: vk.mcpServers }
       : {}),
@@ -300,5 +318,65 @@ export function buildSessionOptions(
     ...(vk && Object.keys(vk.flagSettings).length > 0
       ? { vkFlagSettings: vk.flagSettings }
       : {}),
+    ...compiledMainAgentQueryOptions(
+      params.vkCompiledMainAgent,
+      params.vkSessionPolicy,
+    ),
   };
+}
+
+function compiledMainAgentQueryOptions(
+  profile: BuildSessionOptionsArgs["vkCompiledMainAgent"],
+  policy: VkRuntimeSessionPolicy | undefined,
+): Pick<SdkSessionOptions, "agent" | "agents"> {
+  if (!profile) return {};
+  if (
+    !profile.id ||
+    !profile.prompt ||
+    !profile.sourceHash ||
+    !profile.description
+  ) {
+    throw new Error("vk_compiled_main_agent_incomplete");
+  }
+  const definition: NonNullable<Options["agents"]>[string] = {
+    description: profile.description,
+    prompt: profile.prompt,
+    ...(profile.tools ? { tools: profile.tools } : {}),
+    ...(profile.disallowedTools
+      ? { disallowedTools: profile.disallowedTools }
+      : {}),
+    ...(profile.skills
+      ? {
+          skills: profile.skills.filter(
+            (name) =>
+              !policy?.skills ||
+              vkPolicyAllows(
+                policy.skills,
+                name,
+                name.includes(":") ? name.slice(name.indexOf(":") + 1) : name,
+              ),
+          ),
+        }
+      : {}),
+    ...(profile.mcpServers
+      ? {
+          mcpServers: [
+            ...new Set([
+              "bb-bridge",
+              ...profile.mcpServers.filter(
+                (name) =>
+                  !policy?.mcpServers ||
+                  vkPolicyAllows(policy.mcpServers, name),
+              ),
+            ]),
+          ],
+        }
+      : {}),
+  };
+  if ("model" in definition || "permissionMode" in definition) {
+    throw new Error(
+      "vk_compiled_main_agent_must_omit_model_and_permissionMode",
+    );
+  }
+  return { agent: profile.id, agents: { [profile.id]: definition } };
 }

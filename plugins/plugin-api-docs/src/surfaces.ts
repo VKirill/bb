@@ -843,12 +843,14 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Call bb.ui.requestInput from a native tool to return a waiting notice immediately, then deliver the eventual result as a thread message; stopping or deleting the thread, or unloading the plugin, cancels the detached call",
           "Decide per thread which of its tools and skills are available",
           "Append instructions to a session's system prompt as that session starts",
+          "Feature-test the VK required-session capability before spawning a thread with a durable resource ceiling",
         ],
         apiSymbols: [
           "PluginAgents",
           "PluginAgentToolContext",
           "PluginRowPresentation",
           "PluginRowLabels",
+          "VkRequiredSessionPolicy",
         ],
         firstParty: [
           "Ask User Question",

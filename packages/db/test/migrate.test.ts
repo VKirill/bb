@@ -896,6 +896,8 @@ function rewindMachineProvidersMigration(db: DbConnection): void {
   db.$client
     .prepare<[number]>("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
     .run(machineProvidersMigrationWhen);
+  db.$client.exec("DROP TABLE IF EXISTS thread_vk_session_policy_required");
+  db.$client.exec("DROP TABLE IF EXISTS thread_vk_compiled_main_required");
 }
 
 function rewindEnvironmentProvidersMigration(db: DbConnection): void {

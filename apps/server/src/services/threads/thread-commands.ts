@@ -3,6 +3,10 @@ import {
   VK_SESSION_POLICY_PROVIDER_OPTION,
   type VkRuntimeSessionPolicy,
 } from "@bb/domain/vk-session-policy";
+import {
+  VK_COMPILED_MAIN_AGENT_PROVIDER_OPTION,
+  type VkCompiledMainAgent,
+} from "@bb/domain/vk-compiled-main-agent";
 import { and, eq, isNull } from "drizzle-orm";
 import {
   PromptInput,
@@ -135,6 +139,7 @@ interface RuntimeExecutionOptionsArgs {
   threadId: string;
   /** VK EXPERIMENTAL: travels to the bridge as the `vkSessionPolicy` option. */
   vkSessionPolicy?: VkRuntimeSessionPolicy | null;
+  vkCompiledMainAgent?: VkCompiledMainAgent | null;
 }
 
 interface BuildExecutionOptionsArgs {
@@ -216,12 +221,23 @@ function toRuntimeExecutionOptions(
       permissionMode,
       ...(promptMode !== undefined ? { promptMode } : {}),
     }) ?? {};
-  const providerOptions = args.vkSessionPolicy
+  let providerOptions = args.vkSessionPolicy
     ? {
         ...derivedProviderOptions,
         [VK_SESSION_POLICY_PROVIDER_OPTION]: args.vkSessionPolicy,
       }
     : derivedProviderOptions;
+  if (args.vkSessionPolicy?.required) {
+    providerOptions = { ...providerOptions, vkRequiredSessionPolicy: 1 };
+  }
+  if (args.vkCompiledMainAgent) {
+    if (args.providerId !== "claude-code")
+      throw new Error("vk_compiled_main_agent_unsupported_provider");
+    providerOptions = {
+      ...providerOptions,
+      [VK_COMPILED_MAIN_AGENT_PROVIDER_OPTION]: args.vkCompiledMainAgent,
+    };
+  }
   const base = {
     model: args.execution.model,
     serviceTier: args.execution.serviceTier,
@@ -306,6 +322,7 @@ export async function buildThreadStartCommand(
       input: args.input,
       threadId: args.thread.id,
       vkSessionPolicy: runtimeContext.vkSessionPolicy,
+      vkCompiledMainAgent: runtimeContext.vkCompiledMainAgent,
     }),
     instructions: runtimeContext.instructions,
     dynamicTools: runtimeContext.dynamicTools,
@@ -339,6 +356,7 @@ function buildPreparedTurnSubmitCommandPayload(
       projectId: args.runtimeContext.projectId,
       providerId: args.runtimeContext.providerId,
       vkSessionPolicy: args.runtimeContext.vkSessionPolicy,
+      vkCompiledMainAgent: args.runtimeContext.vkCompiledMainAgent,
     }),
     target: args.target,
     resumeContext: {

@@ -236,6 +236,18 @@ export function registerThreadDataRoutes(app: Hono, deps: AppDeps): void {
       remove: payload.remove ?? [],
     });
     if (!result.ok) {
+      if (
+        result.reason === "reserved_key" ||
+        result.reason === "corrupt_reserved"
+      ) {
+        throw new ApiError(
+          400,
+          "invalid_request",
+          result.reason === "corrupt_reserved"
+            ? "vk_compiled_main_agent_dropped"
+            : "experimental_vkCompiledMainAgent is not writable pluginMetadata",
+        );
+      }
       throw new ApiError(
         413,
         "invalid_request",
