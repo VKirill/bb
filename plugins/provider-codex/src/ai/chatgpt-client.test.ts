@@ -275,6 +275,45 @@ describe("Codex ChatGPT client", () => {
     expect(requestBody.text).toBeUndefined();
   });
 
+  it("asks for the priority tier when helper inference runs fast", async () => {
+    const homeDir = await makeTempHome();
+    const accessToken = createAccessToken({
+      accountId: "account-123",
+      expSeconds: Math.floor(Date.now() / 1000) + 3600,
+    });
+    await writeCodexAuth({
+      homeDir,
+      accessToken,
+      refreshToken: "refresh-token",
+    });
+    const fetchMock = setupFetchMock();
+    const titleEvent = {
+      type: "response.output_text.delta",
+      delta: "Short title",
+    };
+    fetchMock
+      .mockResolvedValueOnce(sseResponse([titleEvent]))
+      .mockResolvedValueOnce(sseResponse([titleEvent]));
+    const command = {
+      model: "gpt-6-luna",
+      prompt: "Return a title",
+      timeoutMs: 10000,
+    };
+    const signal = new AbortController().signal;
+
+    await completeCodexInference({ ...command, serviceTier: "fast" }, signal);
+    await completeCodexInference(command, signal);
+
+    const [, fastInit] = requiredFetchCall(fetchMock, 0);
+    expect(JSON.parse(textBodyFromInit(fastInit)).service_tier).toBe(
+      "priority",
+    );
+    const [, defaultInit] = requiredFetchCall(fetchMock, 1);
+    expect(
+      JSON.parse(textBodyFromInit(defaultInit)).service_tier,
+    ).toBeUndefined();
+  });
+
   it("runs plain-text inference with Codex API key auth from ~/.codex/auth.json", async () => {
     const homeDir = await makeTempHome();
     await writeCodexApiKeyAuth({

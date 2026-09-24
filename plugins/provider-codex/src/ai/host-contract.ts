@@ -30,6 +30,8 @@ export const codexAiCompleteInputSchema = z
     model: z.string().min(1),
     prompt: z.string().min(1),
     timeoutMs: z.number().int().positive(),
+    /** VK EXPERIMENTAL — `BB_INFERENCE_SERVICE_TIER`. */
+    serviceTier: z.enum(["fast", "default"]).optional(),
   })
   .strict();
 export type CodexAiCompleteInput = z.infer<typeof codexAiCompleteInputSchema>;
