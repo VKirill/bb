@@ -71,13 +71,19 @@ export function buildAcpVkEnv(args: {
     });
   }
   if (args.dialectId !== "opencode") return {};
+  // OpenCode skips project AGENTS.md / CLAUDE.md / CONTEXT.md (and the
+  // project's own opencode config with them) under this switch.
+  const projectEnv: Record<string, string> =
+    args.policy.projectInstructions === false
+      ? { OPENCODE_DISABLE_PROJECT_CONFIG: "1" }
+      : {};
   const overlay = buildOpenCodeOverlay(
     args.policy,
     args.cwd,
     args.home ?? homedir(),
     args.envVars,
   );
-  if (Object.keys(overlay).length === 0) return {};
+  if (Object.keys(overlay).length === 0) return projectEnv;
   const existing = parseJsonObject(args.envVars?.OPENCODE_CONFIG_CONTENT);
   const merged = {
     ...existing,
@@ -94,7 +100,7 @@ export function buildAcpVkEnv(args: {
         }
       : {}),
   };
-  return { OPENCODE_CONFIG_CONTENT: JSON.stringify(merged) };
+  return { ...projectEnv, OPENCODE_CONFIG_CONTENT: JSON.stringify(merged) };
 }
 
 function buildOpenCodeOverlay(

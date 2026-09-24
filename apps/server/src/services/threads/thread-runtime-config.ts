@@ -32,6 +32,7 @@ import {
   buildVkRuntimeSessionPolicy,
   vkEnvPluginId,
   vkPluginAllowed,
+  vkProjectInstructionsAllowed,
   vkUserInstructionsAllowed,
 } from "./vk-session-policy.js";
 import { resolveSkillCatalog } from "../skills/skill-catalog.js";
@@ -300,7 +301,10 @@ export async function resolveThreadRuntimeCommandConfig(
       dataDirAgentInstructions,
     );
   }
-  if (workspaceAgentContext.agentInstructions) {
+  if (
+    workspaceAgentContext.agentInstructions &&
+    vkProjectInstructionsAllowed(vkPolicy)
+  ) {
     instructionSections.push(
       `The following workspace instructions come from ${WORKSPACE_AGENT_INSTRUCTIONS_RELATIVE_PATH}:`,
       workspaceAgentContext.agentInstructions,

@@ -156,4 +156,15 @@ describe("Cursor vk session policy", () => {
       }),
     ).toEqual({});
   });
+
+  it("skips OpenCode project instructions when they are off", () => {
+    expect(
+      buildAcpVkEnv({
+        cwd: "/",
+        dialectId: "opencode",
+        envVars: undefined,
+        policy: { version: 1, projectInstructions: false },
+      }),
+    ).toEqual({ OPENCODE_DISABLE_PROJECT_CONFIG: "1" });
+  });
 });
