@@ -1,3 +1,4 @@
+import { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import {
   environmentCompositionSchema,
   validateServerAccessProviderDeclaration,
@@ -901,6 +902,21 @@ export function createPluginApi(options: {
         );
       }
       vkSessionPolicyResolver = resolver;
+    },
+    experimental_vkRequiredSessionPolicy() {
+      assertLive();
+      return structuredClone(VK_REQUIRED_SESSION_POLICY_CAPABILITY);
+    },
+    experimental_vkCompiledMainAgent() {
+      assertLive();
+      return {
+        persist: true as const,
+        bridgeAgentOptions: true as const,
+        requiredMarker: true as const,
+        snapshotDigest: true as const,
+        bridgeHandshakeVersion: 1 as const,
+        providerIds: ["claude-code"] as const,
+      };
     },
     configure(provider) {
       assertLive();

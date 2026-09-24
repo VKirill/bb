@@ -42,6 +42,8 @@ export interface ThreadCreateServiceRequestInput {
   startedOnBehalfOf: StartedOnBehalfOf | null;
   title?: string;
   visibility?: ThreadVisibility;
+  experimental_vkRequiredSessionPolicy?: CreateThreadRequest["experimental_vkRequiredSessionPolicy"];
+  experimental_vkCompiledMainAgent?: CreateThreadRequest["experimental_vkCompiledMainAgent"];
 }
 
 export interface ThreadCreateServiceRequest extends Omit<

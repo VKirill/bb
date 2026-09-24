@@ -94,6 +94,32 @@ describe("buildClaudeSessionParams", () => {
     expect(params.baseInstructions).toContain("Session instructions");
   });
 
+  it("forwards a compiled main-agent snapshot and omits model on that snapshot", () => {
+    const compiled = {
+      id: "seo-specialist",
+      sourceVersion: "lp-owned-1",
+      sourceHash: "d".repeat(64),
+      description: "Lane Pilot SEO specialist",
+      prompt: "You are the Lane Pilot SEO specialist.",
+    };
+    const params = buildClaudeSessionParams({
+      threadId: "thread-1",
+      cwd: "/tmp/worktree",
+      instructionMode: "append",
+      options: {
+        ...toCanonicalWireOptions(EXECUTION_CONTEXT),
+        providerOptions: {
+          ...toCanonicalWireOptions(EXECUTION_CONTEXT).providerOptions,
+          vkCompiledMainAgent: compiled,
+        },
+      },
+    });
+    expect(params.vkCompiledMainAgent).toEqual(compiled);
+    expect(params.vkCompiledMainAgent).not.toHaveProperty("model");
+    expect(params.vkCompiledMainAgent).not.toHaveProperty("permissionMode");
+    expect(params.model).toBe("claude-sonnet-5");
+  });
+
   it("passes the daemon's extra workspace write roots from the providerOptions bag", () => {
     const shared = {
       threadId: "thread-1",

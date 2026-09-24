@@ -1,3 +1,4 @@
+import { intersectVkSessionPolicies } from "@bb/domain/vk-session-policy";
 import type {
   PluginRpcDiscoveryQuery,
   PublishedPluginRpcMethod,
@@ -404,6 +405,7 @@ export interface PluginService {
   listVkContextContributions(): VkContextContribution[];
   /** VK EXPERIMENTAL: the first non-null session policy, or null. */
   resolveVkSessionPolicy(args: {
+    required?: boolean;
     context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
   }): Promise<{ pluginId: string; policy: VkSessionPolicy } | null>;
   resolveProviderEnv(args: {
@@ -2204,7 +2206,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     },
 
     // VK EXPERIMENTAL — absent from upstream bb.
-    async resolveVkSessionPolicy({ context }) {
+    async resolveVkSessionPolicy({ context, required = false }) {
+      const policies: VkSessionPolicy[] = [];
       const resolvers = [...loaded.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .flatMap(([pluginId, plugin]) => {
@@ -2253,11 +2256,21 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
               `timed out after ${VK_SESSION_POLICY_TIMEOUT_MS}ms`,
             ),
         );
+        if (!outcome.ok && required)
+          throw new Error(
+            `vk_required_session_policy_resolution_failed:${pluginId}`,
+          );
         if (outcome.ok && outcome.value !== null) {
-          return { pluginId, policy: outcome.value };
+          if (!required) return { pluginId, policy: outcome.value };
+          policies.push(outcome.value);
         }
       }
-      return null;
+      return policies.length
+        ? {
+            pluginId: "__vk.system-ceiling",
+            policy: intersectVkSessionPolicies(policies),
+          }
+        : null;
     },
 
     async resolveProviderEnv({ providerId, context }) {

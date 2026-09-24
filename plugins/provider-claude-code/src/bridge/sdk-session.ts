@@ -34,6 +34,7 @@ export interface SdkSessionOptions {
   sandbox?: Options["sandbox"];
   hooks?: Options["hooks"];
   mcpServers?: Record<string, McpSdkServerConfigWithInstance | McpServerConfig>;
+  tools?: Options["tools"];
   allowedTools?: string[];
   disallowedTools?: string[];
   canUseTool?: CanUseTool;
@@ -48,6 +49,8 @@ export interface SdkSessionOptions {
   vkStrictMcpConfig?: boolean;
   vkSkills?: string[];
   vkFlagSettings?: Settings;
+  agent?: Options["agent"];
+  agents?: Options["agents"];
 }
 
 export type ClaudeSdkReasoningEffort =
@@ -225,6 +228,9 @@ export class SdkSession {
   }
 
   start(resumeSessionId?: string): void {
+    if (this.options.agent && !this.options.agents?.[this.options.agent]) {
+      throw new Error("vk_compiled_main_agent_dropped");
+    }
     if (resumeSessionId) {
       this.sessionId = resumeSessionId;
     } else if (this.options.sessionId) {
@@ -265,6 +271,7 @@ export class SdkSession {
       ...(this.options.mcpServers
         ? { mcpServers: this.options.mcpServers }
         : {}),
+      ...(this.options.tools ? { tools: this.options.tools } : {}),
       ...(this.options.allowedTools
         ? { allowedTools: this.options.allowedTools }
         : {}),
@@ -296,6 +303,8 @@ export class SdkSession {
       ...(this.options.extraArgs ? { extraArgs: this.options.extraArgs } : {}),
       ...(this.options.vkStrictMcpConfig ? { strictMcpConfig: true } : {}),
       ...(this.options.vkSkills ? { skills: this.options.vkSkills } : {}),
+      ...(this.options.agent ? { agent: this.options.agent } : {}),
+      ...(this.options.agents ? { agents: this.options.agents } : {}),
     };
 
     try {

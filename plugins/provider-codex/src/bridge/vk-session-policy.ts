@@ -35,11 +35,20 @@ export function buildCodexVkLaunchArgs(args: {
   const home = args.home ?? homedir();
   const codexHome =
     args.codexHome ?? process.env.CODEX_HOME ?? join(home, ".codex");
-  const config = readTomlTableNames(join(codexHome, "config.toml"));
+  const config = readTomlTableNames(
+    join(codexHome, "config.toml"),
+    args.policy.required === true,
+  );
   const overrides: string[] = [];
 
   if (args.policy.mcpServers) {
     for (const name of config.mcpServers) {
+      if (
+        args.policy.required &&
+        name.includes(".") &&
+        !vkPolicyAllows(args.policy.mcpServers, name)
+      )
+        throw new Error("vk_required_session_policy_unaddressable_mcp");
       if (
         !name.includes(".") &&
         !vkPolicyAllows(args.policy.mcpServers, name)
@@ -51,6 +60,12 @@ export function buildCodexVkLaunchArgs(args: {
   if (args.policy.nativePlugins) {
     for (const id of config.plugins) {
       const name = id.split("@")[0] ?? id;
+      if (
+        args.policy.required &&
+        id.includes(".") &&
+        !vkPolicyAllows(args.policy.nativePlugins, id, name)
+      )
+        throw new Error("vk_required_session_policy_unaddressable_plugin");
       if (
         !id.includes(".") &&
         !vkPolicyAllows(args.policy.nativePlugins, id, name)
@@ -82,7 +97,10 @@ export function buildCodexVkLaunchArgs(args: {
  * config.toml. A line scan is enough: these tables are always written as
  * headers, and a missing or unreadable file means nothing to disable.
  */
-function readTomlTableNames(path: string): {
+function readTomlTableNames(
+  path: string,
+  required = false,
+): {
   mcpServers: string[];
   plugins: string[];
 } {
@@ -91,7 +109,17 @@ function readTomlTableNames(path: string): {
   let text = "";
   try {
     text = readFileSync(path, "utf8");
-  } catch {
+  } catch (error) {
+    if (
+      required &&
+      !(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+    )
+      throw error;
     return { mcpServers: [], plugins: [] };
   }
   for (const line of text.split(/\r?\n/u)) {

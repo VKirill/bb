@@ -71,6 +71,7 @@ export function listPluginVkContextContributions() {
 
 /** VK EXPERIMENTAL: the session policy a plugin set for this thread, or null. */
 export async function resolvePluginVkSessionPolicy(args: {
+  required?: boolean;
   context: Omit<PluginAgentConfigurationContext, "pluginMetadata">;
 }) {
   return (await contributions?.resolveVkSessionPolicy?.(args)) ?? null;

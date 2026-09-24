@@ -7,6 +7,7 @@ import {
   getThread,
   isSqliteForeignKeyConstraint,
 } from "@bb/db";
+import { parseVkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
 import type { DbNotifier } from "@bb/db";
 import type { HostDaemonCommand } from "@bb/host-daemon-contract";
 import type { LocalPathProjectSource } from "@bb/domain";
@@ -115,6 +116,25 @@ export function createThreadRecord(
       originPluginId: args.request.originPluginId ?? null,
       pluginMetadata: args.request.pluginMetadata,
       visibility: args.request.visibility,
+      vkRequiredSessionPolicy:
+        args.request.experimental_vkRequiredSessionPolicy,
+      ...(args.request.experimental_vkCompiledMainAgent !== undefined
+        ? {
+            vkCompiledMainAgent: (() => {
+              const profile = parseVkCompiledMainAgent(
+                args.request.experimental_vkCompiledMainAgent,
+              );
+              if (profile === null) {
+                throw new ApiError(
+                  400,
+                  "invalid_request",
+                  "vk_compiled_main_agent_incomplete",
+                );
+              }
+              return profile;
+            })(),
+          }
+        : {}),
       // Every thread starts `pending`, with no exception to parameterise.
       // Creation is unhooked and provisions nothing; admission happens at the
       // first message's dispatch attempt, and clearing it is what moves the

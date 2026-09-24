@@ -693,3 +693,114 @@ describe("provider-native id translation", () => {
     expect(decoded).toMatchObject({ turnId: bbTurnId, callId: bbItemId });
   });
 });
+
+describe("required resource bridge gate", () => {
+  function policyAdapter(id = "claude-code") {
+    return createBridgeProtocolAdapter({
+      id,
+      capabilities: {
+        supportsThreadArchive: false,
+        supportsThreadRename: false,
+        supportsServiceTier: false,
+        fork: "checkpoint",
+        permissionModes: ["full"],
+      },
+      process: { command: "node", args: ["unused"] },
+    });
+  }
+  const requiredOptions = {
+    ...fullModeOptions,
+    providerOptions: {
+      vkRequiredSessionPolicy: 1,
+      vkSessionPolicy: {
+        version: 1,
+        required: true,
+        skills: { mode: "allow", names: [] },
+      },
+    },
+  };
+  it.each(["thread/start", "thread/resume"] as const)(
+    "does not construct a %s request for an old bridge",
+    (type) => {
+      const adapter = policyAdapter();
+      completeHandshake(adapter, {});
+      expect(() =>
+        adapter.buildCommandPlan({
+          type,
+          threadId: "required",
+          providerThreadId: "resume",
+          cwd: "/tmp",
+          instructionMode: "append",
+          options: requiredOptions,
+        }),
+      ).toThrow("bridge_unsupported");
+    },
+  );
+  it("checks the actual fallback provider even when its bridge advertises enforcement", () => {
+    const adapter = policyAdapter("acp-cursor");
+    completeHandshake(adapter, { experimental_vkRequiredSessionPolicy: 1 });
+    expect(() =>
+      adapter.buildCommandPlan({
+        type: "thread/start",
+        threadId: "required",
+        cwd: "/tmp",
+        instructionMode: "append",
+        options: requiredOptions,
+      }),
+    ).toThrow("unsupported_cursor");
+  });
+  it("passes an unchanged empty allowlist only after a matching handshake", () => {
+    const adapter = policyAdapter();
+    completeHandshake(adapter, { experimental_vkRequiredSessionPolicy: 1 });
+    expect(
+      adapter.buildCommandPlan({
+        type: "thread/start",
+        threadId: "required",
+        cwd: "/tmp",
+        instructionMode: "append",
+        options: requiredOptions,
+      }),
+    ).toMatchObject({
+      kind: "request",
+      params: { options: { providerOptions: requiredOptions.providerOptions } },
+    });
+  });
+  it("rejects missing required payload before any thread request", () => {
+    const adapter = policyAdapter();
+    completeHandshake(adapter, { experimental_vkRequiredSessionPolicy: 1 });
+    expect(() =>
+      adapter.buildCommandPlan({
+        type: "thread/start",
+        threadId: "required",
+        cwd: "/tmp",
+        instructionMode: "append",
+        options: {
+          ...fullModeOptions,
+          providerOptions: { vkRequiredSessionPolicy: 1 },
+        },
+      }),
+    ).toThrow("dropped");
+  });
+  it("rejects a required payload whose independent marker was dropped", () => {
+    const adapter = policyAdapter();
+    completeHandshake(adapter, { experimental_vkRequiredSessionPolicy: 1 });
+    expect(() =>
+      adapter.buildCommandPlan({
+        type: "thread/start",
+        threadId: "required",
+        cwd: "/tmp",
+        instructionMode: "append",
+        options: {
+          ...fullModeOptions,
+          providerOptions: {
+            vkSessionPolicy: {
+              version: 1,
+              required: true,
+              skills: { mode: "allow", names: [] },
+            },
+          },
+        },
+      }),
+    ).toThrow("marker_dropped");
+  });
+});

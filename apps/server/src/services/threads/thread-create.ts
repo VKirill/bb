@@ -13,6 +13,11 @@ import type {
   ThreadOriginKind,
   ThreadVisibility,
 } from "@bb/domain";
+import {
+  compiledMainAgentProviderAllowed,
+  mutableMetadataTouchesCompiledAgent,
+  parseVkCompiledMainAgent,
+} from "@bb/domain/vk-compiled-main-agent";
 import type {
   AppDeps,
   LoggedPendingInteractionWorkSessionDeps,
@@ -493,23 +498,55 @@ function resolveCreateThreadVisibility(
 function resolveCreateThreadPluginMetadata(
   request: Pick<
     ThreadCreateServiceRequestInput,
-    "originPluginId" | "pluginMetadata"
+    "originPluginId" | "pluginMetadata" | "experimental_vkCompiledMainAgent"
   >,
 ): ThreadCreateServiceRequest["pluginMetadata"] {
-  if (request.pluginMetadata === undefined) {
-    return null;
+  let metadata: ThreadCreateServiceRequest["pluginMetadata"] = null;
+  if (request.pluginMetadata !== undefined) {
+    if (request.originPluginId === undefined) {
+      throw new ApiError(
+        400,
+        "invalid_request",
+        'pluginMetadata requires origin "plugin"',
+      );
+    }
+    if (
+      mutableMetadataTouchesCompiledAgent(
+        request.pluginMetadata,
+        request.originPluginId,
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "invalid_request",
+        "experimental_vkCompiledMainAgent is not writable pluginMetadata",
+      );
+    }
+    metadata = {
+      pluginId: request.originPluginId,
+      metadata: request.pluginMetadata,
+    };
   }
-  if (request.originPluginId === undefined) {
+  if (request.experimental_vkCompiledMainAgent === undefined) {
+    return metadata;
+  }
+  try {
+    const compiled = parseVkCompiledMainAgent(
+      request.experimental_vkCompiledMainAgent,
+    );
+    if (compiled === null) {
+      throw new Error("vk_compiled_main_agent_incomplete");
+    }
+  } catch (error) {
     throw new ApiError(
       400,
       "invalid_request",
-      'pluginMetadata requires origin "plugin"',
+      error instanceof Error
+        ? error.message
+        : "vk_compiled_main_agent_incomplete",
     );
   }
-  return {
-    pluginId: request.originPluginId,
-    metadata: request.pluginMetadata,
-  };
+  return metadata;
 }
 
 export async function createThreadFromRequest(
@@ -735,6 +772,15 @@ export async function createThreadFromRequest(
     resolvedExecutionDefaults.providerId !== request.providerId
   ) {
     request.providerId = resolvedExecutionDefaults.providerId;
+  }
+  if (request.experimental_vkCompiledMainAgent !== undefined) {
+    if (!compiledMainAgentProviderAllowed(request.providerId)) {
+      throw new ApiError(
+        400,
+        "invalid_request",
+        "vk_compiled_main_agent_unsupported_provider",
+      );
+    }
   }
 
   const { environmentId, environmentIntent } =

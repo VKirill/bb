@@ -73,6 +73,11 @@
       "source": "./src/vk-session-policy.ts",
       "types": "./src/vk-session-policy.ts",
       "default": "./src/vk-session-policy.ts"
+    },
+    "./vk-compiled-main-agent": {
+      "source": "./src/vk-compiled-main-agent.ts",
+      "types": "./src/vk-compiled-main-agent.ts",
+      "default": "./src/vk-compiled-main-agent.ts"
     }
   },
   "types": "./src/index.ts",

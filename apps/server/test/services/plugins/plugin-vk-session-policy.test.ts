@@ -131,6 +131,23 @@ describe("bb.agents.experimental_vkSessionPolicy", () => {
     });
   });
 
+  it.each([
+    "() => { throw new Error('failed'); }",
+    "() => ({ skills: { mode: 'invalid', names: [] } })",
+    "() => new Promise(() => {})",
+  ])("fails closed for required resolver %s", async (resolver) => {
+    await service.installPath(
+      await writePlugin(
+        workDir,
+        "bb-plugin-strict",
+        `export default function plugin(bb: any) { bb.agents.experimental_vkSessionPolicy(${resolver}); }`,
+      ),
+    );
+    await expect(
+      service.resolveVkSessionPolicy({ context, required: true }),
+    ).rejects.toThrow("vk_required_session_policy_resolution_failed");
+  });
+
   it("passes the thread's metadata under the resolver's own plugin id", async () => {
     db.run("PRAGMA foreign_keys = OFF");
     insertThreadPluginMetadata(db, {
