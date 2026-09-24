@@ -22,6 +22,7 @@ import {
   type ToolCallResponse,
 } from "@bb/domain";
 import {
+  VK_REQUIRED_PLUGIN_IDS,
   vkSessionPolicySchema,
   type VkContextContribution,
   type VkSessionPolicy,
@@ -2070,6 +2071,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([pluginId, plugin]) => ({
           pluginId,
+          required: VK_REQUIRED_PLUGIN_IDS.includes(pluginId),
           instructions: plugin.handle.instructionProvider !== null,
           configure: plugin.handle.agentConfigurationProvider !== null,
           tools: tools

@@ -70,6 +70,12 @@ New files (no conflicts): `packages/domain/src/vk-session-policy.ts`,
 `plugins/provider-codex/src/bridge/vk-session-policy.ts`,
 `packages/provider-bridge-acp/src/vk-session-policy.ts`, and their tests.
 
+Required items: `VK_REQUIRED_PLUGIN_IDS` (`environment-project-checkout`) are
+never left out by any policy — `vkPluginAllowed` always passes them, so their
+tools, instructions, env, skills, composer UI and dispatch hooks stay — and
+`bb-bridge` is removed from MCP deny lists and added to allow lists before a
+bridge sees the policy. Context contributions carry `required: true` for them.
+
 `bb.agents.experimental_vkContextContributions()` lists what each running plugin
 adds to agent sessions (instructions, configure, tools, skills) for the editor.
 
