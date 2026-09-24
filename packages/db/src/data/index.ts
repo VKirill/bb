@@ -58,6 +58,10 @@ export {
 } from "./project-sources.js";
 export {
   getThreadPluginMetadata,
+  digestVkCompiledMainAgent,
+  digestVkCompiledMainAgentSource,
+  insertVkCompiledMainAgentSnapshot,
+  readVkCompiledMainAgentSnapshot,
   insertThreadPluginMetadata,
   listPluginThreadMetadata,
   listThreadPluginMetadataRows,
@@ -539,3 +543,5 @@ export type {
   DiffViewedFileRecord,
   DiffViewedFileScope,
 } from "./diff-viewed-files.js";
+
+export { readVkRequiredSessionPolicy, insertVkRequiredSessionPolicy, narrowVkRequiredSessionPolicy } from "./thread-required-session-policy.js";
