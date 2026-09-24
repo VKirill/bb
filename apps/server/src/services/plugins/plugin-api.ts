@@ -4,6 +4,7 @@ import {
   type NormalizedPluginEnvironmentComposition,
   type NormalizedPluginInteractionRequest,
 } from "@get-bb/plugin-sdk/internal/host-policy";
+import { listPluginVkContextContributions } from "./plugin-agent-contributions.js";
 import { createMachineBootstrapApi } from "../machines/bootstrap.js";
 import type { MachineEnrollments } from "../machines/enrollments.js";
 import { listServerAccessProviders } from "./plugin-server-access-registry.js";
@@ -890,6 +891,11 @@ export function createPluginApi(options: {
   let vkSessionPolicyResolver: PluginVkSessionPolicyResolver | null = null;
 
   const agents: PluginAgents = {
+    // VK EXPERIMENTAL — absent from upstream bb.
+    experimental_vkContextContributions() {
+      assertLive();
+      return listPluginVkContextContributions();
+    },
     // VK EXPERIMENTAL — absent from upstream bb.
     experimental_vkSessionPolicy(resolver) {
       assertLive();
