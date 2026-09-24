@@ -31,6 +31,12 @@ export function vkEnvPluginId(entry: { source?: unknown }): string | null {
   return null;
 }
 
+export function vkProjectInstructionsAllowed(
+  policy: VkSessionPolicy | null,
+): boolean {
+  return policy?.projectInstructions !== false;
+}
+
 export function vkUserInstructionsAllowed(
   policy: VkSessionPolicy | null,
 ): boolean {
@@ -70,6 +76,10 @@ export function buildVkRuntimeSessionPolicy(
     ...(policy.skills ? { skills: policy.skills } : {}),
     ...(policy.mcpServers ? { mcpServers: policy.mcpServers } : {}),
     ...(policy.nativePlugins ? { nativePlugins: policy.nativePlugins } : {}),
+    ...(policy.projectInstructions === false
+      ? { projectInstructions: false as const }
+      : {}),
+    ...(policy.claudeAiSync === false ? { claudeAiSync: false as const } : {}),
   };
   return Object.keys(runtime).length > 1 ? runtime : null;
 }
