@@ -137,4 +137,16 @@ describe("buildCodexVkLaunchArgs", () => {
       buildCodexVkLaunchArgs({ codexHome, home, cwd, policy: { version: 1 } }),
     ).toEqual([]);
   });
+
+  it("drops the AGENTS.md project doc when project instructions are off", () => {
+    const { codexHome, home, cwd } = fixture();
+    expect(
+      buildCodexVkLaunchArgs({
+        codexHome,
+        home,
+        cwd,
+        policy: { version: 1, projectInstructions: false },
+      }),
+    ).toEqual(["-c", "project_doc_max_bytes=0"]);
+  });
 });
