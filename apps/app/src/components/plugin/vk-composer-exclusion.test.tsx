@@ -69,7 +69,7 @@ describe("vk composer exclusion", () => {
 
   it("hides the composer actions of a plugin the place leaves out", async () => {
     const fetchMock = vi.fn(
-      async () =>
+      async (_url: string) =>
         new Response(JSON.stringify({ ok: true, pluginIds: ["agency"] })),
     );
     vi.stubGlobal("fetch", fetchMock);
