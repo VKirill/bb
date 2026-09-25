@@ -99,6 +99,7 @@ export function buildReuseThreadOptions(
       path: pathByEnvironmentId.get(environmentId) ?? null,
       environmentProviderId:
         providerIdByEnvironmentId.get(environmentId) ?? null,
+      hostId,
       hostName:
         hostNameById !== null && hostId !== null
           ? (hostNameById.get(hostId) ?? null)
