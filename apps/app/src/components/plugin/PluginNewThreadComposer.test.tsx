@@ -2803,9 +2803,38 @@ describe("NewThreadComposer setSelection", () => {
     });
     const before = JSON.parse(
       screen.getByTestId("native-selection").textContent ?? "{}",
-    ) as { scope: { projectId: string | null }; model: string };
+    ) as {
+      scope: { projectId: string | null };
+      model: string;
+      environmentRequest: {
+        type: string;
+        environmentProviderId?: string;
+        machine?: { type: string; hostId?: string };
+        inputs?: unknown;
+      };
+      environmentProvenance: {
+        projectId: string;
+        sectionId: string | null;
+        projectSourceId?: string;
+        hostId?: string;
+        path?: string;
+      };
+    };
     expect(before.scope.projectId).toBe("proj_1");
     expect(before.model).toBeTruthy();
+    expect(before.environmentRequest).toMatchObject({
+      type: "provider",
+      environmentProviderId: "project-checkout",
+      machine: { type: "existing", hostId: "host_1" },
+      inputs: {},
+    });
+    expect(before.environmentProvenance).toEqual({
+      projectId: "proj_1",
+      sectionId: null,
+      projectSourceId: "src_1",
+      hostId: "host_1",
+      path: "/repo",
+    });
 
     await settled(
       currentHost().setSelection!({
