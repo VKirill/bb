@@ -1,3 +1,4 @@
+import { useVkComposerPlace } from "./vk-composer-place";
 import { useInitialPromptDraft } from "./mentions/initial-prompt-draft";
 import { ProviderRequirementBanner } from "./banner/ProviderRequirementBanner";
 import { Button } from "@bb/shared-ui/button";
@@ -55,7 +56,6 @@ import { buildProviderPromptActionProps } from "@bb/client-core";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { type PluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import type {
-  ExperimentalComposerEnvironmentSelection,
   ExperimentalComposerSelectionSnapshot,
   ExperimentalComposerSubmitOptions,
 } from "@get-bb/plugin-sdk";
@@ -119,10 +119,7 @@ import {
   resolveRootComposeEffectiveEnvironmentValue,
 } from "@/views/root-compose-environment-selection";
 import { resolveRootComposeThreadEnvironment } from "@/views/root-compose-thread-environment";
-import {
-  pathFromComposerEnvironmentRequest,
-  resolveComposerEnvironmentProvenance,
-} from "./composer-environment-provenance";
+import { buildVkComposerSelection } from "./vk-composer-selection";
 import {
   MACHINE_SERVER_ACCESS_TITLE,
   machineServerAccessBlockedReason,
@@ -1729,34 +1726,15 @@ export function NewThreadComposer({
     [applySelection],
   );
 
-  // VK EXPERIMENTAL: the new thread's place for the session policy. A section
-  // environment names its folder in the provider inputs.
-  // A provider without an inputs form (project checkout) drops the seed's
-  // inputs from the submission, so the seed is read too while it still
-  // stands (the plugin-embedded section composer passes its folder there).
-  const vkRawInputs: unknown =
-    submissionProviderInputs ??
-    (!seedOverridden &&
-    environmentSeed !== null &&
-    effectiveEnvironmentValue === environmentSeed.selectionValue
-      ? environmentSeed.providerInputs
-      : null);
-  const vkInputsPath =
-    vkRawInputs !== null &&
-    typeof vkRawInputs === "object" &&
-    !Array.isArray(vkRawInputs) &&
-    typeof (vkRawInputs as Record<string, unknown>).path === "string"
-      ? ((vkRawInputs as Record<string, unknown>).path as string)
-      : null;
-  const vkComposerPlace = useMemo(
-    () => ({
-      projectId,
-      hostId: projectHostId,
-      environmentId: reuseEnvironmentId,
-      path: vkInputsPath,
-    }),
-    [projectId, projectHostId, reuseEnvironmentId, vkInputsPath],
-  );
+  const vkComposerPlace = useVkComposerPlace({
+    submissionProviderInputs,
+    seedOverridden,
+    environmentSeed,
+    effectiveEnvironmentValue,
+    projectId,
+    projectHostId,
+    reuseEnvironmentId,
+  });
   const pluginComposerHost = useMemo<PluginComposerHost>(
     () => ({
       scope: { kind: "new-thread", projectId },
@@ -2030,107 +2008,21 @@ export function NewThreadComposer({
     ],
   );
 
-  const selectionSnapshot =
-    useMemo<ExperimentalComposerSelectionSnapshot>(() => {
-      const scope = { kind: "new-thread" as const, projectId };
-      if (
-        isLoadingModels ||
-        projectId.length === 0 ||
-        selectedProviderId.length === 0 ||
-        selectedProviderMachineUnavailable ||
-        submissionEnvironment === null ||
-        selectedThreadModel.length === 0
-      ) {
-        return { status: "resolving", scope };
-      }
-      const reuseOption =
-        submissionEnvironment.type === "reuse"
-          ? reuseThreadOptions.find(
-              (option) =>
-                option.environmentId === submissionEnvironment.environmentId,
-            )
-          : undefined;
-      const hostId =
-        submissionEnvironment.type === "host"
-          ? submissionEnvironment.hostId
-          : submissionEnvironment.type === "provider" &&
-              submissionEnvironment.machine?.type === "existing"
-            ? submissionEnvironment.machine.hostId
-            : (reuseOption?.hostId ?? undefined);
-      const path =
-        pathFromComposerEnvironmentRequest(submissionEnvironment) ??
-        reuseOption?.path ??
-        undefined;
-      const environmentProvenance = resolveComposerEnvironmentProvenance({
+  const selectionSnapshot = useMemo(
+    () =>
+      buildVkComposerSelection({
+        isLoadingModels,
         projectId,
-        projectSources,
-        hostId,
-        path,
-      });
-      let environment: ExperimentalComposerEnvironmentSelection;
-      switch (submissionEnvironment.type) {
-        case "reuse":
-          environment = {
-            kind: "existing",
-            type: "reuse",
-            environmentId: submissionEnvironment.environmentId,
-            ...(hostId === undefined ? {} : { hostId }),
-            ...(path === undefined ? {} : { path }),
-          };
-          break;
-        case "host":
-          environment = {
-            kind: "existing",
-            type: "host",
-            workspaceType: submissionEnvironment.workspace.type,
-            ...(submissionEnvironment.hostId === undefined
-              ? {}
-              : { hostId: submissionEnvironment.hostId }),
-            ...(submissionEnvironment.workspace.type === "unmanaged" &&
-            submissionEnvironment.workspace.path !== null
-              ? { path: submissionEnvironment.workspace.path }
-              : {}),
-          };
-          break;
-        case "project-default":
-          environment = { kind: "existing", type: "project-default" };
-          break;
-        case "provider":
-          environment = {
-            kind: "provisioning",
-            type: "provider",
-            environmentProviderId: submissionEnvironment.environmentProviderId,
-            ...(submissionEnvironment.machine === undefined
-              ? {}
-              : {
-                  machine:
-                    submissionEnvironment.machine.type === "existing"
-                      ? {
-                          type: "existing" as const,
-                          hostId: submissionEnvironment.machine.hostId,
-                        }
-                      : {
-                          type: "new" as const,
-                          machineProviderId:
-                            submissionEnvironment.machine.machineProviderId,
-                        },
-                }),
-          };
-          break;
-      }
-      return {
-        status: "ready",
-        scope,
-        projectId,
-        providerId: selectedProviderId,
-        model: selectedThreadModel,
         reasoningLevel,
-        ...(serviceTier === undefined ? {} : { serviceTier }),
-        environment,
-        environmentRequest: submissionEnvironment,
-        environmentProvenance,
-      };
-    }, [
+        reuseThreadOptions,
+        projectSources,
+        selectedProviderId,
+        selectedProviderMachineUnavailable,
+        selectedThreadModel,
+        serviceTier,
+        submissionEnvironment,
+      }),
+    [
       isLoadingModels,
       projectId,
       reasoningLevel,
@@ -2141,7 +2033,8 @@ export function NewThreadComposer({
       selectedThreadModel,
       serviceTier,
       submissionEnvironment,
-    ]);
+    ],
+  );
 
   return (
     <NewThreadComposerStateRenderer

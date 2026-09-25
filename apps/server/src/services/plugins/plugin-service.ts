@@ -1,8 +1,9 @@
+import { createVkSessionPolicyService } from "./vk-session-policy-service.js";
 import type {
   PluginRpcDiscoveryQuery,
   PublishedPluginRpcMethod,
 } from "@bb/server-contract";
-import { existsSync, readdirSync, watch } from "node:fs";
+import { watch } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -22,8 +23,6 @@ import {
   type ToolCallResponse,
 } from "@bb/domain";
 import {
-  VK_REQUIRED_PLUGIN_IDS,
-  vkSessionPolicySchema,
   type VkContextContribution,
   type VkSessionPolicy,
 } from "@bb/domain/vk-session-policy";
@@ -433,8 +432,6 @@ export interface PluginService {
 const DEFAULT_MENTION_SEARCH_TIMEOUT_MS = 2_000;
 const DEFAULT_MENTION_RESOLVE_TIMEOUT_MS = 10_000;
 const DEFAULT_PROVIDER_ENV_RESOLVE_TIMEOUT_MS = 5_000;
-/** VK EXPERIMENTAL: a session policy sits on the thread-start path. */
-const VK_SESSION_POLICY_TIMEOUT_MS = 2_000;
 const DEFAULT_STABILIZATION_WINDOW_MS = 30_000;
 const DEFAULT_ARTIFACT_RETENTION_MS = 7 * 24 * 60 * 60_000;
 const SCHEDULE_SWEEP_BATCH_SIZE = 100;
@@ -2074,82 +2071,12 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return { tools, selectedSkillIdsByPlugin, dynamicInstructions };
     },
 
-    // VK EXPERIMENTAL — absent from upstream bb.
-    listVkContextContributions() {
-      const tools = collectAgentTools();
-      return [...loaded.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([pluginId, plugin]) => ({
-          pluginId,
-          required: VK_REQUIRED_PLUGIN_IDS.includes(pluginId),
-          instructions: plugin.handle.instructionProvider !== null,
-          configure: plugin.handle.agentConfigurationProvider !== null,
-          tools: tools
-            .filter((entry) => entry.pluginId === pluginId)
-            .map(({ record }) => record.name)
-            .sort(),
-          skills: plugin.manifest.skillsRootPaths
-            .flatMap((root) => vkListSkillDirs(root))
-            .sort(),
-        }));
-    },
-
-    // VK EXPERIMENTAL — absent from upstream bb.
-    async resolveVkSessionPolicy({ context }) {
-      const resolvers = [...loaded.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .flatMap(([pluginId, plugin]) => {
-          const resolver = plugin.handle.vkSessionPolicyResolver;
-          return resolver === null ? [] : [{ pluginId, resolver }];
-        });
-      // The resolver sees the thread's metadata under its own id, as
-      // `configure` does, so a plugin can recognise threads it started.
-      const metadataByPluginId = new Map<string, JsonObject>();
-      if (context.thread.id !== "") {
-        for (const row of listThreadPluginMetadataRows(
-          deps.db,
-          context.thread.id,
-          resolvers.map(({ pluginId }) => pluginId),
-        )) {
-          const metadata = parsePersistedPluginMetadata(row.metadataJson);
-          if (metadata !== undefined) {
-            metadataByPluginId.set(row.pluginId, metadata);
-          }
-        }
-      }
-      for (const { pluginId, resolver } of resolvers) {
-        const outcome = await invokeWrapped(
-          pluginId,
-          "vk session policy",
-          async () =>
-            raceTimeout(
-              Promise.resolve(
-                resolver({
-                  ...context,
-                  pluginMetadata: deepFreezePluginMetadata(
-                    metadataByPluginId.get(pluginId) ?? {},
-                  ),
-                }),
-              ).then((value) => {
-                if (value === null || value === undefined) return null;
-                const parsed = vkSessionPolicySchema.safeParse(value);
-                if (!parsed.success) {
-                  throw new Error(
-                    `invalid session policy: ${parsed.error.message}`,
-                  );
-                }
-                return parsed.data;
-              }),
-              VK_SESSION_POLICY_TIMEOUT_MS,
-              `timed out after ${VK_SESSION_POLICY_TIMEOUT_MS}ms`,
-            ),
-        );
-        if (outcome.ok && outcome.value !== null) {
-          return { pluginId, policy: outcome.value };
-        }
-      }
-      return null;
-    },
+    ...createVkSessionPolicyService({
+      db: deps.db,
+      loaded,
+      collectAgentTools,
+      invokeWrapped,
+    }),
 
     async resolveProviderEnv({ providerId, context }) {
       const entries: PluginResolvedProviderEnv["entries"] = [];
@@ -2544,15 +2471,4 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       }
     },
   };
-}
-
-/** VK EXPERIMENTAL: skill folder names directly under a plugin skills root. */
-function vkListSkillDirs(root: string): string[] {
-  try {
-    return readdirSync(root).filter((name) =>
-      existsSync(join(root, name, "SKILL.md")),
-    );
-  } catch {
-    return [];
-  }
 }
