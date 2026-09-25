@@ -2043,7 +2043,14 @@ the environment are unresolved, the hook returns `status: "resolving"` with
 the new-thread scope and no inferred values. Composer surfaces without a
 native root selection return `status: "unsupported"` with the actual scope and
 a reason; existing-thread pickers are intentionally not represented by this
-API. It does not read DOM state, change picker state, or touch the draft.
+API. A ready snapshot also carries the exact host-owned
+`CreateThreadEnvironmentArgs` as `environmentRequest`, plus
+`environmentProvenance` with the selected project and only a confirmed source,
+host, and path. Root compose has no section selection, so `sectionId` is
+explicitly `null`; a plugin's own section selection remains plugin-owned. Pass
+`environmentRequest` unchanged to `bb.sdk.threads.spawn` instead of rebuilding
+provider inputs or inferring a checkout from its display label. It does not
+read DOM state, change picker state, or touch the draft.
 
 **Audit before stabilizing.** Verify selection reactivity when project,
 environment, provider, model, reasoning, or tier changes while a plugin panel

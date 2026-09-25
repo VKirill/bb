@@ -120,6 +120,10 @@ import {
 } from "@/views/root-compose-environment-selection";
 import { resolveRootComposeThreadEnvironment } from "@/views/root-compose-thread-environment";
 import {
+  pathFromComposerEnvironmentRequest,
+  resolveComposerEnvironmentProvenance,
+} from "./composer-environment-provenance";
+import {
   MACHINE_SERVER_ACCESS_TITLE,
   machineServerAccessBlockedReason,
 } from "@/components/machines/machine-server-access";
@@ -2053,7 +2057,16 @@ export function NewThreadComposer({
               submissionEnvironment.machine?.type === "existing"
             ? submissionEnvironment.machine.hostId
             : (reuseOption?.hostId ?? undefined);
-      const path = reuseOption?.path ?? undefined;
+      const path =
+        pathFromComposerEnvironmentRequest(submissionEnvironment) ??
+        reuseOption?.path ??
+        undefined;
+      const environmentProvenance = resolveComposerEnvironmentProvenance({
+        projectId,
+        projectSources,
+        hostId,
+        path,
+      });
       let environment: ExperimentalComposerEnvironmentSelection;
       switch (submissionEnvironment.type) {
         case "reuse":
@@ -2114,12 +2127,15 @@ export function NewThreadComposer({
         reasoningLevel,
         ...(serviceTier === undefined ? {} : { serviceTier }),
         environment,
+        environmentRequest: submissionEnvironment,
+        environmentProvenance,
       };
     }, [
       isLoadingModels,
       projectId,
       reasoningLevel,
       reuseThreadOptions,
+      projectSources,
       selectedProviderId,
       selectedProviderMachineUnavailable,
       selectedThreadModel,
