@@ -11,6 +11,69 @@ const base = {
 };
 
 describe("compiled main agent session options", () => {
+  it("keeps the full compiled native tool list and exposes exact BB bridge tools", () => {
+    const nativeTools = [
+      "Agent(lane-stack:run-supervisor, lane-stack:lane-supervisor, lane-stack:emergency-writer, lane-stack:night-reviewer, lane-stack:project-onboarder, lane-stack:docs-maintainer, lane-stack:design-lead, lane-stack:seo-specialist, lane-stack:copy-lead, lane-stack:tavily, lane-stack:browser-qa, Explore, Plan, general-purpose)",
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Grep",
+      "Glob",
+      "WebFetch",
+      "WebSearch",
+      "TaskStop",
+      "SendMessage",
+      "ListAgents",
+      "mcp__agentmemory__memory_recall",
+      "mcp__agentmemory__memory_smart_search",
+      "mcp__agentmemory__memory_profile",
+      "mcp__agentmemory__memory_sessions",
+      "mcp__agentmemory__memory_remember",
+      "mcp__gitnexus__query",
+      "mcp__gitnexus__context",
+      "mcp__gitnexus__impact",
+      "mcp__gitnexus__detect_changes",
+      "mcp__gitnexus__list_repos",
+      "mcp__metamcp__mcp_discover",
+      "mcp__metamcp__mcp_call",
+      "mcp__metamcp__mcp_execute",
+      "mcp__metamcp__mcp_provision",
+    ];
+    const bridgeTools = [
+      "mcp__bb-bridge__lane_pilot_read",
+      "mcp__bb-bridge__bb_workflow_run",
+    ];
+    const options = buildSessionOptions(
+      {
+        ...base,
+        bridgeToolNames: bridgeTools,
+        vkCompiledMainAgent: {
+          id: "dev-orchestrator",
+          sourceVersion: "lp-owned-1",
+          sourceHash: "a".repeat(64),
+          description: "Lane Pilot development orchestrator",
+          prompt: "Full compiled profile prompt.",
+          tools: nativeTools,
+          mcpServers: ["metamcp"],
+        },
+      },
+      {},
+    );
+
+    expect(options.tools).toEqual(nativeTools);
+    expect(options.agent).toBe("dev-orchestrator");
+    expect(options.agents?.["dev-orchestrator"]?.tools).toEqual([
+      ...nativeTools,
+      ...bridgeTools,
+    ]);
+    expect(options.agents?.["dev-orchestrator"]?.mcpServers).toEqual([
+      "bb-bridge",
+      "metamcp",
+    ]);
+    expect(options.agents?.["dev-orchestrator"]?.tools).not.toContain("*");
+  });
+
   it("sets Options.agent and Options.agents without model or permissionMode", () => {
     const options = buildSessionOptions(
       {

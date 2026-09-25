@@ -1467,6 +1467,9 @@ function buildTrackedSessionOptions(
       ...toSessionConstructionConfig(params).sessionOptions,
       ...toInitialLiveSessionSettings(params),
       permissionMode: params.approvedPlanPermissionMode,
+      ...(params.dynamicTools && params.dynamicTools.length > 0
+        ? { bridgeToolNames: getAllowedToolNames(params.dynamicTools) }
+        : {}),
     },
     env,
   );
