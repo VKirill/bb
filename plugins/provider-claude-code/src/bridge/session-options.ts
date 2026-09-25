@@ -23,6 +23,7 @@ import type {
 export interface BuildSessionOptionsArgs {
   additionalWorkspaceWriteRoots?: readonly string[];
   baseInstructions?: string;
+  bridgeToolNames?: readonly string[];
   cwd: string;
   disallowedTools?: readonly string[];
   instructionMode: InstructionMode;
@@ -299,6 +300,7 @@ export function buildSessionOptions(
     ...compiledMainAgentQueryOptions(
       params.vkCompiledMainAgent,
       params.vkSessionPolicy,
+      params.bridgeToolNames,
     ),
   };
 }
@@ -306,6 +308,7 @@ export function buildSessionOptions(
 function compiledMainAgentQueryOptions(
   profile: BuildSessionOptionsArgs["vkCompiledMainAgent"],
   policy: VkRuntimeSessionPolicy | undefined,
+  bridgeToolNames: readonly string[] | undefined,
 ): Pick<SdkSessionOptions, "agent" | "agents"> {
   if (!profile) return {};
   if (
@@ -319,7 +322,13 @@ function compiledMainAgentQueryOptions(
   const definition: NonNullable<Options["agents"]>[string] = {
     description: profile.description,
     prompt: profile.prompt,
-    ...(profile.tools ? { tools: profile.tools } : {}),
+    ...(profile.tools
+      ? {
+          tools: [
+            ...new Set([...profile.tools, ...(bridgeToolNames ?? [])]),
+          ],
+        }
+      : {}),
     ...(profile.disallowedTools
       ? { disallowedTools: profile.disallowedTools }
       : {}),

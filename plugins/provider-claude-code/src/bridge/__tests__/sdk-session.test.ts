@@ -287,6 +287,44 @@ describe("SdkSession", () => {
     );
   });
 
+  it("starts the selected main agent in the SDK session while retaining native settings hooks", () => {
+    const onMessage = vi.fn();
+    const onDone = vi.fn();
+    const nativeSettingsHook = vi.fn().mockResolvedValue({ continue: true });
+    const hooks: NonNullable<SdkSessionOptions["hooks"]> = {
+      PreToolUse: [{ hooks: [nativeSettingsHook] }],
+    };
+    const agents = {
+      "dev-orchestrator": {
+        description: "Lane Pilot development orchestrator",
+        prompt: "You are the Lane Pilot development orchestrator.",
+      },
+    };
+    const session = new SdkSession(
+      {
+        ...defaultOptions,
+        agent: "dev-orchestrator",
+        agents,
+        hooks,
+      },
+      onMessage,
+      onDone,
+    );
+
+    session.start();
+
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          agent: "dev-orchestrator",
+          agents,
+          hooks,
+          settingSources: ["user", "project", "local"],
+        }),
+      }),
+    );
+  });
+
   it("forwards max reasoning effort and thinking display to the SDK when configured", () => {
     const onMessage = vi.fn();
     const onDone = vi.fn();
