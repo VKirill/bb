@@ -71,6 +71,7 @@ import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-poi
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import type { FileOpenerOverride } from "@/lib/plugin-slot-resolvers";
 import { usePluginNewThreadPanelActions } from "@/components/plugin/PluginPanelActions";
+import { PluginComposerSelectionProvider } from "@/components/plugin/plugin-composer-host";
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { useCreateThread } from "@/hooks/mutations/thread-runtime-mutations";
 import {
@@ -646,17 +647,19 @@ export function RootComposeView() {
       onSubmit={handleSubmit}
     >
       {(composer) => (
-        <RootComposeSurface
-          composer={composer}
-          forkSeed={forkSeed}
-          lastCreatedThreadId={lastCreatedThreadId}
-          rootComposeProjectId={rootComposeProjectId}
-          setForkSeed={setForkSeed}
-          setRootComposeProjectId={setRootComposeProjectId}
-          setRootComposeSectionId={setRootComposeSectionId}
-          setStartedComposing={setStartedComposing}
-          startedComposing={startedComposing}
-        />
+        <PluginComposerSelectionProvider value={composer.selectionSnapshot}>
+          <RootComposeSurface
+            composer={composer}
+            forkSeed={forkSeed}
+            lastCreatedThreadId={lastCreatedThreadId}
+            rootComposeProjectId={rootComposeProjectId}
+            setForkSeed={setForkSeed}
+            setRootComposeProjectId={setRootComposeProjectId}
+            setRootComposeSectionId={setRootComposeSectionId}
+            setStartedComposing={setStartedComposing}
+            startedComposing={startedComposing}
+          />
+        </PluginComposerSelectionProvider>
       )}
     </NewThreadComposer>
   );

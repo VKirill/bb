@@ -19,6 +19,7 @@ import type {
   BbContext,
   BbNavigate,
   ComposerView,
+  ExperimentalComposerSelectionSnapshot,
   PluginComposerApi,
   PluginComposerMention,
   PluginRealtimeConnectionState,
@@ -49,6 +50,7 @@ import {
 import { usePluginThreadPanelOpenHandler } from "@/components/plugin/plugin-thread-panel-navigation";
 import {
   PluginComposerViewContext,
+  useOptionalPluginComposerSelection,
   usePluginComposerHost,
   usePluginComposerHostDraft,
 } from "@/components/plugin/plugin-composer-host";
@@ -695,6 +697,24 @@ export function useComposerView(): ComposerView {
   );
   return providedView ?? fallback;
 }
+
+function useComposerSelection(): ExperimentalComposerSelectionSnapshot {
+  const selection = useOptionalPluginComposerSelection();
+  const view = useComposerView();
+  if (selection !== undefined) return selection;
+  return {
+    status: "unsupported",
+    scope: view.scope,
+    reason:
+      view.scope.kind === "new-thread"
+        ? "native-selection-unavailable"
+        : view.scope.kind === "thread"
+          ? "existing-thread"
+          : view.scope.kind,
+  };
+}
+
+export { useComposerSelection as experimental_useComposerSelection };
 
 export function useComposer(): PluginComposerApi {
   const pluginId = usePluginId();
