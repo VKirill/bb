@@ -51,6 +51,12 @@ composer contributions, and whether commands need an availability callback.
 
 `experimental_page: "mobile"` mounts a plugin settings section exclusively on Settings → Mobile when that plugin owns the selected access provider, retaining plugin context, lifecycle, and error boundaries. Omission keeps the section on its plugin configuration page. Stabilization requires verifying placement isolation, plugin disable/uninstall, loading and failure states, and pairing lifecycle on Mobile.
 
+## VK managed plugin lifecycle
+
+`experimental_vkLifecycle` is an opt-in named server export typed by `ExperimentalVkPluginLifecycleHandler`. `PluginServerApi.experimental_vkPluginLifecycle` advertises support. Implementation is isolated in the server and SDK `vk-plugin-lifecycle.ts` modules. Enable executes on cold loads, not ordinary reloads; disable/remove execute before disposal. Disabled removal imports only the named handler, without running the default factory. Existing UI/SDK/CLI plugin mutations share these gates. Host RPC uses the existing protocol without a wire change.
+
+Audit multi-host partial progress, unavailable hosts, disabled-plugin removal after server restart, changed/missing handler source, artifact retention and cancellation, and recovery after a failed enable. Registered handlers cannot silently disappear. Hooks must record idempotent progress; rejection preserves registration but cannot undo completed host effects. A 30-minute deadline cancels host calls and expires KV access. Do not stabilize until lifecycle cleanup has installed-host evidence across reload, disable, re-enable and remove.
+
 ## `app.commands.register`
 
 `app.commands.register` requires SDK 0.4.91; `defaultShortcut` and keyboard

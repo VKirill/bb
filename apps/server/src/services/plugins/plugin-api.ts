@@ -1017,6 +1017,7 @@ export function createPluginApi(options: {
   };
 
   const server: PluginServerApi = {
+    experimental_vkPluginLifecycle: true,
     get experimental_appUrl(): string | null {
       assertLive();
       return getAppUrl();

@@ -1079,6 +1079,67 @@ describe("plugin service", () => {
     expect(entry?.statusDetail).toContain("timed out");
   });
 
+  it("runs VK cleanup before disposal and removes disabled plugins without their factory", async () => {
+    const trace = join(workDir, "vk-lifecycle.jsonl");
+    const rootDir = await writePlugin(workDir, {
+      name: "bb-plugin-vk-lifecycle",
+      serverSource: `
+        import { appendFileSync } from "node:fs";
+        const record = (value) => appendFileSync(${JSON.stringify(trace)}, value + "\\n");
+        export async function experimental_vkLifecycle(ctx) {
+          record(ctx.action);
+          await ctx.kv.set("last-action", ctx.action);
+        }
+        export default function plugin(bb) {
+          record("factory");
+          bb.onDispose(() => record("dispose"));
+        }
+      `,
+    });
+    await service.installPath(rootDir);
+    await service.reload("vk-lifecycle");
+    await service.setEnabled("vk-lifecycle", false);
+    await service.remove("vk-lifecycle");
+    expect((await readFile(trace, "utf8")).trim().split("\n")).toEqual([
+      "enable",
+      "factory",
+      "factory",
+      "dispose",
+      "disable",
+      "dispose",
+      "remove",
+    ]);
+    expect(getInstalledPlugin(db, "vk-lifecycle")).toBeUndefined();
+  });
+
+  it("keeps registration and enabled state when VK cleanup fails, then permits retry", async () => {
+    const blocker = join(workDir, "block-cleanup");
+    await writeFile(blocker, "blocked");
+    const rootDir = await writePlugin(workDir, {
+      name: "bb-plugin-vk-failure",
+      serverSource: `
+        import { existsSync } from "node:fs";
+        export function experimental_vkLifecycle(ctx) {
+          if (ctx.action !== "enable" && existsSync(${JSON.stringify(blocker)})) throw new Error("host offline");
+        }
+        export default function plugin() {}
+      `,
+    });
+    await service.installPath(rootDir);
+    await expect(service.setEnabled("vk-failure", false)).rejects.toThrow(
+      "host offline",
+    );
+    await expect(service.remove("vk-failure")).rejects.toThrow("host offline");
+    expect(getInstalledPlugin(db, "vk-failure")?.enabled).toBe(true);
+    expect(service.list().find((p) => p.id === "vk-failure")?.status).toBe(
+      "running",
+    );
+    await rm(blocker);
+    await service.setEnabled("vk-failure", false);
+    await service.remove("vk-failure");
+    expect(getInstalledPlugin(db, "vk-failure")).toBeUndefined();
+  });
+
   it("holds every plugin a hold names at start without running its factory or starting its services", async () => {
     const globals = globalThis as Record<string, unknown>;
     const heldAccountRoot = await writePlugin(workDir, {

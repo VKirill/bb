@@ -1891,6 +1891,8 @@ export interface PluginEvents {
 // ---------------------------------------------------------------------------
 
 export interface PluginServerApi {
+  /** VK extension: named lifecycle export runs before disable/removal, including while disabled. */
+  readonly experimental_vkPluginLifecycle?: true;
   /**
    * The operator-configured public app URL from `BB_APP_URL`, or `null` when
    * the operator has not configured one. This value is not bind-gated.
