@@ -673,6 +673,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     loadAll,
     loaded,
     loadOne,
+    runLifecycle,
+    lifecyclePluginIds,
     brandingAssets,
     safeModeActivationRefusal,
     setDevBuildProblem,
@@ -1674,7 +1676,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
         const row = getInstalledPlugin(deps.db, id);
         const providerIds = row ? pluginProviderIds(row) : new Set<string>();
-        await withLifecycleLock(id, () => disposeOne(id));
+        await withLifecycleLock(id, async () => {
+          if (row) await runLifecycle(row, "remove");
+          await disposeOne(id);
+        });
         statuses.delete(id);
         handlerStats.delete(id);
         agentToolProblems.delete(id);
@@ -1733,6 +1738,11 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
 
     async setEnabled(id, enabled) {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
+        const before = getInstalledPlugin(deps.db, id);
+        if (!before) return undefined;
+        if (!enabled && before.enabled) {
+          await withLifecycleLock(id, () => runLifecycle(before, "disable"));
+        }
         const plugin = loaded.get(id);
         if (!enabled && plugin !== undefined) {
           setDisabledPluginProviderCatalog(
@@ -1866,7 +1876,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
 
     listHostArtifactGenerations() {
       return [...hostArtifacts.entries()]
-        .filter(([id]) => loaded.has(id))
+        .filter(([id]) => loaded.has(id) || lifecyclePluginIds.has(id))
         .map(([pluginId, artifact]) => ({
           pluginId,
           generation: artifact.generation,
