@@ -2366,6 +2366,8 @@ export type ExperimentalComposerSelectionSnapshot =
       reasoningLevel: ReasoningLevel;
       serviceTier?: ServiceTier;
       environment: ExperimentalComposerEnvironmentSelection;
+      environmentRequest: CreateThreadEnvironmentArgs;
+      environmentProvenance: ExperimentalComposerEnvironmentProvenance;
     }
   | {
       status: "unsupported";
@@ -2375,7 +2377,20 @@ export type ExperimentalComposerSelectionSnapshot =
         | "queued-message"
         | "side-chat"
         | "native-selection-unavailable";
-    };
+  };
+
+export interface ExperimentalComposerEnvironmentProvenance {
+  /** Project selected in the native root composer. */
+  projectId: string;
+  /** The native root composer has no section selection. */
+  sectionId: null;
+  /** Present only when the chosen host and path match a project source. */
+  projectSourceId?: string;
+  /** Omitted until the composer resolves the selected execution host. */
+  hostId?: string;
+  /** Omitted until the composer resolves the selected workspace path. */
+  path?: string;
+}
 
 export type ExperimentalComposerEnvironmentSelection =
   | {
