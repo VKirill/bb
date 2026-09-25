@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createJiti } from "jiti";
+import { createVkPluginLifecycleRunner } from "./vk-plugin-lifecycle.js";
 import semver from "semver";
 import { HOST_ARTIFACT_MAX_BYTES } from "@bb/host-daemon-contract/protocol";
 import {
@@ -1560,6 +1561,19 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     return `plugin safe mode is on; turn it off with \`bb plugin safe-mode off\` before you ${args.action} "${args.pluginId}"`;
   }
 
+  const { runLifecycle, lifecyclePluginIds } = createVkPluginLifecycleRunner({
+    db: deps.db,
+    hostArtifacts,
+    importModule: async (row, manifest) =>
+      createJiti(import.meta.url, {
+        moduleCache: false,
+        ...(pluginSdkAlias === undefined ? {} : { alias: pluginSdkAlias }),
+      }).import(await resolveServerEntry(row, manifest)),
+    loadHostArtifact: loadHostArtifactCandidate,
+    callPluginHost: deps.callPluginHost,
+    disposePluginHost: deps.disposePluginHost,
+  });
+
   async function loadOne(row: InstalledPluginRow): Promise<string | null> {
     const held = await heldDetail(row);
     if (held !== null) {
@@ -1860,6 +1874,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           `server entry must default-export a factory (bb) => void, got ${typeof factory}`,
         );
       }
+      if (previous === undefined) await runLifecycle(row, "enable", mod);
       await runFactoryTimeBoxed(
         factory as (api: BbPluginApi) => unknown,
         handle.api,
@@ -2116,6 +2131,8 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     loadAll,
     loaded,
     loadOne,
+    runLifecycle,
+    lifecyclePluginIds,
     brandingAssets,
     safeModeActivationRefusal,
     setDevBuildProblem,
