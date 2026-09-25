@@ -1004,6 +1004,26 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         ],
       },
       {
+        id: "vk-plugin-lifecycle",
+        title: "VK managed plugin lifecycle",
+        summary:
+          "An opt-in server export coordinates host-owned integrations before plugin transitions.",
+        bullets: [
+          "Export experimental_vkLifecycle alongside the default factory; use server.experimental_vkPluginLifecycle to detect support",
+          "Receive enable on cold load, disable before unloading, and remove even when already disabled; reload and shutdown do not run destructive transitions",
+          "Read and update namespaced kv progress and call declared host RPC methods over the existing authenticated transport",
+          "Throw when cleanup is incomplete: standard UI, SDK and bb plugin disable/remove operations keep registration for retry",
+          "Keep handlers idempotent and imports free of side effects; the normal factory is not started to remove a disabled plugin",
+          "A 30-minute deadline aborts host calls and expires the context; this API does not roll back side effects already completed on other machines",
+        ],
+        apiSymbols: [
+          "ExperimentalVkPluginLifecycleAction",
+          "ExperimentalVkPluginLifecycleContext",
+          "ExperimentalVkPluginLifecycleHandler",
+          "PluginServerApi.experimental_vkPluginLifecycle",
+        ],
+      },
+      {
         id: "bb-sdk",
         tagline: "Create threads and projects from plugin code",
         title: "The bb SDK",
