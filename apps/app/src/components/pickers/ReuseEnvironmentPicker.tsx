@@ -40,6 +40,7 @@ export interface ReuseThreadOption {
   name: string | null;
   path: string | null;
   environmentProviderId: string | null;
+  hostId?: string | null;
   hostName?: string | null;
   threads: ReadonlyArray<{ id: string; title: string }>;
 }

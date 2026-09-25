@@ -37,7 +37,10 @@ import {
   type NewThreadComposerState,
 } from "@/components/promptbox/NewThreadComposer";
 import { setComposerSelectionSettleTimeoutForTest } from "@/components/promptbox/composer-selection-settle";
-import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
+import {
+  PluginComposerSelectionProvider,
+  type PluginComposerHost,
+} from "@/components/plugin/plugin-composer-host";
 import {
   resetPluginSlotStoreForTest,
   setPluginSlotRegistrations,
@@ -59,6 +62,7 @@ import {
 import { PluginDetailPanelContext } from "./plugin-detail-navigation";
 import { openPluginDetailsInWorkspace } from "./plugin-detail-opener";
 import { PluginNewThreadComposer } from "./PluginNewThreadComposer";
+import { experimental_useComposerSelection as useComposerSelection } from "@/lib/plugin-sdk-hooks";
 
 function render(element: ReactNode) {
   const queryClient = new QueryClient({
@@ -2505,6 +2509,13 @@ describe("NewThreadComposer setSelection", () => {
     vi.restoreAllMocks();
   });
 
+  function NativeSelectionProbe() {
+    const snapshot = useComposerSelection();
+    return (
+      <output data-testid="native-selection">{JSON.stringify(snapshot)}</output>
+    );
+  }
+
   function RootLikeComposer({
     initialProjectId,
   }: {
@@ -2519,9 +2530,12 @@ describe("NewThreadComposer setSelection", () => {
         selectionScope="new-thread"
         onSubmit={() => undefined}
       >
-        {(composer) =>
-          composer.renderPromptBox({ mentionMenuPlacement: "bottom" })
-        }
+        {(composer) => (
+          <PluginComposerSelectionProvider value={composer.selectionSnapshot}>
+            <NativeSelectionProbe />
+            {composer.renderPromptBox({ mentionMenuPlacement: "bottom" })}
+          </PluginComposerSelectionProvider>
+        )}
       </NewThreadComposer>
     );
   }
@@ -2566,6 +2580,76 @@ describe("NewThreadComposer setSelection", () => {
     if (failure !== null) throw failure;
     return result as unknown as ExperimentalComposerSelection;
   }
+
+  it("reactively exposes root selections while mounted without changing its draft", async () => {
+    getPromptDraftAccessor({ kind: "new-thread" }).setDraft({
+      text: "keep this draft",
+      mentions: [],
+      attachments: [],
+    });
+    render(rootLikeElement("proj_1"));
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId("native-selection").textContent ?? "{}")
+          .status,
+      ).toBe("ready");
+    });
+    const before = JSON.parse(
+      screen.getByTestId("native-selection").textContent ?? "{}",
+    ) as { scope: { projectId: string | null }; model: string };
+    expect(before.scope.projectId).toBe("proj_1");
+    expect(before.model).toBeTruthy();
+
+    await settled(
+      currentHost().setSelection!({
+        projectId: "proj_2",
+        model: "gpt-5.6-sol",
+        reasoningLevel: "high",
+      }),
+    );
+
+    await waitFor(() => {
+      const current = JSON.parse(
+        screen.getByTestId("native-selection").textContent ?? "{}",
+      ) as {
+        scope: { projectId: string | null };
+        model: string;
+        reasoningLevel: string;
+      };
+      expect(current.scope.projectId).toBe("proj_2");
+      expect(current.model).toBe("gpt-5.6-sol");
+      expect(current.reasoningLevel).toBe("high");
+    });
+
+    await settled(
+      currentHost().setSelection!({
+        projectId: "proj_1",
+        environment: {
+          type: "provider",
+          environmentProviderId: "git-worktree",
+          machine: { type: "existing", hostId: "host_2" },
+          inputs: null,
+        },
+      }),
+    );
+    await waitFor(() => {
+      const current = JSON.parse(
+        screen.getByTestId("native-selection").textContent ?? "{}",
+      ) as {
+        scope: { projectId: string | null };
+        environment: {
+          kind: string;
+          machine?: { type: string; hostId?: string };
+        };
+      };
+      expect(current.scope.projectId).toBe("proj_1");
+      expect(current.environment.kind).toBe("provisioning");
+      expect(current.environment.machine?.hostId).toBe("host_2");
+    });
+    expect(
+      getPromptDraftAccessor({ kind: "new-thread" }).getCurrent().text,
+    ).toBe("keep this draft");
+  });
 
   it("switches the project first and remembers the environment and machine for the new project", async () => {
     render(rootLikeElement("proj_2"));

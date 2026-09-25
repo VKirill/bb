@@ -77,6 +77,8 @@ export const experimental_useFixedTabTarget =
   runtime.experimental_useFixedTabTarget;
 export const useComposer = runtime.useComposer;
 export const useComposerView = runtime.useComposerView;
+export const experimental_useComposerSelection =
+  runtime.experimental_useComposerSelection;
 // Sidebar surfaces for plugins that replace the thread list (experimental —
 // see docs/api_to_audit.md).
 export const experimental_useSidebarThreads =
