@@ -70,6 +70,7 @@ import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-poi
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import { usePluginNewThreadPanelActions } from "@/components/plugin/PluginPanelActions";
 import { PluginThreadPanelNavigationProvider } from "@/components/plugin/plugin-thread-panel-navigation";
+import { PluginComposerSelectionProvider } from "@/components/plugin/plugin-composer-host";
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { useCreateThread } from "@/hooks/mutations/thread-runtime-mutations";
 import {
@@ -438,12 +439,14 @@ export function RootComposeView() {
       onSubmit={handleSubmit}
     >
       {(composer) => (
-        <RootComposeSurface
-          composer={composer}
-          lastCreatedThreadId={lastCreatedThreadId}
-          rootComposeProjectId={rootComposeProjectId}
-          setRootComposeProjectId={setRootComposeProjectId}
-        />
+        <PluginComposerSelectionProvider value={composer.selectionSnapshot}>
+          <RootComposeSurface
+            composer={composer}
+            lastCreatedThreadId={lastCreatedThreadId}
+            rootComposeProjectId={rootComposeProjectId}
+            setRootComposeProjectId={setRootComposeProjectId}
+          />
+        </PluginComposerSelectionProvider>
       )}
     </NewThreadComposer>
   );
