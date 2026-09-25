@@ -35,6 +35,7 @@ import {
   type ComposerSelection,
   type ComposerSubmitOptions,
   type ComposerView,
+  type ExperimentalComposerSelectionSnapshot,
   type ExperimentalTabRegistration,
   type ExperimentalAppOverlayRegistration,
   type ExperimentalSidebarNavigationActions,
@@ -1475,6 +1476,22 @@ function captureClipboardWrites(
   return writes;
 }
 
+function useTestComposerSelection(): ExperimentalComposerSelectionSnapshot {
+  const scope = useSlotEnv(
+    "experimental_useComposerSelection",
+  ).composer.getScope();
+  return {
+    status: "unsupported",
+    scope,
+    reason:
+      scope.kind === "new-thread"
+        ? "native-selection-unavailable"
+        : scope.kind === "thread"
+          ? "existing-thread"
+          : scope.kind,
+  };
+}
+
 const testPluginSdkApp = {
   definePluginApp,
   ...createRpcQueryHooks(() => useSlotEnv("rpc query").rpcQueryHost),
@@ -1836,6 +1853,7 @@ const testPluginSdkApp = {
       };
     }, [composer, version]);
   },
+  experimental_useComposerSelection: useTestComposerSelection,
 } satisfies PluginSdkApp;
 
 interface PluginRuntimeHost {
