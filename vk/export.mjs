@@ -58,9 +58,9 @@ git(
   "--full-index",
   "--output-directory",
   join(output, "patches"),
-  `${upstream}..${head}`,
+  `${upstream}..HEAD`,
 );
-git("bundle", "create", join(output, "vk-core.bundle"), `${upstream}..${head}`);
+git("bundle", "create", join(output, "vk-core.bundle"), `${upstream}..HEAD`);
 writeFileSync(
   join(output, "manifest.json"),
   JSON.stringify(
