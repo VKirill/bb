@@ -74,6 +74,7 @@ import {
   createPanelActionDestination,
   usePluginNewThreadPanelActions,
 } from "@/components/plugin/PluginPanelActions";
+import { PluginComposerSelectionProvider } from "@/components/plugin/plugin-composer-host";
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { useCreateThread } from "@/hooks/mutations/thread-runtime-mutations";
 import {
@@ -438,12 +439,14 @@ export function RootComposeView() {
       onSubmit={handleSubmit}
     >
       {(composer) => (
-        <RootComposeSurface
-          composer={composer}
-          lastCreatedThreadId={lastCreatedThreadId}
-          rootComposeProjectId={rootComposeProjectId}
-          setRootComposeProjectId={setRootComposeProjectId}
-        />
+        <PluginComposerSelectionProvider value={composer.selectionSnapshot}>
+          <RootComposeSurface
+            composer={composer}
+            lastCreatedThreadId={lastCreatedThreadId}
+            rootComposeProjectId={rootComposeProjectId}
+            setRootComposeProjectId={setRootComposeProjectId}
+          />
+        </PluginComposerSelectionProvider>
       )}
     </NewThreadComposer>
   );
