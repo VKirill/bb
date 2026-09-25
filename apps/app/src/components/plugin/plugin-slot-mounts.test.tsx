@@ -57,6 +57,7 @@ import {
 } from "@/lib/composer-editor-registry";
 import {
   PluginComposerHostProvider,
+  PluginComposerViewProvider,
   PluginComposerHostScopeProvider,
   type PluginComposerHost,
   useComposerHostDraftNotifier,
@@ -71,6 +72,7 @@ import {
   useComposer,
   useComposers,
   useComposerView,
+  experimental_useComposerSelection as useComposerSelection,
 } from "@/lib/plugin-sdk-hooks";
 import { subscribeComposerFocusRequests } from "@/lib/composer-focus-requests";
 import { getComposerTextEffects } from "@/lib/composer-text-effects";
@@ -243,6 +245,38 @@ function NewThreadDraftSeeder() {
     </button>
   );
 }
+
+describe("experimental_useComposerSelection", () => {
+  it("does not expose native new-thread selections in an existing thread surface", () => {
+    function Probe() {
+      const selection = useComposerSelection();
+      return (
+        <output data-testid="selection">{JSON.stringify(selection)}</output>
+      );
+    }
+    const threadView: ComposerView = {
+      scope: { kind: "thread", threadId: "thr_existing" },
+      layout: "expanded",
+      draft: { text: "draft", isEmpty: false, attachmentCount: 0 },
+      run: { isRunning: false, isSubmitting: false },
+    };
+    const view = render(
+      <MemoryRouter>
+        <PluginComposerViewProvider value={threadView}>
+          <Probe />
+        </PluginComposerViewProvider>
+      </MemoryRouter>,
+    );
+    expect(
+      JSON.parse(screen.getByTestId("selection").textContent ?? "{}"),
+    ).toEqual({
+      status: "unsupported",
+      scope: { kind: "thread", threadId: "thr_existing" },
+      reason: "existing-thread",
+    });
+    view.unmount();
+  });
+});
 
 describe("useComposer", () => {
   beforeEach(() => {

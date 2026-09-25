@@ -720,6 +720,12 @@ and mentions at the cursor or end; apply a class-based text effect, lock input,
 quote selections, submit exactly as Enter would, and focus the composer),
 and useComposers (a handle for every composer on screen, so a panel can write
 into the one the user picks).
+`experimental_useComposerSelection()` reads the native root new-thread pickers
+reactively: project, provider, model, reasoning level, service tier, and the
+resolved existing/provisioning environment. Its `resolving` state carries no
+guessed defaults; `ready` contains the selected values, with host and path only
+when the host has resolved them. Other composer surfaces return `unsupported`
+with their scope. It is read-only and does not change the draft.
 Plain-text edits preserve attachments and reconcile only inline mentions
 overlapped by the edit. Define RPC methods with `defineRpcContract`
 and Standard Schema-compatible input/output validators (Zod works directly),

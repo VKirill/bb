@@ -15,6 +15,7 @@ import type {
   ComposerSelection,
   ComposerSubmitOptions,
   ComposerView,
+  ExperimentalComposerSelectionSnapshot,
   JsonValue,
   PluginComposerScope,
 } from "@get-bb/plugin-sdk";
@@ -172,6 +173,30 @@ const PluginComposerStaticViewContext = createContext<
 const PluginComposerDraftViewContext = createContext<
   ComposerView["draft"] | undefined
 >(undefined);
+
+const PluginComposerSelectionContext = createContext<
+  ExperimentalComposerSelectionSnapshot | undefined
+>(undefined);
+
+export function PluginComposerSelectionProvider({
+  value,
+  children,
+}: {
+  value: ExperimentalComposerSelectionSnapshot;
+  children: ReactNode;
+}) {
+  return (
+    <PluginComposerSelectionContext.Provider value={value}>
+      {children}
+    </PluginComposerSelectionContext.Provider>
+  );
+}
+
+export function useOptionalPluginComposerSelection():
+  | ExperimentalComposerSelectionSnapshot
+  | undefined {
+  return useContext(PluginComposerSelectionContext);
+}
 
 export function PluginComposerViewProvider({
   children,

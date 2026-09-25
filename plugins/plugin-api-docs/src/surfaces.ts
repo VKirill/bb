@@ -523,6 +523,26 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         ],
       },
       {
+        id: "composer-state",
+        title: "Draft prompt state & locking",
+        summary:
+          "Reads the draft prompt, and can block typing while the plugin works. With this, a plugin can:",
+        bullets: [
+          "Read the draft prompt's text, whether it is empty, and how many files are attached",
+          "Read the prompt box's layout and whether the thread is already running a turn",
+          "Read the native root new-thread project, provider, model, reasoning, service-tier, and resolved environment selections with explicit resolving/unsupported states",
+          "Lock the input and release it again, so the draft prompt cannot change mid-operation",
+          "Mark the thread row as running while the input is locked, with a [thread row status](thread-row-status)",
+        ],
+        apiSymbols: [
+          "ComposerView",
+          "ExperimentalComposerEnvironmentSelection",
+          "ExperimentalComposerSelectionSnapshot",
+          "PluginComposerApi",
+          "PluginSdkApp.experimental_useComposerSelection",
+        ],
+      },
+      {
         id: "composer-plus-menu",
         title: "The + and send menus",
         summary:
