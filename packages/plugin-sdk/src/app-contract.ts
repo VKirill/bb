@@ -1950,7 +1950,7 @@ export type ExperimentalComposerSelectionSnapshot =
         | "queued-message"
         | "side-chat"
         | "native-selection-unavailable";
-  };
+    };
 
 export interface ExperimentalComposerEnvironmentProvenance {
   /** Project selected in the native root composer. */
@@ -2184,6 +2184,8 @@ export interface PluginComposerApi {
   experimental_setSelection(
     selection: ExperimentalComposerSelection,
   ): Promise<ExperimentalComposerSelection>;
+  /** Attach plugin-owned data to the next ordinary new-thread Send. Null clears it. Cleared on successful send, scope change, or unmount; failed sends retain it. */
+  experimental_vkSetDispatchData(data: JsonValue | null): void;
 }
 
 /**

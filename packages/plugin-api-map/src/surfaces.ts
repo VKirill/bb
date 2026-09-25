@@ -413,6 +413,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "ExperimentalComposerSelectionSnapshot",
           "PluginComposerApi",
           "PluginSdkApp.experimental_useComposerSelection",
+          "PluginComposerApi.experimental_vkSetDispatchData",
         ],
       },
       {

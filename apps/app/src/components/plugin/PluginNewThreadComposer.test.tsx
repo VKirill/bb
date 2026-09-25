@@ -1000,6 +1000,26 @@ describe("PluginNewThreadComposer seeding", () => {
     });
   });
 
+  it("attaches hidden data to ordinary Send without editing the draft", async () => {
+    const submitted: NewThreadRequest[] = [];
+    renderComposer(
+      STORED_REQUEST,
+      (request) => submitted.push(request),
+      "hidden-data",
+    );
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    const host = latestPromptBoxProps().pluginComposerHost;
+    const text = host.getCurrent().text;
+    act(() => host.vkSetDispatchData!("lane-pilot", { token: "one" }));
+    expect(host.getCurrent().text).toBe(text);
+    await act(async () => latestPromptBoxProps().onSubmit());
+    await waitFor(() => expect(submitted).toHaveLength(1));
+    expect(submitted[0]).toMatchObject({
+      pluginSubmission: { pluginId: "lane-pilot", data: { token: "one" } },
+    });
+    expect(JSON.stringify(submitted[0].input)).not.toContain("one");
+  });
+
   it("preserves plugin submission data through a new-thread composer", async () => {
     const submitted: NewThreadRequest[] = [];
     renderComposer(

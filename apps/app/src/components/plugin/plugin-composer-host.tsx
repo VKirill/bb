@@ -33,6 +33,7 @@ export interface PluginComposerHost {
     options: ExperimentalComposerSubmitOptions,
     pluginSubmission: { pluginId: string; data: JsonValue } | undefined,
   ): Promise<void>;
+  vkSetDispatchData?(pluginId: string, data: JsonValue | null): void;
   setSelection?(
     selection: ExperimentalComposerSelection,
   ): Promise<ExperimentalComposerSelection>;

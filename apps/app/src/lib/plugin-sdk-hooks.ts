@@ -943,6 +943,19 @@ export function useComposer(): PluginComposerApi {
     [hostSubmit, pluginId, scopeOwnership],
   );
 
+  const vkSetData = composerHost?.vkSetDispatchData;
+  const experimental_vkSetDispatchData = useCallback(
+    (data: JsonValue | null) => {
+      if (!scopeOwnership.isActive())
+        throw new Error("This composer is no longer active.");
+      if (!vkSetData)
+        throw new Error("This composer cannot attach dispatch data.");
+      vkSetData(pluginId, data);
+    },
+    [vkSetData, pluginId, scopeOwnership],
+  );
+  useEffect(() => () => vkSetData?.(pluginId, null), [vkSetData, pluginId]);
+
   const hostSetSelection = composerHost?.setSelection;
   const experimental_setSelection = useCallback(
     async (selection: ExperimentalComposerSelection) => {
@@ -978,6 +991,7 @@ export function useComposer(): PluginComposerApi {
       focus,
       experimental_submit,
       experimental_setSelection,
+      experimental_vkSetDispatchData,
     }),
     [
       addQuote,
@@ -985,6 +999,7 @@ export function useComposer(): PluginComposerApi {
       composerScope,
       composerText,
       experimental_setSelection,
+      experimental_vkSetDispatchData,
       experimental_submit,
       focus,
       insertMention,
