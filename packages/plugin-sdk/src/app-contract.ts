@@ -3921,6 +3921,56 @@ export interface ComposerView {
   run: { isRunning: boolean; isSubmitting: boolean };
 }
 
+export type ExperimentalComposerSelectionSnapshot =
+  | {
+      status: "resolving";
+      scope: Extract<PluginComposerScope, { kind: "new-thread" }>;
+    }
+  | {
+      status: "ready";
+      scope: Extract<PluginComposerScope, { kind: "new-thread" }>;
+      projectId: string;
+      providerId: string;
+      model: string;
+      reasoningLevel: ReasoningLevel;
+      serviceTier?: ServiceTier;
+      environment: ExperimentalComposerEnvironmentSelection;
+    }
+  | {
+      status: "unsupported";
+      scope: PluginComposerScope;
+      reason:
+        | "existing-thread"
+        | "queued-message"
+        | "side-chat"
+        | "native-selection-unavailable";
+    };
+
+export type ExperimentalComposerEnvironmentSelection =
+  | {
+      kind: "existing";
+      type: "reuse";
+      environmentId: string;
+      hostId?: string;
+      path?: string;
+    }
+  | {
+      kind: "existing";
+      type: "host";
+      workspaceType: "personal" | "unmanaged" | "managed-worktree";
+      hostId?: string;
+      path?: string;
+    }
+  | { kind: "existing"; type: "project-default" }
+  | {
+      kind: "provisioning";
+      type: "provider";
+      environmentProviderId: string;
+      machine?:
+        | { type: "existing"; hostId: string }
+        | { type: "new"; machineProviderId: string };
+    };
+
 export interface ComposerRichTextSpec {
   /** Content-derived paint: match ranges receive `className`; text is never mutated. */
   effects?: readonly {
@@ -5696,4 +5746,10 @@ export interface PluginSdkApp {
   experimental_ThreadTitleText: ComponentType<ExperimentalThreadTitleTextProps>;
   /** @internal Superseded by `useComposer()`; kept for plugins built against older SDKs. */
   useComposerView(): ComposerView;
+  /**
+   * Reactive read-only native selections for the root new-thread composer.
+   * Surfaces without those native pickers return an explicit unsupported state.
+   * Experimental: see docs/api_to_audit.md.
+   */
+  experimental_useComposerSelection(): ExperimentalComposerSelectionSnapshot;
 }

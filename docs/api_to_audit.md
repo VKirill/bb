@@ -2172,6 +2172,27 @@ Docs: `frontend-renderer-slots.md`, `backend-cli-agents.md` (form rows),
 6. **Form rows.** Decide whether form and extension rows need distinct `kind`
    values.
 
+## `experimental_useComposerSelection` (`@get-bb/plugin-sdk/app`)
+
+**Experimental, added 2026-09-25.** A reactive read-only hook for the host-owned
+root new-thread composer. When ready it returns selected project, provider,
+model, reasoning level, optional service tier, and environment selection. The
+environment distinguishes reuse from provisioning and includes host id or
+path only when the composer has resolved those facts. While native catalogs or
+the environment are unresolved, the hook returns `status: "resolving"` with
+the new-thread scope and no inferred values. Composer surfaces without a
+native root selection return `status: "unsupported"` with the actual scope and
+a reason; existing-thread pickers are intentionally not represented by this
+API. It does not read DOM state, change picker state, or touch the draft.
+
+**Audit before stabilizing.** Verify selection reactivity when project,
+environment, provider, model, reasoning, or tier changes while a plugin panel
+action is open; ensure the provider can render before a thread id exists and
+that draft persistence is unaffected. Reassess the environment union against
+new provisioning types and identify whether embedded plugin-owned new-thread
+composers should expose their local selection. Confirm all non-root composer
+surfaces continue to return `unsupported` rather than a guessed default.
+
 ## `experimental_NewThreadComposer` (`@get-bb/plugin-sdk/app`)
 
 **Kept experimental (2026-08-22).** There are no consumers, and items 1 (a
