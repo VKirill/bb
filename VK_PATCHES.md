@@ -88,3 +88,26 @@ excluded.
 
 Consumer: plugin `project-folders` (VKirill/bb-plugin-project-folders), tab
 «Контекст сессии», shown only when the API above exists.
+
+## Server settings
+
+Managed config keys in `<dataDir>/env.json`:
+
+- `BB_INFERENCE_SERVICE_TIER` (`fast` | `default`): helper inference (titles,
+  metadata) on the Codex Fast tier, `service_tier=priority`.
+- `BB_THREAD_TITLE_LANGUAGE` (e.g. `Russian`): language of generated thread
+  titles; unset, the task's own language.
+
+Hook points: `packages/config/src/bb-app-managed-config.ts`,
+`apps/server/src/services/system/bb-app-managed-config.ts`,
+`apps/server/src/types.ts`, `apps/server/src/start-server.ts`,
+`apps/server/src/services/ai/inference.ts`,
+`packages/plugin-sdk/src/ai-services.ts`,
+`plugins/provider-codex/src/ai/chatgpt-client.ts`,
+`apps/server/src/services/threads/title-generation.ts`,
+`packages/templates/src/templates/generate-thread-metadata.md`.
+
+## README
+
+`README.md` is replaced by the fork's install guide and FAQ. On a rebase
+conflict keep the fork's version.
