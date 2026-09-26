@@ -88,6 +88,8 @@ export interface ThreadListQueryFilters {
   originKind?: ThreadListFilters["originKind"];
   archived: boolean;
   limit?: number;
+  /** VK EXPERIMENTAL: include hidden threads (plugin helpers) in the list. */
+  includeHidden?: boolean;
 }
 
 interface ThreadSearchQueryFilters {

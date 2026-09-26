@@ -74,6 +74,7 @@ import {
   getLatestPendingInteraction,
   isPendingInteractionStateUnknown,
   useChildThreads,
+  useVkHiddenChildThreads,
   useProjectThreadSubset,
   useThread,
   useThreadDetailBootstrap,
@@ -839,6 +840,10 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
     projectId,
   });
   const childThreadSubsetQuery = useChildThreads({
+    enabled: threadQueryState.status === "ready" && Boolean(thread?.id),
+    parentThreadId: thread?.id,
+  });
+  const vkHiddenChildThreads = useVkHiddenChildThreads({
     enabled: threadQueryState.status === "ready" && Boolean(thread?.id),
     parentThreadId: thread?.id,
   });
@@ -1958,7 +1963,10 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
     ]);
   const childThreadsSection: ThreadPromptChildThreadsSection | null =
     useMemo(() => {
-      const list = childThreadSubsetQuery.data ?? [];
+      const list = [
+        ...(childThreadSubsetQuery.data ?? []),
+        ...(vkHiddenChildThreads ?? []),
+      ];
       const activeItems = list
         .filter(
           (entry) =>
@@ -1984,7 +1992,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
         );
       if (activeItems.length === 0) return null;
       return { items: activeItems };
-    }, [childThreadSubsetQuery.data]);
+    }, [childThreadSubsetQuery.data, vkHiddenChildThreads]);
   const childPendingInteractions = useChildThreadPendingAttention(
     childThreadsSection?.items ?? EMPTY_CHILD_THREAD_ITEMS,
   );

@@ -454,6 +454,33 @@ export function useChildThreads({
   };
 }
 
+/** VK EXPERIMENTAL: hidden children stay out of the sidebar but still belong on the parent's active-children card. */
+const VK_HIDDEN_CHILDREN_REFRESH_MS = 5_000;
+
+/**
+ * VK EXPERIMENTAL — not part of upstream bb.
+ *
+ * Children of a thread including hidden ones — helpers a plugin runs for it, like Lane Pilot's writers.
+ * The sidebar snapshot never carries hidden threads, so this asks the server and refreshes on a timer.
+ */
+export function useVkHiddenChildThreads({
+  enabled,
+  parentThreadId,
+}: UseChildThreadsArgs): ThreadListResponse | undefined {
+  return useQuery<ThreadListResponse>({
+    queryKey: threadListQueryKey({ archived: false, parentThreadId: parentThreadId ?? "", includeHidden: true }),
+    queryFn: ({ signal }) =>
+      sdk.threads.list({
+        archived: false,
+        parentThreadId: requireThreadId(parentThreadId ?? "", "useVkHiddenChildThreads"),
+        includeHidden: true,
+        signal,
+      }),
+    enabled: enabled && Boolean(parentThreadId),
+    refetchInterval: VK_HIDDEN_CHILDREN_REFRESH_MS,
+  }).data?.filter((thread) => thread.visibility === "hidden");
+}
+
 export function useProjectThreadSubset({
   enabled: enabledOption,
   filters,
