@@ -101,9 +101,8 @@ Managed config keys in `<dataDir>/env.json`:
 Hook points: `packages/config/src/bb-app-managed-config.ts`,
 `apps/server/src/services/system/bb-app-managed-config.ts`,
 `apps/server/src/types.ts`, `apps/server/src/start-server.ts`,
-`apps/server/src/services/ai/inference.ts`,
-`packages/plugin-sdk/src/ai-services.ts`,
 `plugins/provider-codex/src/ai/chatgpt-client.ts`,
+`plugins/provider-codex/src/ai/host-contract.ts`,
 `apps/server/src/services/threads/title-generation.ts`,
 `packages/templates/src/templates/generate-thread-metadata.md`.
 
