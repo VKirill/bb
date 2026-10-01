@@ -1,0 +1,407 @@
+import type { McpServerConfig, Settings } from "@anthropic-ai/claude-agent-sdk";
+import {
+  vkPolicyAllows,
+  type VkPolicyFilter,
+  type VkRuntimeSessionPolicy,
+} from "@get-bb/plugin-sdk/provider-bridge";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+
+/**
+ * VK EXPERIMENTAL — not part of upstream bb.
+ *
+ * Turns the bridge half of a session policy into Claude Agent SDK options.
+ * Claude loads its own MCP servers, skills and plugins from the user's
+ * settings, so the policy is enforced through documented switches rather
+ * than by hiding files:
+ *
+ * - MCP `allow`: `strictMcpConfig` plus the allowed server configs copied from
+ *   `~/.claude.json` (user and local scope), `<cwd>/.mcp.json` and the
+ *   enabled Claude plugins (their `.mcp.json` and manifest `mcpServers`).
+ * - MCP `deny`: flag-layer `deniedMcpServers`.
+ * - Skills `allow`: the SDK `skills` allow list (hides the rest from the
+ *   listing and denies invocation).
+ * - Skills `deny`: `skillOverrides: off` for personal/project skills plus a
+ *   `Skill(name)` deny rule, which is the only switch plugin skills obey.
+ * - Native plugins: flag-layer `enabledPlugins: { id: false }`.
+ */
+export interface ClaudeVkSessionOptions {
+  disallowedTools: string[];
+  flagSettings: Settings;
+  mcpServers: Record<string, McpServerConfig>;
+  skills: string[] | null;
+  strictMcpConfig: boolean;
+}
+
+interface ClaudePluginMcpServer {
+  config: McpServerConfig;
+  pluginId: string;
+  pluginName: string;
+}
+
+interface ClaudeNativeInventory {
+  /** name → config, nearest scope last (local beats project beats user). */
+  mcpServers: Map<string, McpServerConfig>;
+  /** Servers enabled Claude plugins ship; user servers win a name clash. */
+  pluginMcpServers: Map<string, ClaudePluginMcpServer>;
+  /** enabled plugin ids (`name@marketplace`) → plugin name. */
+  plugins: Map<string, string>;
+  /** invocable skill names: bare for personal/project, `plugin:skill` else. */
+  skills: Set<string>;
+  /** the subset of `skills` that are personal or project skills. */
+  personalSkills: Set<string>;
+}
+
+export function buildClaudeVkSessionOptions(args: {
+  bbSkillNames: readonly string[];
+  cwd: string;
+  home?: string;
+  policy: VkRuntimeSessionPolicy;
+}): ClaudeVkSessionOptions {
+  const inventory = readClaudeNativeInventory(args.cwd, args.home ?? homedir());
+  const options: ClaudeVkSessionOptions = {
+    disallowedTools: [],
+    flagSettings: {},
+    mcpServers: {},
+    skills: null,
+    strictMcpConfig: false,
+  };
+  applyMcpPolicy(
+    options,
+    args.policy.mcpServers,
+    args.policy.nativePlugins,
+    inventory,
+  );
+  applyNativePluginPolicy(options, args.policy.nativePlugins, inventory);
+  applySkillPolicy(options, args.policy.skills, inventory, args.bbSkillNames);
+  // Keys newer than the SDK's Settings type; the user's CLI reads them.
+  const flags = options.flagSettings as Record<string, unknown>;
+  if (args.policy.projectInstructions === false) {
+    flags.claudeMdExcludes = claudeMdExcludePatterns(
+      args.cwd,
+      args.home ?? homedir(),
+    );
+  }
+  if (args.policy.claudeAiSync === false) {
+    flags.syncClaudeAiSkills = false;
+    flags.syncClaudeAiPlugins = false;
+  }
+  return options;
+}
+
+/**
+ * The project instruction files Claude would load for `cwd`: `CLAUDE.md`,
+ * `CLAUDE.local.md`, `AGENTS.md` and `.claude/` rules in the folder, every
+ * parent and every subfolder. The user's own `~/.claude/CLAUDE.md` and rules
+ * are personal, not project, instructions and stay loaded.
+ */
+export function claudeMdExcludePatterns(cwd: string, home: string): string[] {
+  const patterns: string[] = [];
+  const userDir = join(home, ".claude");
+  let dir = resolve(cwd);
+  for (;;) {
+    patterns.push(
+      join(dir, "CLAUDE.md"),
+      join(dir, "CLAUDE.local.md"),
+      join(dir, "AGENTS.md"),
+    );
+    if (join(dir, ".claude") !== userDir) {
+      patterns.push(
+        join(dir, ".claude", "CLAUDE.md"),
+        join(dir, ".claude", "rules", "**"),
+      );
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  patterns.push(
+    join(resolve(cwd), "**", "CLAUDE.md"),
+    join(resolve(cwd), "**", "CLAUDE.local.md"),
+    join(resolve(cwd), "**", "AGENTS.md"),
+  );
+  return patterns;
+}
+
+function applyMcpPolicy(
+  options: ClaudeVkSessionOptions,
+  filter: VkPolicyFilter | undefined,
+  pluginFilter: VkPolicyFilter | undefined,
+  inventory: ClaudeNativeInventory,
+): void {
+  if (!filter) return;
+  if (filter.mode === "allow") {
+    // Strict mode loads nothing Claude would find by itself, plugin servers
+    // included, so every allowed server is handed over explicitly. A plugin
+    // server passes under its bare or its `plugin:<plugin>:<server>` name,
+    // and only while its plugin is not switched off by the policy.
+    options.strictMcpConfig = true;
+    for (const [name, server] of inventory.pluginMcpServers) {
+      if (
+        vkPolicyAllows(filter, name, `plugin:${server.pluginName}:${name}`) &&
+        vkPolicyAllows(pluginFilter, server.pluginId, server.pluginName)
+      ) {
+        options.mcpServers[name] = server.config;
+      }
+    }
+    for (const [name, config] of inventory.mcpServers) {
+      if (vkPolicyAllows(filter, name)) options.mcpServers[name] = config;
+    }
+    return;
+  }
+  options.flagSettings.deniedMcpServers = filter.names.map((serverName) => ({
+    serverName,
+  }));
+}
+
+function applyNativePluginPolicy(
+  options: ClaudeVkSessionOptions,
+  filter: VkPolicyFilter | undefined,
+  inventory: ClaudeNativeInventory,
+): void {
+  if (!filter) return;
+  const disabled: Record<string, false> = {};
+  for (const [id, name] of inventory.plugins) {
+    if (!vkPolicyAllows(filter, id, name)) disabled[id] = false;
+  }
+  if (Object.keys(disabled).length > 0) {
+    options.flagSettings.enabledPlugins = disabled;
+  }
+}
+
+function applySkillPolicy(
+  options: ClaudeVkSessionOptions,
+  filter: VkPolicyFilter | undefined,
+  inventory: ClaudeNativeInventory,
+  bbSkillNames: readonly string[],
+): void {
+  if (!filter) return;
+  if (filter.mode === "allow") {
+    const allowed = new Set<string>(bbSkillNames);
+    for (const name of inventory.skills) {
+      if (vkPolicyAllows(filter, name, bareSkillName(name))) allowed.add(name);
+    }
+    // Literal names the inventory cannot see (bundled skills) still pass.
+    for (const pattern of filter.names) {
+      if (!pattern.endsWith("*")) allowed.add(pattern);
+    }
+    options.skills = [...allowed].sort();
+    return;
+  }
+  const overrides: Record<string, "off"> = {};
+  const denied = new Set<string>();
+  for (const name of inventory.skills) {
+    if (vkPolicyAllows(filter, name, bareSkillName(name))) continue;
+    denied.add(name);
+    if (inventory.personalSkills.has(name)) overrides[name] = "off";
+  }
+  for (const pattern of filter.names) {
+    if (!pattern.endsWith("*")) denied.add(pattern);
+  }
+  for (const name of [...denied].sort()) {
+    options.disallowedTools.push(`Skill(${name})`, `Skill(${name} *)`);
+  }
+  if (Object.keys(overrides).length > 0) {
+    options.flagSettings.skillOverrides = overrides;
+  }
+}
+
+function bareSkillName(name: string): string {
+  const colon = name.indexOf(":");
+  return colon === -1 ? name : name.slice(colon + 1);
+}
+
+function readClaudeNativeInventory(
+  cwd: string,
+  home: string,
+): ClaudeNativeInventory {
+  const inventory: ClaudeNativeInventory = {
+    mcpServers: new Map(),
+    pluginMcpServers: new Map(),
+    plugins: new Map(),
+    skills: new Set(),
+    personalSkills: new Set(),
+  };
+  const claudeJson = readJsonObject(join(home, ".claude.json"));
+  addMcpServers(inventory, claudeJson?.mcpServers);
+  addMcpServers(inventory, readJsonObject(join(cwd, ".mcp.json"))?.mcpServers);
+  const projects = asObject(claudeJson?.projects);
+  addMcpServers(inventory, asObject(projects?.[cwd])?.mcpServers);
+
+  for (const dir of [
+    join(home, ".claude", "skills"),
+    join(cwd, ".claude", "skills"),
+  ]) {
+    for (const name of listSkillDirs(dir)) {
+      inventory.skills.add(name);
+      inventory.personalSkills.add(name);
+    }
+  }
+
+  const enabled = {
+    ...asObject(
+      readJsonObject(join(home, ".claude", "settings.json"))?.enabledPlugins,
+    ),
+    ...asObject(
+      readJsonObject(join(cwd, ".claude", "settings.json"))?.enabledPlugins,
+    ),
+  };
+  const installed = asObject(
+    readJsonObject(join(home, ".claude", "plugins", "installed_plugins.json"))
+      ?.plugins,
+  );
+  for (const [id, on] of Object.entries(enabled)) {
+    if (on !== true) continue;
+    const installs = installed?.[id];
+    const installPath = Array.isArray(installs)
+      ? asObject(installs[0])?.installPath
+      : undefined;
+    const manifestName =
+      typeof installPath === "string"
+        ? readJsonObject(join(installPath, ".claude-plugin", "plugin.json"))
+            ?.name
+        : undefined;
+    const name =
+      typeof manifestName === "string" ? manifestName : id.split("@")[0]!;
+    inventory.plugins.set(id, name);
+    if (typeof installPath === "string") {
+      addPluginMcpServers(inventory, id, name, installPath);
+      for (const skill of listSkillDirs(join(installPath, "skills"))) {
+        inventory.skills.add(`${name}:${skill}`);
+      }
+    }
+  }
+  return inventory;
+}
+
+/**
+ * The servers a Claude plugin declares: `mcpServers` in its manifest (a path
+ * or a list of paths inside the plugin) and its `.mcp.json`. Claude expands
+ * `${CLAUDE_PLUGIN_ROOT}` and `${VAR}` / `${VAR:-default}` when it loads them
+ * itself; an explicit config is passed as is, so they are expanded here.
+ */
+function addPluginMcpServers(
+  inventory: ClaudeNativeInventory,
+  pluginId: string,
+  pluginName: string,
+  installPath: string,
+): void {
+  const manifest = readJsonObject(
+    join(installPath, ".claude-plugin", "plugin.json"),
+  );
+  const declared = manifest?.mcpServers;
+  const paths = [join(installPath, ".mcp.json")];
+  const inline: Record<string, unknown>[] = [];
+  for (const entry of Array.isArray(declared) ? declared : [declared]) {
+    if (typeof entry === "string" && entry.trim()) {
+      const candidate = join(installPath, entry.trim());
+      if (candidate.startsWith(installPath)) paths.push(candidate);
+    } else if (asObject(entry)) {
+      inline.push(entry as Record<string, unknown>);
+    }
+  }
+  const sources = [
+    ...paths.map((path) => asObject(readJsonObject(path)?.mcpServers)),
+    ...inline,
+  ];
+  for (const servers of sources) {
+    for (const [name, config] of Object.entries(servers ?? {})) {
+      if (!asObject(config) || inventory.pluginMcpServers.has(name)) continue;
+      inventory.pluginMcpServers.set(name, {
+        config: expandPlaceholders(config, installPath) as McpServerConfig,
+        pluginId,
+        pluginName,
+      });
+    }
+  }
+}
+
+function expandPlaceholders(value: unknown, pluginRoot: string): unknown {
+  if (typeof value === "string") {
+    return value.replace(
+      /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/gu,
+      (_match, name: string, fallback: string | undefined) => {
+        if (name === "CLAUDE_PLUGIN_ROOT") return pluginRoot;
+        const current = process.env[name];
+        return current !== undefined && current !== ""
+          ? current
+          : (fallback ?? "");
+      },
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => expandPlaceholders(item, pluginRoot));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        expandPlaceholders(item, pluginRoot),
+      ]),
+    );
+  }
+  return value;
+}
+
+function addMcpServers(inventory: ClaudeNativeInventory, raw: unknown): void {
+  const servers = asObject(raw);
+  if (!servers) return;
+  for (const [name, config] of Object.entries(servers)) {
+    if (asObject(config)) {
+      inventory.mcpServers.set(name, config as McpServerConfig);
+    }
+  }
+}
+
+function listSkillDirs(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir).filter((name) => {
+      try {
+        return (
+          statSync(join(dir, name)).isDirectory() &&
+          existsSync(join(dir, name, "SKILL.md"))
+        );
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
+function readJsonObject(path: string): Record<string, unknown> | null {
+  try {
+    return asObject(JSON.parse(readFileSync(path, "utf8")));
+  } catch {
+    return null;
+  }
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * The invocable names of the BB skills a session's local skill plugins
+ * carry (`bb-global-skills:ru-text`), read back from the plugins as built.
+ */
+export function listClaudeBbSkillNames(
+  plugins: readonly { path: string }[] | undefined,
+): string[] {
+  const names: string[] = [];
+  for (const plugin of plugins ?? []) {
+    const name = readJsonObject(
+      join(plugin.path, ".claude-plugin", "plugin.json"),
+    )?.name;
+    if (typeof name !== "string") continue;
+    for (const skill of listSkillDirs(join(plugin.path, "skills"))) {
+      names.push(`${name}:${skill}`);
+    }
+  }
+  return names;
+}

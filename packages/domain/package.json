@@ -68,6 +68,11 @@
       "source": "./src/plugin-interaction-limits.ts",
       "types": "./src/plugin-interaction-limits.ts",
       "default": "./src/plugin-interaction-limits.ts"
+    },
+    "./vk-session-policy": {
+      "source": "./src/vk-session-policy.ts",
+      "types": "./src/vk-session-policy.ts",
+      "default": "./src/vk-session-policy.ts"
     }
   },
   "types": "./src/index.ts",

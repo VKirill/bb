@@ -415,3 +415,17 @@ Context breakdowns are optional snapshots on `contextWindow` deltas:
 - `AcpToolCallUpdateEvent`
 - `AcpToolIdentity`
 - `AcpToolKind`
+
+## VK experimental (not in upstream bb)
+
+A VK build of bb lets a plugin narrow what one agent session loads through
+`bb.agents.experimental_vkSessionPolicy`. Core applies the BB side and hands
+the provider side to the bridge as the `vkSessionPolicy` provider option.
+Feature-test before use; stock bb has none of these.
+
+- `readVkRuntimeSessionPolicy` — the bridge half of the policy from provider options, or null
+- `vkPolicyAllows` — whether an allow/deny filter lets a name through
+- `vkRuntimeSessionPolicySchema` — the zod schema of that half
+- `vkFilterSkillRoot` — a filtered twin of a shared skills root, without denied skills
+- `VkPolicyFilter`
+- `VkRuntimeSessionPolicy`

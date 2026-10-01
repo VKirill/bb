@@ -55,6 +55,12 @@ export const experimental_aiInferenceCompleteInputSchema = z
     model: z.string().min(1),
     /** Helper inference is short and latency-bound; no reasoning. */
     reasoningEffort: z.literal("none"),
+    /**
+     * VK EXPERIMENTAL — the service tier the user chose for helper inference
+     * (`BB_INFERENCE_SERVICE_TIER`). `fast` asks the service for its priority
+     * tier where it has one; a service without tiers ignores it.
+     */
+    serviceTier: z.enum(["fast", "default"]).optional(),
     prompt: z.string().min(1),
     /** A JSON Schema object the structured result must satisfy. */
     outputSchema: jsonObjectSchema,

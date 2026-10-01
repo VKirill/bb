@@ -24,14 +24,18 @@ export type BbAppManagedConfigKey =
   | "BB_APP_URL"
   | "BB_INFERENCE"
   | "BB_INFERENCE_FALLBACK"
+  | "BB_INFERENCE_SERVICE_TIER"
   | "BB_LOG_LEVEL"
+  | "BB_THREAD_TITLE_LANGUAGE"
   | "BB_TRANSCRIPTION";
 
 export const BB_APP_MANAGED_CONFIG_KEYS: BbAppManagedConfigKey[] = [
   "BB_APP_URL",
   "BB_INFERENCE",
   "BB_INFERENCE_FALLBACK",
+  "BB_INFERENCE_SERVICE_TIER",
   "BB_LOG_LEVEL",
+  "BB_THREAD_TITLE_LANGUAGE",
   "BB_TRANSCRIPTION",
 ];
 
@@ -52,7 +56,11 @@ const bbAppManagedConfigValuesSchema = z
     BB_APP_URL: z.string().optional(),
     BB_INFERENCE: z.string().optional(),
     BB_INFERENCE_FALLBACK: z.string().optional(),
+    // VK EXPERIMENTAL: service tier for helper inference (titles, metadata).
+    BB_INFERENCE_SERVICE_TIER: z.enum(["fast", "default"]).optional(),
     BB_LOG_LEVEL: z.string().optional(),
+    // VK EXPERIMENTAL: language of generated thread titles, e.g. "Russian".
+    BB_THREAD_TITLE_LANGUAGE: z.string().trim().min(1).max(40).optional(),
     BB_TRANSCRIPTION: z.string().optional(),
   })
   .strict();

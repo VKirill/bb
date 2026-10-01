@@ -1,3 +1,4 @@
+import { useVkComposerPlace } from "./vk-composer-place";
 import { useInitialPromptDraft } from "./mentions/initial-prompt-draft";
 import { ProviderRequirementBanner } from "./banner/ProviderRequirementBanner";
 import { Button } from "@bb/shared-ui/button";
@@ -54,7 +55,10 @@ import { withAppPromptActions } from "@/components/promptbox/PromptBoxActionsMen
 import { buildProviderPromptActionProps } from "@bb/client-core";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { type PluginComposerHost } from "@/components/plugin/plugin-composer-host";
-import type { ExperimentalComposerSubmitOptions } from "@get-bb/plugin-sdk";
+import type {
+  ExperimentalComposerSelectionSnapshot,
+  ExperimentalComposerSubmitOptions,
+} from "@get-bb/plugin-sdk";
 import {
   readExecutionSelection,
   resolveComposerSelectionDeadline,
@@ -115,6 +119,7 @@ import {
   resolveRootComposeEffectiveEnvironmentValue,
 } from "@/views/root-compose-environment-selection";
 import { resolveRootComposeThreadEnvironment } from "@/views/root-compose-thread-environment";
+import { buildVkComposerSelection } from "./vk-composer-selection";
 import {
   MACHINE_SERVER_ACCESS_TITLE,
   machineServerAccessBlockedReason,
@@ -210,6 +215,7 @@ export interface NewThreadComposerState {
   projectHostId: string | null;
   panelThreadId: string | null;
   selectedProviderId: string;
+  selectionSnapshot: ExperimentalComposerSelectionSnapshot;
   promptDraft: PromptDraftController;
   focusPromptBox: () => void;
   pluginComposerHost: PluginComposerHost;
@@ -1720,9 +1726,19 @@ export function NewThreadComposer({
     [applySelection],
   );
 
+  const vkComposerPlace = useVkComposerPlace({
+    submissionProviderInputs,
+    seedOverridden,
+    environmentSeed,
+    effectiveEnvironmentValue,
+    projectId,
+    projectHostId,
+    reuseEnvironmentId,
+  });
   const pluginComposerHost = useMemo<PluginComposerHost>(
     () => ({
       scope: { kind: "new-thread", projectId },
+      vkPlace: vkComposerPlace,
       textEffectKey: promptDraft.storageKey,
       getCurrent: promptDraft.getCurrent,
       subscribeDraft: promptDraft.subscribe,
@@ -1734,6 +1750,7 @@ export function NewThreadComposer({
     [
       focusPromptBox,
       projectId,
+      vkComposerPlace,
       promptDraft.getCurrent,
       promptDraft.setDraft,
       promptDraft.storageKey,
@@ -1991,6 +2008,34 @@ export function NewThreadComposer({
     ],
   );
 
+  const selectionSnapshot = useMemo(
+    () =>
+      buildVkComposerSelection({
+        isLoadingModels,
+        projectId,
+        reasoningLevel,
+        reuseThreadOptions,
+        projectSources,
+        selectedProviderId,
+        selectedProviderMachineUnavailable,
+        selectedThreadModel,
+        serviceTier,
+        submissionEnvironment,
+      }),
+    [
+      isLoadingModels,
+      projectId,
+      reasoningLevel,
+      reuseThreadOptions,
+      projectSources,
+      selectedProviderId,
+      selectedProviderMachineUnavailable,
+      selectedThreadModel,
+      serviceTier,
+      submissionEnvironment,
+    ],
+  );
+
   return (
     <NewThreadComposerStateRenderer
       render={children}
@@ -2008,6 +2053,7 @@ export function NewThreadComposer({
         projectHostId,
         panelThreadId,
         selectedProviderId,
+        selectionSnapshot,
         promptDraft,
         focusPromptBox,
         pluginComposerHost,

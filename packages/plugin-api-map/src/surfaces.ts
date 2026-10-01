@@ -402,10 +402,18 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         bullets: [
           "Read the draft prompt's text, whether it is empty, and how many files are attached",
           "Read the prompt box's layout and whether the thread is already running a turn",
+          "Read the native root new-thread selections and exact environment create request with resolved project/source/host/path provenance or explicit resolving/unsupported states",
           "Lock the input and release it again, so the draft prompt cannot change mid-operation",
           "Mark the thread row as running while the input is locked, with a [thread row status](thread-row-status)",
         ],
-        apiSymbols: ["ComposerView", "PluginComposerApi"],
+        apiSymbols: [
+          "ComposerView",
+          "ExperimentalComposerEnvironmentSelection",
+          "ExperimentalComposerEnvironmentProvenance",
+          "ExperimentalComposerSelectionSnapshot",
+          "PluginComposerApi",
+          "PluginSdkApp.experimental_useComposerSelection",
+        ],
       },
       {
         id: "composer-plus-menu",
@@ -993,6 +1001,26 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Side chat",
           "Tasks",
           "Workflows",
+        ],
+      },
+      {
+        id: "vk-plugin-lifecycle",
+        title: "VK managed plugin lifecycle",
+        summary:
+          "An opt-in server export coordinates host-owned integrations before plugin transitions.",
+        bullets: [
+          "Export experimental_vkLifecycle alongside the default factory; use server.experimental_vkPluginLifecycle to detect support",
+          "Receive enable on cold load, disable before unloading, and remove even when already disabled; reload and shutdown do not run destructive transitions",
+          "Read and update namespaced kv progress and call declared host RPC methods over the existing authenticated transport",
+          "Throw when cleanup is incomplete: standard UI, SDK and bb plugin disable/remove operations keep registration for retry",
+          "Keep handlers idempotent and imports free of side effects; the normal factory is not started to remove a disabled plugin",
+          "A 30-minute deadline aborts host calls and expires the context; this API does not roll back side effects already completed on other machines",
+        ],
+        apiSymbols: [
+          "ExperimentalVkPluginLifecycleAction",
+          "ExperimentalVkPluginLifecycleContext",
+          "ExperimentalVkPluginLifecycleHandler",
+          "PluginServerApi.experimental_vkPluginLifecycle",
         ],
       },
       {

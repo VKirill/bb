@@ -10,8 +10,10 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import type { VkComposerPlace } from "@/hooks/queries/vk-excluded-plugins-queries";
 import type {
   ComposerView,
+  ExperimentalComposerSelectionSnapshot,
   ExperimentalComposerSelection,
   ExperimentalComposerSubmitOptions,
   JsonValue,
@@ -34,6 +36,11 @@ export interface PluginComposerHost {
   setSelection?(
     selection: ExperimentalComposerSelection,
   ): Promise<ExperimentalComposerSelection>;
+  /**
+   * VK EXPERIMENTAL: where the composer sits, beyond its scope (machine,
+   * environment, workspace path), so a session policy can leave plugins out.
+   */
+  vkPlace?: VkComposerPlace;
 }
 
 export function composerScopeIdentity(scope: PluginComposerScope): string {
@@ -125,6 +132,30 @@ const PluginComposerHostContext = createContext<
 export const PluginComposerViewContext = createContext<
   ComposerView | undefined
 >(undefined);
+
+const PluginComposerSelectionContext = createContext<
+  ExperimentalComposerSelectionSnapshot | undefined
+>(undefined);
+
+export function PluginComposerSelectionProvider({
+  value,
+  children,
+}: {
+  value: ExperimentalComposerSelectionSnapshot;
+  children: ReactNode;
+}) {
+  return (
+    <PluginComposerSelectionContext.Provider value={value}>
+      {children}
+    </PluginComposerSelectionContext.Provider>
+  );
+}
+
+export function useOptionalPluginComposerSelection():
+  | ExperimentalComposerSelectionSnapshot
+  | undefined {
+  return useContext(PluginComposerSelectionContext);
+}
 
 export function PluginComposerViewProvider({
   children,

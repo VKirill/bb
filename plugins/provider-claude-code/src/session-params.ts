@@ -10,6 +10,10 @@ import {
 } from "@get-bb/plugin-sdk/provider-bridge";
 import { z } from "zod";
 import {
+  readVkRuntimeSessionPolicy,
+  type VkRuntimeSessionPolicy,
+} from "@get-bb/plugin-sdk/provider-bridge";
+import {
   toClaudePermissionMode,
   type ClaudePermissionMode,
 } from "./interactive-contract.js";
@@ -78,6 +82,7 @@ export type ClaudeSessionExecutionOptions = RuntimePermissionPolicy & {
   memoryEnabled?: boolean | undefined;
   providerSubagentsEnabled?: boolean | undefined;
   skillRoots?: readonly ClaudeCodeSkillRoot[] | undefined;
+  vkSessionPolicy?: VkRuntimeSessionPolicy | null | undefined;
 };
 
 function resolveClaudeSessionPermissionMode(
@@ -140,6 +145,9 @@ function buildInternalSessionParams(
     ...(args.disallowedTools && args.disallowedTools.length > 0
       ? { disallowedTools: [...args.disallowedTools] }
       : {}),
+    ...(args.options.vkSessionPolicy
+      ? { vkSessionPolicy: args.options.vkSessionPolicy }
+      : {}),
   };
 }
 
@@ -190,6 +198,7 @@ export function buildClaudeSessionParams(
     options: {
       ...args.options,
       skillRoots: args.skillRoots,
+      vkSessionPolicy: readVkRuntimeSessionPolicy(args.options.providerOptions),
       claudeCodePermissionMode: providerOptions.claudeCodePermissionMode,
       workflowsEnabled: providerOptions.workflowsEnabled ?? false,
       chromeEnabled: providerOptions.chromeEnabled ?? false,

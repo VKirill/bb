@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { PluginComposerScope } from "@get-bb/plugin-sdk";
+import { useVkVisibleComposerRegistrations } from "./vk-composer-registrations";
 import {
   resolveComposerActions,
   resolveComposerBanners,
@@ -34,7 +35,9 @@ function useResolvedComposerSlot<T>(
   ) => T,
   empty: () => T,
 ): T {
-  const registrations = useComposerCustomizationRegistrations();
+  const registrations = useVkVisibleComposerRegistrations(
+    useComposerCustomizationRegistrations(),
+  );
   return useMemo(
     () => (scopeKind === null ? empty() : resolve(registrations, scopeKind)),
     [empty, registrations, resolve, scopeKind],

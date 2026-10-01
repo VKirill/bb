@@ -1,4 +1,6 @@
+import { vkIntentPath } from "./vk-dispatch-intent.js";
 import { getEnvironment } from "@bb/db";
+import { resolveVkExcludedPluginIds } from "./vk-excluded-plugins.js";
 import {
   QUEUED_MESSAGE_WAIT_REASON_MAX_LENGTH,
   type Environment,
@@ -401,12 +403,28 @@ export async function runMessageDispatchHookPass(
   if (hooks.length === 0) {
     return { kind: "proceed" };
   }
+  // VK EXPERIMENTAL: a plugin the place's session policy leaves out does not
+  // take part in dispatch there. Resolved before the lock, which is shared.
+  const excluded = await resolveVkExcludedPluginIds(deps.db, {
+    threadId: request.thread.id,
+    projectId: request.project.id,
+    environmentId: request.environmentId,
+    hostId: request.intendedHostId,
+    path: vkIntentPath(request.environmentIntent),
+  });
 
   return withEvaluationLock(async () => {
     const context = buildHookContext(deps, request);
+    if (
+      context.experimental_submission !== null &&
+      excluded.has(context.experimental_submission.pluginId)
+    ) {
+      context.experimental_submission = null;
+    }
     const waits: MessageDispatchWaitDecision[] = [];
 
     for (const hook of hooks) {
+      if (excluded.has(hook.pluginId)) continue;
       const invocation = await provider.invokeHook(
         hook.pluginId,
         "message.dispatch hook",

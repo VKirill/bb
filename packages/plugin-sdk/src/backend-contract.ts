@@ -22,6 +22,16 @@ import type {
 } from "@bb/domain";
 import type { ProviderFork } from "@bb/domain/provider-fork";
 import type {
+  VkContextContribution,
+  VkSessionPolicy,
+} from "@bb/domain/vk-session-policy";
+// VK EXPERIMENTAL: re-exported so a plugin can type its session policy.
+export type {
+  VkContextContribution,
+  VkPolicyFilter,
+  VkSessionPolicy,
+} from "@bb/domain/vk-session-policy";
+import type {
   BbSdk,
   ThreadPluginMetadataArgs,
   ThreadPluginMetadataUpdateArgs,
@@ -1669,6 +1679,30 @@ export interface PluginAgents {
   contributeInstructions(
     provider: (ctx: { threadId: string; projectId: string }) => string | null,
   ): void;
+  /**
+   * VK EXPERIMENTAL — present only in VK builds of bb, absent upstream.
+   * Feature-test it: `typeof bb.agents.experimental_vkSessionPolicy === "function"`.
+   *
+   * Register a resolver that narrows what one agent session loads: BB
+   * plugins, skills, provider-native MCP servers and provider-native CLI
+   * plugins. It runs with the same context (including this plugin's thread
+   * metadata) and at the same points as `configure` (thread.start /
+   * turn.submit). Return null to leave the session
+   * as bb builds it. When several plugins register, the first non-null answer
+   * in plugin id order wins. A throw, a malformed policy or a resolver slower
+   * than two seconds is logged and treated as null (fail open). One resolver
+   * per factory execution.
+   */
+  experimental_vkSessionPolicy?(
+    resolver: (
+      context: PluginAgentConfigurationContext,
+    ) => VkSessionPolicy | null | Promise<VkSessionPolicy | null>,
+  ): void;
+  /**
+   * VK EXPERIMENTAL — what every running plugin contributes to agent
+   * sessions: instructions, agent tools and skills.
+   */
+  experimental_vkContextContributions?(): VkContextContribution[];
 }
 
 /**
@@ -1845,6 +1879,8 @@ export interface PluginEvents {
 // ---------------------------------------------------------------------------
 
 export interface PluginServerApi {
+  /** VK extension: named lifecycle export runs before disable/removal, including while disabled. */
+  readonly experimental_vkPluginLifecycle?: true;
   /**
    * The operator-configured public app URL from `BB_APP_URL`, or `null` when
    * the operator has not configured one. This value is not bind-gated.

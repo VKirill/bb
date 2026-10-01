@@ -130,4 +130,12 @@ describe("@bb/templates", () => {
       ).not.toThrow();
     }
   });
+
+  it("asks for thread titles in the configured language", () => {
+    const prompt = renderTemplate("generateThreadMetadata", {
+      cleanedPrompt: "Починить медленный запуск тредов",
+      titleLanguage: "Russian",
+    });
+    expect(prompt).toContain("written in Russian");
+  });
 });

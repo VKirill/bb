@@ -17,6 +17,7 @@ import {
   providerMaintenanceParamsSchema,
   providerInstallationRunParamsSchema,
 } from "@get-bb/plugin-sdk/provider-bridge";
+import { vkRuntimeSessionPolicySchema } from "@get-bb/plugin-sdk/provider-bridge";
 import { z } from "zod";
 import { claudePermissionModeSchema } from "../interactive-contract.js";
 
@@ -57,6 +58,8 @@ export const claudeThreadStartParamsSchema = z.object({
   instructionMode: bridgeInstructionModeSchema,
   dynamicTools: z.array(dynamicToolSchema).optional(),
   disallowedTools: z.array(z.string()).optional(),
+  /** VK EXPERIMENTAL: the bridge half of a session policy. */
+  vkSessionPolicy: vkRuntimeSessionPolicySchema.optional(),
 });
 
 export const claudeThreadResumeParamsSchema =

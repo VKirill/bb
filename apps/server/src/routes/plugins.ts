@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { registerVkPluginRoutes } from "./vk-plugins.js";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
@@ -426,6 +427,8 @@ export function registerPluginRoutes(
     });
     return context.json({ ok: true, groups });
   });
+
+  registerVkPluginRoutes(app, deps);
 
   app.post("/plugins/:id/cli", async (context) => {
     const authProblem = localAuthProblem(context, deps);

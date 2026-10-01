@@ -113,6 +113,16 @@ export function applyBbAppManagedConfig(
     managedConfig.BB_INFERENCE_FALLBACK !== undefined
       ? validateInferenceFallbackModel(managedConfig.BB_INFERENCE_FALLBACK)
       : args.baseConfig.inferenceFallbackModel;
+  // VK EXPERIMENTAL: service tier for helper inference.
+  args.targetConfig.inferenceServiceTier =
+    managedConfig.BB_INFERENCE_SERVICE_TIER ??
+    args.baseConfig.inferenceServiceTier ??
+    null;
+  // VK EXPERIMENTAL: language of generated thread titles.
+  args.targetConfig.threadTitleLanguage =
+    managedConfig.BB_THREAD_TITLE_LANGUAGE ??
+    args.baseConfig.threadTitleLanguage ??
+    null;
   args.targetConfig.transcriptionModel =
     managedConfig.BB_TRANSCRIPTION !== undefined
       ? validateTranscriptionModel(managedConfig.BB_TRANSCRIPTION)

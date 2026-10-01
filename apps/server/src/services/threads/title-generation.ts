@@ -139,6 +139,9 @@ export async function generateThreadMetadataWithOutcome(
 
   const prompt = renderTemplate("generateThreadMetadata", {
     cleanedPrompt: fallback,
+    // VK EXPERIMENTAL: BB_THREAD_TITLE_LANGUAGE, else the task's language.
+    titleLanguage:
+      deps.config.threadTitleLanguage ?? "the same language as the task",
   });
   const maxAttempts = Math.max(1, args.timeoutMaxAttempts ?? 1);
 

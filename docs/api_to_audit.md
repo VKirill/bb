@@ -1,5 +1,11 @@
 # APIs To Audit
 
+## VK managed plugin lifecycle
+
+`experimental_vkLifecycle` is an opt-in named server export typed by `ExperimentalVkPluginLifecycleHandler`. `PluginServerApi.experimental_vkPluginLifecycle` advertises support. Implementation is isolated in the server and SDK `vk-plugin-lifecycle.ts` modules. Enable executes on cold loads, not ordinary reloads; disable/remove execute before disposal. Disabled removal imports only the named handler, without running the default factory. Existing UI/SDK/CLI plugin mutations share these gates. Host RPC uses the existing protocol without a wire change.
+
+Audit multi-host partial progress, unavailable hosts, disabled-plugin removal after server restart, changed/missing handler source, artifact retention and cancellation, and recovery after a failed enable. Registered handlers cannot silently disappear. Hooks must record idempotent progress; rejection preserves registration but cannot undo completed host effects. A 30-minute deadline cancels host calls and expires KV access. Do not stabilize until lifecycle cleanup has installed-host evidence across reload, disable, re-enable and remove.
+
 ## `app.commands.register`
 
 `app.commands.register` requires SDK 0.4.91; `defaultShortcut` and keyboard
@@ -2031,6 +2037,34 @@ bundle loads in the same deferred boot pass as every other plugin's.
    JS (by design). Confirm the base (label, glyph, tint, title, detail) is
    sufficient for the first-party extension kinds before a third party
    relies on a web-only upgrade.
+
+## `experimental_useComposerSelection` (`@get-bb/plugin-sdk/app`)
+
+**Experimental, added 2026-09-25.** A reactive read-only hook for the host-owned
+root new-thread composer. When ready it returns selected project, provider,
+model, reasoning level, optional service tier, and environment selection. The
+environment distinguishes reuse from provisioning and includes host id or
+path only when the composer has resolved those facts. While native catalogs or
+the environment are unresolved, the hook returns `status: "resolving"` with
+the new-thread scope and no inferred values. Composer surfaces without a
+native root selection return `status: "unsupported"` with the actual scope and
+a reason; existing-thread pickers are intentionally not represented by this
+API. A ready snapshot also carries the exact host-owned
+`CreateThreadEnvironmentArgs` as `environmentRequest`, plus
+`environmentProvenance` with the selected project and only a confirmed source,
+host, and path. Root compose has no section selection, so `sectionId` is
+explicitly `null`; a plugin's own section selection remains plugin-owned. Pass
+`environmentRequest` unchanged to `bb.sdk.threads.spawn` instead of rebuilding
+provider inputs or inferring a checkout from its display label. It does not
+read DOM state, change picker state, or touch the draft.
+
+**Audit before stabilizing.** Verify selection reactivity when project,
+environment, provider, model, reasoning, or tier changes while a plugin panel
+action is open; ensure the provider can render before a thread id exists and
+that draft persistence is unaffected. Reassess the environment union against
+new provisioning types and identify whether embedded plugin-owned new-thread
+composers should expose their local selection. Confirm all non-root composer
+surfaces continue to return `unsupported` rather than a guessed default.
 
 ## `experimental_NewThreadComposer` (`@get-bb/plugin-sdk/app`)
 

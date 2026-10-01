@@ -3,6 +3,8 @@ import {
   pendingInteractionResolutionSchema,
   reasoningEffortsForLevels,
 } from "@bb/domain";
+import { readVkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
+import { buildAcpVkEnv, vkFilterAcpSkillRoots } from "../vk-session-policy.js";
 import type { AvailableModel, PromptInput, ReasoningLevel } from "@bb/domain";
 import { acpLaunchSpecSchema, type AcpLaunchSpec } from "../launch-spec.js";
 import {
@@ -2396,6 +2398,31 @@ function decodeAdditionalWorkspaceWriteRoots(
   );
 }
 
+/**
+ * VK EXPERIMENTAL: the child env a session policy adds for one ACP session.
+ * Start and every turn compute it the same way, so a turn never rebuilds the
+ * session without it. The registration may omit the dialect; the executable
+ * names it then.
+ */
+function vkSessionEnv(args: {
+  cwd: string;
+  launchCommand: string;
+  options: {
+    envVars?: Record<string, string> | undefined;
+    providerOptions?: Record<string, unknown> | undefined;
+  };
+}): Record<string, string> {
+  return buildAcpVkEnv({
+    cwd: args.cwd,
+    dialectId: resolveAcpDialect({
+      dialectId: decodeDialectId(args.options.providerOptions),
+      command: args.launchCommand,
+    }).id,
+    envVars: args.options.envVars,
+    policy: readVkRuntimeSessionPolicy(args.options.providerOptions),
+  });
+}
+
 function decodeDialectId(
   providerOptions: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -2525,16 +2552,30 @@ async function handleRequest(
       const modelPicker = decodeAcpModelPickerOptions(
         params.options.providerOptions,
       );
+      // VK EXPERIMENTAL: a session policy narrows BB skills and, for agents
+      // with a per-process switch, what the agent loads by itself.
+      const vkPolicy = readVkRuntimeSessionPolicy(
+        params.options.providerOptions,
+      );
+      const vkDialectId = decodeDialectId(params.options.providerOptions);
+      const vkEnv = vkSessionEnv({
+        cwd: params.cwd,
+        launchCommand: launchSpec.command,
+        options: params.options,
+      });
       const sessionParams = buildAcpSessionParams({
         additionalWorkspaceWriteRoots: decodeAdditionalWorkspaceWriteRoots(
           params.options.providerOptions,
         ),
-        dialectId: decodeDialectId(params.options.providerOptions),
+        dialectId: vkDialectId,
         cwd: params.cwd,
         dynamicTools: params.dynamicTools,
         options: {
           ...params.options,
-          skillRoots: configuredSkillRoots ?? undefined,
+          ...(Object.keys(vkEnv).length > 0
+            ? { envVars: { ...(params.options.envVars ?? {}), ...vkEnv } }
+            : {}),
+          skillRoots: vkFilterAcpSkillRoots(configuredSkillRoots, vkPolicy),
         },
         parameterizedModelPicker: modelPicker.parameterizedModelPicker,
         launchSpec,
@@ -2578,6 +2619,12 @@ async function handleRequest(
         const envVars = {
           ...(decodeLaunchSpec(params.options.providerOptions)?.env ?? {}),
           ...params.options.envVars,
+          // VK EXPERIMENTAL: the same policy env the session was built with.
+          ...vkSessionEnv({
+            cwd: session.construction.cwd,
+            launchCommand: session.construction.agent.command,
+            options: params.options,
+          }),
         };
         if (!isDeepStrictEqual(envVars, session.construction.envVars ?? {})) {
           const previousProviderThreadId = session.providerThreadId;
