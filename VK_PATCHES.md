@@ -132,6 +132,31 @@ Consumer: plugin `lane-pilot` (Enable for this chat).
 New files (no conflicts): `apps/app/src/components/plugin/vk-composer-dispatch.ts`
 and its test.
 
+## Plugin lifecycle (`plugin-lifecycle`)
+
+A plugin exports `experimental_vkLifecycle(ctx)` beside its server factory; core
+calls it on enable, disable and removal with plugin-scoped `kv`, `signal` and an
+authenticated `callHost`, before the plugin is disposed. Capability:
+`bb.server.experimental_vkPluginLifecycle === true`. No migrations and no
+host-daemon wire changes. Details: `docs/vk-experimental.md`.
+
+Consumer: plugin `lane-pilot` (native CLI install/repair on registered hosts only).
+Not carried: the required-session-policy / compiled MAIN agent series
+(protocol 216) — it adds its own DB migrations and host-daemon protocol changes.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/plugin-runtime.ts` | `createVkPluginLifecycleRunner` beside safe-mode helpers; `runLifecycle`, `lifecyclePluginIds` in the runtime |
+| `apps/server/src/services/plugins/plugin-service.ts` | run the transition before disposal |
+| `apps/server/src/services/plugins/plugin-api.ts` | advertise `experimental_vkPluginLifecycle` |
+| `packages/plugin-sdk/src/backend-contract.ts`, `index.ts` | capability and type export |
+| `plugins/plugin-api-docs/src/surfaces.ts`, `docs/api_to_audit.md` | docs |
+
+New files: `apps/server/src/services/plugins/vk-plugin-lifecycle.ts`,
+`packages/plugin-sdk/src/vk-plugin-lifecycle.ts`, their tests, `docs/vk-experimental.md`.
+
 ## README
 
 `README.md` is replaced by the fork's install guide and FAQ. On a rebase
