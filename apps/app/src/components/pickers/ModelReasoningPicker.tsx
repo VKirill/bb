@@ -141,7 +141,7 @@ const REASONING_CYCLE_COMMANDS = [
 
 const MODEL_SEARCH_MIN_OPTIONS = 5;
 const MODEL_PICKER_MENU_WIDTH_CLASS_NAME = "w-80 max-md:w-full";
-const MODEL_PICKER_LIST_HEIGHT_CLASS_NAME = "h-64";
+const MODEL_PICKER_LIST_HEIGHT_CLASS_NAME = "h-52 shrink-0";
 
 const HANDOFF_DRAWER_TOP_CLASS_NAME =
   "[&>[data-persistent-drawer-handle]]:w-full [&>[data-persistent-drawer-handle]]:rounded-t-xl [&>[data-persistent-drawer-handle]]:bg-background";
@@ -1313,8 +1313,8 @@ export function ModelReasoningPicker({
               id={showSearchInput ? listboxId : undefined}
               aria-label={showSearchInput ? "Models" : undefined}
               className={cn(
-                "min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1 pt-0",
-                !isCompactViewport && MODEL_PICKER_LIST_HEIGHT_CLASS_NAME,
+                "min-h-0 overflow-y-auto overscroll-contain px-1 pb-1 pt-0",
+                MODEL_PICKER_LIST_HEIGHT_CLASS_NAME,
               )}
             >
               {isShowingModelError ||
