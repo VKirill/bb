@@ -161,3 +161,18 @@ New files: `apps/server/src/services/plugins/vk-plugin-lifecycle.ts`,
 
 `README.md` is replaced by the fork's install guide and FAQ. On a rebase
 conflict keep the fork's version.
+
+## Favorite models (`favorite-models`)
+
+Star a model in the native picker. Starred models for that provider sit in a
+**Favorite models** block above **All models**. Stored in the browser
+`localStorage` key `bb.vk.favorite-models` (no DB, no plugin). Same picker
+as the composer and `experimental_ProviderModelPicker`.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | star control, favorite block, keyboard skips section labels |
+
+New files: `apps/app/src/components/pickers/vk-favorite-models.ts` and tests.
