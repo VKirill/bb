@@ -15,6 +15,7 @@ import type {
   ComposerSelection,
   ComposerView,
   ExperimentalComposerSelectionSnapshot,
+  JsonValue,
   PluginComposerScope,
 } from "@get-bb/plugin-sdk";
 import { isComposerDraftEmpty } from "@get-bb/plugin-sdk/internal/composer-view";
@@ -32,6 +33,8 @@ export interface PluginComposerHost {
   focus(): void;
   sendsOnEnter?: boolean;
   setSelection?(selection: ComposerSelection): Promise<ComposerSelection>;
+  /** VK EXPERIMENTAL: attach plugin-owned JSON to the next ordinary Send. */
+  vkSetDispatchData?(pluginId: string, data: JsonValue | null): void;
   /**
    * VK EXPERIMENTAL: where the composer sits, beyond its scope (machine,
    * environment, workspace path), so a session policy can leave plugins out.

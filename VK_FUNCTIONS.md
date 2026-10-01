@@ -27,6 +27,7 @@ date: 2026-09-24
 | 5 | `vkSessionPolicy` в опциях провайдера | мосты Claude Code, Codex, OpenCode, Cursor | Отсекает родные навыки, MCP и плагины CLI |
 | 6 | Полное исключение плагина из места | `GET /api/v1/plugins/vk-excluded-plugins`, композер, dispatch-хуки | Исключённый плагин исчезает и из интерфейса, и из хуков |
 | 7 | `vkPlace` у композера | `plugin-composer-host.tsx`, `NewThreadComposer.tsx` | Композер знает место нового треда до его создания |
+| 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 
 ```mermaid
 flowchart TD
@@ -277,7 +278,8 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
   - `apps/server/test/threads/vk-session-policy.test.ts`;
   - `apps/server/test/services/plugins/plugin-vk-session-policy.test.ts`;
   - тесты мостов Claude, Codex и ACP;
-  - `apps/app/src/components/plugin/vk-composer-exclusion.test.tsx`.
+  - `apps/app/src/components/plugin/vk-composer-exclusion.test.tsx`;
+  - `apps/app/src/components/plugin/vk-composer-dispatch.test.ts`.
 - **Живые проверки на хабе** (runtime `0.43.3-vk.9`) через настоящие треды:
   - навыки, MCP и плагины CLI в Claude Code, Codex и OpenCode;
   - сторона BB и MCP в Cursor;
