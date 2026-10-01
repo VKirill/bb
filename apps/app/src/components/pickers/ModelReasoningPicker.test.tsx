@@ -692,7 +692,8 @@ describe("ModelReasoningPicker", () => {
     const models = screen.getByRole("listbox", { name: "Models" });
     expect(scrollers[0]).toBe(models);
     expect(models.className).toContain("overscroll-contain");
-    expect(models.className).toContain("max-h-64");
+    expect(models.className).toContain("h-64");
+    expect(menu.className).toContain("w-80");
     expect(models.contains(screen.getByText("High"))).toBe(false);
   });
 
