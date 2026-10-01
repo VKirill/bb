@@ -6,6 +6,8 @@ import {
   ACP_BRIDGE_MCP_SERVER_NAME,
   type AcpMcpServerConfig,
 } from "./bridge/tool-proxy-mcp.js";
+
+export { vkCursorSafeMcpInputSchema } from "./vk-cursor-mcp-schema.js";
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
  *

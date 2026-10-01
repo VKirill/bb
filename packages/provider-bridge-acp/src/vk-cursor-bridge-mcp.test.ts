@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   vkCursorBridgeMcpInstructions,
   vkCursorLaunchArgs,
+  vkCursorSafeMcpInputSchema,
   vkInstallCursorBridgeMcp,
   vkRevokeCursorBridgeMcp,
 } from "./vk-cursor-bridge-mcp.js";
@@ -53,6 +54,19 @@ describe("VK Cursor bridge MCP", () => {
   it("names the bb-bridge MCP namespace in the Cursor instructions", () => {
     expect(vkCursorBridgeMcpInstructions()).toContain('namespace "bb-bridge"');
     expect(vkCursorBridgeMcpInstructions()).toContain("CallDynamicTool");
+  });
+
+  it("adds type object so Cursor does not drop oneOf tool schemas", () => {
+    expect(
+      vkCursorSafeMcpInputSchema({
+        oneOf: [{ type: "object", properties: { hostId: { type: "string" } } }],
+      }),
+    ).toMatchObject({ type: "object" });
+    const already = {
+      type: "object",
+      properties: { prompt: { type: "string" } },
+    };
+    expect(vkCursorSafeMcpInputSchema(already)).toBe(already);
   });
 
   it("does not touch MCP config for other ACP agents", async () => {
