@@ -3436,6 +3436,10 @@ immutable cross-project ownership, cross-host cleanup, archive/delete retries,
 creation races, and preservation of existing unowned threads. The Plugin Guide SDK card
 describes the public behavior.
 
+## experimental_vkSetDispatchData
+
+`useComposer().experimental_vkSetDispatchData(data | null)` attaches plugin-owned JSON to the next ordinary Send in this new-thread composer without changing text. Uses the existing `experimental_submission` dispatch contract. Data stays on failed sends, clears on success, scope change, or plugin unmount. A second plugin cannot replace another plugin’s pending data. No global project selection, persistence, or daemon protocol change. Stabilization requires multi-plugin composition and reload persistence semantics.
+
 ## Environment provider existing-path selection
 
 `PluginEnvironmentProviderDefinition.experimental_existingPath(inputs)` returns

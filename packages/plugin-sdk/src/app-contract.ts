@@ -2611,6 +2611,12 @@ export interface PluginComposerApi {
   experimental_setSelection(
     selection: ExperimentalComposerSelection,
   ): Promise<ExperimentalComposerSelection>;
+  /**
+   * VK EXPERIMENTAL — attach plugin-owned data to the next ordinary new-thread
+   * Send. Null clears it. Cleared on successful send, scope change, or unmount;
+   * failed sends retain it.
+   */
+  experimental_vkSetDispatchData(data: JsonValue | null): void;
 }
 
 /**

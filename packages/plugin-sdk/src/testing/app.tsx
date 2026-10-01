@@ -220,6 +220,11 @@ export interface ComposerLog {
    * environment). Queued-message and side-chat scopes reject, as the app does.
    */
   selections: ExperimentalComposerSelection[];
+  /**
+   * Latest `experimental_vkSetDispatchData` value on this harness composer.
+   * Null means cleared. The harness has no Send pipeline, so it only records.
+   */
+  dispatchData: JsonValue | null;
 }
 
 interface TestComposerStore {
@@ -1912,6 +1917,7 @@ export function renderSlot<
     focusCount: 0,
     submits: [],
     selections: [],
+    dispatchData: null,
   };
   const composerOwnership = { active: true };
   const submissionListeners = new Set<() => void>();
@@ -2004,6 +2010,11 @@ export function renderSlot<
         composerLog.submits.push(options);
         commitComposerText("");
         for (const listener of submissionListeners) listener();
+      },
+      experimental_vkSetDispatchData(data) {
+        if (!composerOwnership.active)
+          throw new Error("This composer is no longer active.");
+        composerLog.dispatchData = data;
       },
       async experimental_setSelection(selection) {
         if (!composerOwnership.active) {

@@ -510,6 +510,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "ExperimentalComposerEnvironmentProvenance",
           "ExperimentalComposerSelectionSnapshot",
           "PluginComposerApi",
+          "PluginComposerApi.experimental_vkSetDispatchData",
           "PluginSdkApp.experimental_useComposerSelection",
         ],
       },
@@ -581,6 +582,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         apiSymbols: [
           "PluginComposerApi",
           "PluginComposerApi.experimental_setSelection",
+          "PluginComposerApi.experimental_vkSetDispatchData",
           "ExperimentalComposerSelection",
         ],
       },
