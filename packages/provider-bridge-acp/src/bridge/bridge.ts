@@ -154,6 +154,13 @@ import {
   type CursorMcpApproval,
 } from "./cursor-mcp-approval.js";
 import {
+  vkCursorBridgeMcpInstructions,
+  vkCursorLaunchArgs,
+  vkInstallCursorBridgeMcp,
+  vkRevokeCursorBridgeMcp,
+  type VkCursorBridgeMcpInstall,
+} from "../vk-cursor-bridge-mcp.js";
+import {
   ACP_NATIVE_REASONING_EFFORTS,
   buildAgentModelCatalog,
   buildAcpNativeReasoningSupport,
@@ -234,6 +241,7 @@ interface AcpThreadSession {
   pendingElicitations: Set<AcpAgentRequestResponder>;
   pendingToolCalls: Set<AbortController>;
   cursorMcpApproval: CursorMcpApproval | undefined;
+  cursorBridgeMcp: VkCursorBridgeMcpInstall | undefined;
   deferStartEmit: AcpDeferredStartEmitter | undefined;
   awaitingFirstPrompt: boolean;
   turnOutputCount: number;
@@ -2173,14 +2181,27 @@ async function releaseCursorMcpApproval(
 ): Promise<void> {
   const approval = session.cursorMcpApproval;
   session.cursorMcpApproval = undefined;
-  if (!approval) {
+  if (approval) {
+    try {
+      await revokeCursorSessionMcpServer(approval);
+    } catch (error) {
+      process.stderr.write(
+        `acp bridge: failed to remove Cursor session MCP approval for thread "${session.bbThreadId}": ${
+          error instanceof Error ? error.message : String(error)
+        }\n`,
+      );
+    }
+  }
+  const bridgeMcp = session.cursorBridgeMcp;
+  session.cursorBridgeMcp = undefined;
+  if (!bridgeMcp) {
     return;
   }
   try {
-    await revokeCursorSessionMcpServer(approval);
+    await vkRevokeCursorBridgeMcp(bridgeMcp);
   } catch (error) {
     process.stderr.write(
-      `acp bridge: failed to remove Cursor session MCP approval for thread "${session.bbThreadId}": ${
+      `acp bridge: failed to remove Cursor bb-bridge MCP for thread "${session.bbThreadId}": ${
         error instanceof Error ? error.message : String(error)
       }\n`,
     );
@@ -2299,15 +2320,41 @@ async function startAgentSession(
     });
   }
   const agentLabel = [params.agent.command, ...params.agent.args].join(" ");
-  let session: AcpThreadSession;
+  // VK EXPERIMENTAL: Cursor Grok loads MCP from mcp.json at process start.
+  // Build bb-bridge and write it before spawning cursor-agent.
+  const mcpServers = await buildSessionMcpServers(params);
+  const mcpServer = mcpServers[0];
   const childEnv = {
     ...withoutBridgeRuntimeEnv(process.env),
     ...params.envVars,
     ...dialectLaunchEnv(dialect.id, params.permissionMode),
   };
+  let cursorBridgeMcp: VkCursorBridgeMcpInstall | undefined;
+  if (mcpServer) {
+    cursorBridgeMcp = await vkInstallCursorBridgeMcp({
+      agentCommand: params.agent.command,
+      config: mcpServer,
+      env: childEnv,
+      threadId: bbThreadId,
+    });
+    if (cursorBridgeMcp) {
+      process.stderr.write(
+        `acp bridge: installed Cursor bb-bridge MCP for thread "${bbThreadId}"\n`,
+      );
+    }
+  }
+  const pendingInstructions = [
+    params.instructions,
+    dialect.id === "cursor" && (params.dynamicTools?.length ?? 0) > 0
+      ? vkCursorBridgeMcpInstructions()
+      : undefined,
+  ]
+    .filter((text): text is string => typeof text === "string" && text.length > 0)
+    .join("\n\n");
+  let session: AcpThreadSession;
   const connection = createBridgeAgentConnection({
     command: params.agent.command,
-    args: launch.args,
+    args: vkCursorLaunchArgs(params.agent.command, launch.args),
     cwd: params.cwd,
     env: childEnv,
     recordThreadId: bbThreadId,
@@ -2359,7 +2406,8 @@ async function startAgentSession(
       permissionMode: params.permissionMode,
       workspaceWriteRoots: params.workspaceWriteRoots,
     },
-    pendingInstructions: params.instructions,
+    pendingInstructions:
+      pendingInstructions.length > 0 ? pendingInstructions : undefined,
     activePromptKind: null,
     compactionAgentMessage: "",
     queuedInputs: [],
@@ -2377,6 +2425,7 @@ async function startAgentSession(
     pendingElicitations: new Set(),
     pendingToolCalls: new Set(),
     cursorMcpApproval: undefined,
+    cursorBridgeMcp,
     deferStartEmit: emitStartNotification,
     awaitingFirstPrompt: true,
   };
@@ -2404,8 +2453,6 @@ async function startAgentSession(
     }
     session.supportsLoadSession =
       supportsLoadSession || capabilities.session.resume;
-    const mcpServers = await buildSessionMcpServers(params);
-    const mcpServer = mcpServers[0];
     if (mcpServer) {
       session.cursorMcpApproval = await approveCursorSessionMcpServer({
         agentCommand: params.agent.command,
