@@ -3,6 +3,7 @@ import {
   readPendingAttachmentUploads,
   usePendingAttachmentUploads,
 } from "./usePendingAttachmentUploads";
+import { useVkComposerDispatch } from "@/components/plugin/vk-composer-dispatch";
 import { useInitialPromptDraft } from "./mentions/initial-prompt-draft";
 import { ProviderRequirementBanner } from "./banner/ProviderRequirementBanner";
 import { Button } from "@bb/shared-ui/button";
@@ -1842,6 +1843,9 @@ export function NewThreadComposer({
     [projectPromptHistory],
   );
   const promptInputEmpty = usePromptDraftInputEmpty(promptDraft);
+  const vkDispatch = useVkComposerDispatch(
+    `${projectId}/${promptDraft.storageKey}`,
+  );
   const seededExecutionInputSources = useMemo(
     (): CreateExecutionInputSources => ({
       ...(seed?.providerId !== undefined
@@ -1925,6 +1929,7 @@ export function NewThreadComposer({
         ...executionInputSources,
         ...seededExecutionInputSources,
       };
+      const dispatchSubmission = vkDispatch.resolve(pluginSubmission);
       const request: NewThreadComposerSubmission = {
         projectId,
         providerId: selectedProviderId,
@@ -1942,7 +1947,9 @@ export function NewThreadComposer({
         environment: submissionEnvironment,
         input,
         ...(sendAt === undefined ? {} : { sendAt }),
-        ...(pluginSubmission === undefined ? {} : { pluginSubmission }),
+        ...(dispatchSubmission === undefined
+          ? {}
+          : { pluginSubmission: dispatchSubmission }),
       };
       await submitNewThreadRequest({
         request,
@@ -1954,6 +1961,8 @@ export function NewThreadComposer({
         setIsSubmitting,
         setAttachmentError,
       });
+      // VK EXPERIMENTAL: submitNewThreadRequest throws when onSubmit fails.
+      vkDispatch.accepted(dispatchSubmission);
     },
     [
       clearReuseEnvironment,
@@ -1974,6 +1983,7 @@ export function NewThreadComposer({
       supportsServiceTier,
       setIsSubmitting,
       setAttachmentError,
+      vkDispatch,
     ],
   );
 
@@ -2135,6 +2145,7 @@ export function NewThreadComposer({
       setDraft: promptDraft.setDraft,
       focus: focusPromptBox,
       sendsOnEnter: true,
+      vkSetDispatchData: vkDispatch.set,
       setSelection,
     }),
     [
@@ -2148,6 +2159,7 @@ export function NewThreadComposer({
       promptDraft.subscribe,
       setSelection,
       subscribeSelection,
+      vkDispatch,
     ],
   );
 

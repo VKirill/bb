@@ -338,6 +338,11 @@ export interface ComposerLog {
    * queued-message scope rejects, as the app does.
    */
   selections: ComposerSelection[];
+  /**
+   * Latest `experimental_vkSetDispatchData` value on this harness composer.
+   * Null means cleared. The harness has no Send pipeline, so it only records.
+   */
+  dispatchData: JsonValue | null;
 }
 
 interface TestComposerStore {
@@ -3275,6 +3280,7 @@ export function renderSlot<
     focusCount: 0,
     submits: [],
     selections: [],
+    dispatchData: null,
   };
   const composerOwnership = { active: true };
   const composerIsAvailable = () =>
@@ -3344,6 +3350,10 @@ export function renderSlot<
     isAvailable: composerIsAvailable,
     focus() {
       composerLog.focusCount += 1;
+    },
+    // VK EXPERIMENTAL: the harness has no Send pipeline; it only records.
+    vkSetDispatchData(_pluginId, data) {
+      composerLog.dispatchData = data;
     },
     async setSelection(selection) {
       if (composerScope.kind === "queued-message") {
