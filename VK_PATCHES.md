@@ -173,7 +173,7 @@ as the composer and `experimental_ProviderModelPicker`.
 
 | File | What |
 | --- | --- |
-| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | star control, favorite block, provider spoilers, keyboard skips section labels |
+| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | star, spoilers, fixed `w-80` / list `h-64` |
 
 New files: `apps/app/src/components/pickers/vk-favorite-models.ts`, `vk-model-groups.ts` and tests.
 
