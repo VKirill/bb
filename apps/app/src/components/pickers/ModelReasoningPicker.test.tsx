@@ -252,6 +252,7 @@ afterEach(() => {
   cleanup();
   commandHandlers.clear();
   vi.clearAllMocks();
+  localStorage.clear();
 });
 
 describe("ModelReasoningPicker", () => {
@@ -1155,6 +1156,29 @@ describe("ModelReasoningPicker", () => {
 
     expect(screen.queryByPlaceholderText("Search models")).toBeNull();
   });
+
+  it("stars a model so it appears in Favorite models above the catalog", () => {
+    const { onModelChange } = renderPicker({ modelOptions: manyCodexModels });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Provider, model and reasoning" }),
+    );
+
+    const o3 = screen.getByRole("option", { name: "o3" });
+    fireEvent.click(
+      o3.parentElement!.querySelector(
+        '[aria-label="Add to favorites"]',
+      ) as HTMLButtonElement,
+    );
+
+    expect(onModelChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Favorite models")).toBeTruthy();
+    expect(screen.getByText("All models")).toBeTruthy();
+    expect(screen.getAllByRole("option", { name: "o3" })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: "Remove from favorites" }).length,
+    ).toBeGreaterThan(0);
+  });
 });
 
 describe("buildModelNavRows", () => {
@@ -1238,6 +1262,25 @@ describe("buildModelNavRows", () => {
     expect(rows).toEqual([
       { kind: "model", option: primary[0] },
       { kind: "model", option: primary[1] },
+    ]);
+  });
+
+  it("puts starred models above the catalog and keeps them in All", () => {
+    const rows = buildModelNavRows({
+      modelOptions: primary,
+      moreModelOptions: more,
+      isCompactViewport: false,
+      isSearching: false,
+      showMoreModels: false,
+      favoriteOptions: [more[0]!],
+    });
+
+    expect(rows).toEqual([
+      { kind: "section", id: "favorites" },
+      { kind: "model", option: more[0], list: "favorites" },
+      { kind: "section", id: "all" },
+      { kind: "model", option: primary[0], list: "all" },
+      { kind: "model", option: primary[1], list: "all" },
     ]);
   });
 });

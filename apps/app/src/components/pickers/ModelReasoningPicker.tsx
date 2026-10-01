@@ -85,6 +85,11 @@ import {
   nextCycleValue,
   previousCycleValue,
 } from "./modelPickerCycle";
+import {
+  useVkFavoriteModels,
+  vkFavoriteCopy,
+  vkFavoriteOptionsForProvider,
+} from "./vk-favorite-models";
 
 interface ModelLabelParts {
   base: string;
@@ -143,8 +148,11 @@ function splitModelLabelTag(label: string): ModelLabelParts {
 }
 
 type ModelNavRow =
-  | { kind: "model"; option: ModelPickerOption }
-  | { kind: "more-toggle" };
+  | { kind: "model"; option: ModelPickerOption; list?: "favorites" | "all" }
+  | { kind: "more-toggle" }
+  | { kind: "section"; id: "favorites" | "all" };
+
+const EMPTY_FAVORITE_OPTIONS: readonly ModelPickerOption[] = [];
 
 export function buildModelNavRows({
   modelOptions,
@@ -152,21 +160,34 @@ export function buildModelNavRows({
   isCompactViewport,
   isSearching,
   showMoreModels,
+  favoriteOptions = EMPTY_FAVORITE_OPTIONS,
 }: {
   modelOptions: readonly ModelPickerOption[];
   moreModelOptions: readonly ModelPickerOption[];
   isCompactViewport: boolean;
   isSearching: boolean;
   showMoreModels: boolean;
+  favoriteOptions?: readonly ModelPickerOption[];
 }): ModelNavRow[] {
-  const rows: ModelNavRow[] = modelOptions.map((option): ModelNavRow => ({
-    kind: "model",
-    option,
-  }));
+  const showFavoriteBlock = favoriteOptions.length > 0;
+  const rows: ModelNavRow[] = [];
+  if (showFavoriteBlock) {
+    rows.push({ kind: "section", id: "favorites" });
+    for (const option of favoriteOptions) {
+      rows.push({ kind: "model", option, list: "favorites" });
+    }
+    rows.push({ kind: "section", id: "all" });
+  }
+  const list = showFavoriteBlock ? "all" : undefined;
+  for (const option of modelOptions) {
+    rows.push({ kind: "model", option, list });
+  }
   if (moreModelOptions.length === 0) return rows;
 
   if (isSearching) {
-    for (const option of moreModelOptions) rows.push({ kind: "model", option });
+    for (const option of moreModelOptions) {
+      rows.push({ kind: "model", option, list });
+    }
     return rows;
   }
 
@@ -174,12 +195,26 @@ export function buildModelNavRows({
     rows.push({ kind: "more-toggle" });
     if (showMoreModels) {
       for (const option of moreModelOptions) {
-        rows.push({ kind: "model", option });
+        rows.push({ kind: "model", option, list });
       }
     }
   }
 
   return rows;
+}
+
+function nextNavigableNavIndex(
+  rows: readonly ModelNavRow[],
+  from: number,
+  direction: 1 | -1,
+): number {
+  if (rows.length === 0) return -1;
+  let index = from;
+  for (let step = 0; step < rows.length; step += 1) {
+    index = (index + direction + rows.length) % rows.length;
+    if (rows[index]?.kind !== "section") return index;
+  }
+  return -1;
 }
 
 interface ModelReasoningPickerProps {
@@ -501,6 +536,23 @@ export function ModelReasoningPicker({
     (!isShowingModelError || activeModelErrorIsProviderSpecific);
 
   const activeBrandPrefix = activeProvider?.brandPrefix;
+  // VK EXPERIMENTAL: starred models for this provider, stored in localStorage.
+  const favoriteCopy = vkFavoriteCopy();
+  const { favorites, toggle: toggleFavorite, isFavorite } =
+    useVkFavoriteModels(activeProviderId);
+  const favoriteCatalogOptions = useMemo(
+    () =>
+      vkFavoriteOptionsForProvider(favorites, activeProviderId, [
+        ...activeModelOptions,
+        ...activeMoreModelOptions,
+      ]),
+    [
+      activeModelOptions,
+      activeMoreModelOptions,
+      activeProviderId,
+      favorites,
+    ],
+  );
   const filteredModelOptions = useMemo(() => {
     if (!isSearching) {
       return activeModelOptions;
@@ -525,6 +577,25 @@ export function ModelReasoningPicker({
   const filteredMoreModelOptions = isSearching
     ? EMPTY_MODEL_OPTIONS
     : activeMoreModelOptions;
+  const filteredFavoriteOptions = useMemo(() => {
+    if (favoriteCatalogOptions.length === 0) return EMPTY_FAVORITE_OPTIONS;
+    if (!isSearching) return favoriteCatalogOptions;
+    return searchPickerOptions({
+      options: favoriteCatalogOptions,
+      query: searchQuery,
+      getLabel: (option) =>
+        stripModelBrandPrefix(option.label, activeBrandPrefix),
+      getAliases: (option) =>
+        option.routeProviderId
+          ? [option.routeProviderId, option.value]
+          : [option.value],
+    });
+  }, [
+    activeBrandPrefix,
+    favoriteCatalogOptions,
+    isSearching,
+    searchQuery,
+  ]);
 
   const navRows = useMemo(
     () =>
@@ -534,8 +605,10 @@ export function ModelReasoningPicker({
         isCompactViewport,
         isSearching,
         showMoreModels,
+        favoriteOptions: filteredFavoriteOptions,
       }),
     [
+      filteredFavoriteOptions,
       filteredModelOptions,
       filteredMoreModelOptions,
       isCompactViewport,
@@ -882,7 +955,7 @@ export function ModelReasoningPicker({
         if (total === 0) return;
         setActiveIndex((current) => {
           const from = current >= total ? -1 : current;
-          return from >= total - 1 ? 0 : from + 1;
+          return nextNavigableNavIndex(navRows, from, 1);
         });
         return;
       }
@@ -892,7 +965,7 @@ export function ModelReasoningPicker({
         if (total === 0) return;
         setActiveIndex((current) => {
           const from = current >= total ? -1 : current;
-          return from <= 0 ? total - 1 : from - 1;
+          return nextNavigableNavIndex(navRows, from, -1);
         });
         return;
       }
@@ -900,7 +973,7 @@ export function ModelReasoningPicker({
       if (event.key === "Enter") {
         if (highlightedIndex < 0) return;
         const row = navRows[highlightedIndex];
-        if (!row) return;
+        if (!row || row.kind === "section") return;
         event.preventDefault();
         if (row.kind === "model") {
           handleModelSelect(row.option.value);
@@ -1139,7 +1212,7 @@ export function ModelReasoningPicker({
                 !isCompactViewport && "max-h-64",
               )}
             >
-              {isShowingModelError ? null : (
+              {isShowingModelError || filteredFavoriteOptions.length > 0 ? null : (
                 <MenuSectionLabel>Model</MenuSectionLabel>
               )}
               {activeModelIsLoading ? (
@@ -1152,6 +1225,15 @@ export function ModelReasoningPicker({
                   {navRows.map((row, index) => {
                     const active = highlightedIndex === index;
                     const domId = optionDomId(index);
+                    if (row.kind === "section") {
+                      return (
+                        <MenuSectionLabel key={`section-${row.id}`}>
+                          {row.id === "favorites"
+                            ? favoriteCopy.favorites
+                            : favoriteCopy.all}
+                        </MenuSectionLabel>
+                      );
+                    }
                     if (row.kind === "more-toggle") {
                       return (
                         <MoreModelsToggleRow
@@ -1168,7 +1250,7 @@ export function ModelReasoningPicker({
                     const option = row.option;
                     return (
                       <MenuRowButton
-                        key={option.value}
+                        key={`${row.list ?? "all"}:${option.value}`}
                         id={domId}
                         role={showSearchInput ? "option" : undefined}
                         isActive={active}
@@ -1179,6 +1261,10 @@ export function ModelReasoningPicker({
                         qualifier={option.routeProviderId}
                         selected={!isPreviewing && option.value === modelValue}
                         disabled={previewSelectionBlocked}
+                        favorite={isFavorite(option.value)}
+                        favoriteAddLabel={favoriteCopy.add}
+                        favoriteRemoveLabel={favoriteCopy.remove}
+                        onToggleFavorite={() => toggleFavorite(option.value)}
                         onClick={() => handleModelSelect(option.value)}
                       />
                     );
@@ -1195,6 +1281,10 @@ export function ModelReasoningPicker({
                       modelValue={modelValue}
                       options={filteredMoreModelOptions}
                       onSelect={handleModelSelect}
+                      isFavorite={isFavorite}
+                      favoriteAddLabel={favoriteCopy.add}
+                      favoriteRemoveLabel={favoriteCopy.remove}
+                      onToggleFavorite={toggleFavorite}
                     />
                   ) : null}
                   {isSearching && navRows.length === 0 ? (
@@ -1405,6 +1495,10 @@ function MoreModelsSubmenu({
   modelValue,
   options,
   onSelect,
+  isFavorite,
+  favoriteAddLabel,
+  favoriteRemoveLabel,
+  onToggleFavorite,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1414,6 +1508,10 @@ function MoreModelsSubmenu({
   modelValue: string;
   options: readonly ModelPickerOption[];
   onSelect: (value: string) => void;
+  isFavorite: (model: string) => boolean;
+  favoriteAddLabel: string;
+  favoriteRemoveLabel: string;
+  onToggleFavorite: (model: string) => void;
 }) {
   const { isLastHovered, hoverProps } = useMenuItemHover();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -1498,6 +1596,10 @@ function MoreModelsSubmenu({
               label={stripModelBrandPrefix(option.label, activeBrandPrefix)}
               qualifier={option.routeProviderId}
               selected={!isPreviewing && option.value === modelValue}
+              favorite={isFavorite(option.value)}
+              favoriteAddLabel={favoriteAddLabel}
+              favoriteRemoveLabel={favoriteRemoveLabel}
+              onToggleFavorite={() => onToggleFavorite(option.value)}
               onClick={() => onSelect(option.value)}
             />
           ))}
@@ -1525,6 +1627,10 @@ function MenuRowButton({
   isActive,
   id,
   role,
+  favorite = false,
+  favoriteAddLabel,
+  favoriteRemoveLabel,
+  onToggleFavorite,
 }: {
   label: string;
   qualifier?: string;
@@ -1534,51 +1640,84 @@ function MenuRowButton({
   isActive?: boolean;
   id?: string;
   role?: React.AriaRole;
+  favorite?: boolean;
+  favoriteAddLabel?: string;
+  favoriteRemoveLabel?: string;
+  onToggleFavorite?: () => void;
 }) {
   const { hoverProps } = useMenuItemHover();
   const isCompactViewport = useIsCompactViewport();
   const { base, tag } = splitModelLabelTag(label);
+  const rowClassName = cn(
+    "relative flex w-full cursor-default select-none items-center justify-between gap-1 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
+    LIST_HOVER_TRANSITION,
+    MENU_ITEM_LAST_HOVERED_CLASS,
+    isActive && "bg-state-active",
+    disabled && "cursor-not-allowed opacity-60",
+    isCompactViewport ? "py-2" : "py-[0.3125rem]",
+  );
   return (
-    <button
-      type="button"
-      id={id}
-      role={role}
-      disabled={disabled}
-      aria-selected={role === "option" ? Boolean(isActive) : undefined}
-      onClick={onClick}
-      className={cn(
-        "relative flex w-full cursor-default select-none items-center justify-between gap-3 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
-        LIST_HOVER_TRANSITION,
-        MENU_ITEM_LAST_HOVERED_CLASS,
-        isActive && "bg-state-active",
-        disabled && "cursor-not-allowed opacity-60",
-        isCompactViewport ? "py-2" : "py-[0.3125rem]",
-      )}
-      {...hoverProps}
-    >
-      <span
-        className="truncate"
-        title={qualifier ? `${label} · ${qualifier}` : label}
+    <div className={rowClassName} data-last-hovered={hoverProps["data-last-hovered"]}>
+      <button
+        type="button"
+        id={id}
+        role={role}
+        disabled={disabled}
+        aria-selected={role === "option" ? Boolean(isActive) : undefined}
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left outline-none"
+        {...hoverProps}
       >
-        {base}
-        {tag ? (
-          <span className="ml-1.5 text-subtle-foreground">{tag}</span>
-        ) : null}
-        {qualifier ? (
-          <span className="ml-1.5 text-subtle-foreground">{qualifier}</span>
-        ) : null}
-      </span>
-      <span className="flex shrink-0 items-center gap-1.5">
-        <Icon
-          name="Check"
+        <span
+          className="truncate"
+          title={qualifier ? `${label} · ${qualifier}` : label}
+        >
+          {base}
+          {tag ? (
+            <span className="ml-1.5 text-subtle-foreground">{tag}</span>
+          ) : null}
+          {qualifier ? (
+            <span className="ml-1.5 text-subtle-foreground">{qualifier}</span>
+          ) : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Icon
+            name="Check"
+            className={cn(
+              COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+              "text-subtle-foreground",
+              selected ? "opacity-100" : "opacity-0",
+            )}
+          />
+        </span>
+      </button>
+      {onToggleFavorite ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled}
+          aria-label={favorite ? favoriteRemoveLabel : favoriteAddLabel}
+          aria-pressed={favorite}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleFavorite();
+          }}
           className={cn(
-            COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
-            "text-subtle-foreground",
-            selected ? "opacity-100" : "opacity-0",
+            "shrink-0 rounded-sm p-0.5 text-muted-foreground outline-none hover:text-foreground",
+            favorite && "text-foreground",
           )}
-        />
-      </span>
-    </button>
+        >
+          <Icon
+            name="Star"
+            className={cn(
+              COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+              favorite && "fill-current",
+            )}
+          />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
