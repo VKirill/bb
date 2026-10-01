@@ -1568,7 +1568,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       createJiti(import.meta.url, {
         moduleCache: false,
         ...(pluginSdkAlias === undefined ? {} : { alias: pluginSdkAlias }),
-      }).import(await resolveServerEntry(row, manifest)),
+      }).import(
+        // 0.44: resolveServerEntry takes the loader experiment and returns { path, digest, loader }.
+        (await resolveServerEntry(row, manifest, getExperiments(deps.db).legacyJitiPluginLoader)).path,
+      ),
     loadHostArtifact: loadHostArtifactCandidate,
     callPluginHost: deps.callPluginHost,
     disposePluginHost: deps.disposePluginHost,
