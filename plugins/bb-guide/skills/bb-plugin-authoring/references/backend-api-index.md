@@ -429,6 +429,7 @@ Read the installed declarations for exact current signatures.
 ## VK experimental (not in upstream bb)
 
 - `bb.agents.experimental_vkSessionPolicy(resolver)` — optional; present only in VK builds. The resolver gets the `configure` context and returns a `VkSessionPolicy` or null. Feature-test with `typeof bb.agents.experimental_vkSessionPolicy === "function"`.
+- `experimental_vkLifecycle(ctx)` — optional named export beside the server factory; VK builds only. Core calls it on enable, disable and removal before disposal; `bb.server.experimental_vkPluginLifecycle === true` advertises support. Types: `ExperimentalVkPluginLifecycleHandler`, `ExperimentalVkPluginLifecycleContext` (`action`, plugin-scoped `kv`, `signal`, authenticated `callHost`), `ExperimentalVkPluginLifecycleAction` (`enable` | `disable` | `remove`).
 - `VkSessionPolicy` — `bbPlugins`, `skills`, `mcpServers`, `nativePlugins` (each a `VkPolicyFilter`) and `userInstructions`
 - `VkPolicyFilter` — `{ mode: "allow" | "deny", names }`; a trailing `*` matches a prefix
 - `bb.agents.experimental_vkContextContributions()` — optional, VK builds only: what each running plugin adds to agent sessions

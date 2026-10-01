@@ -39,6 +39,10 @@ Read the installed SDK declarations for the exact current signatures.
 - `experimental_useFixedTabTarget`
 - `useComposer`
 - `useComposerView`
+- `experimental_useComposerSelection` — VK builds only: the native new-thread
+  composer's resolved project, provider, model, reasoning, service tier and
+  environment request (`ExperimentalComposerSelectionSnapshot`), or why it is
+  unavailable. Feature-test before use; absent upstream.
 - `experimental_useSidebarThreads`
 - `experimental_useSidebarThreadActions`
 - `experimental_useSidebarThreadPullRequest`
@@ -218,6 +222,9 @@ Read the installed SDK declarations for the exact current signatures.
 - `PluginSettingsState`
 - `PluginRealtimeConnectionState`
 - `PluginComposerScope`
+- `ExperimentalComposerSelectionSnapshot` — VK builds only; `resolving`, `ready` or `unsupported` with a reason
+- `ExperimentalComposerEnvironmentProvenance` — VK builds only; project, source, host and path behind the selected environment
+- `ExperimentalComposerEnvironmentSelection` — VK builds only; the environment choice inside a ready selection snapshot
 - `ComposerCustomization`
 - `ComposerPlusMenuItem`
 - `ComposerView`
