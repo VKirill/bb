@@ -37,6 +37,8 @@ export interface PluginComposerHost {
     pluginSubmission: { pluginId: string; data: JsonValue } | undefined,
   ): Promise<void>;
   setSelection?(selection: ComposerSelection): Promise<ComposerSelection>;
+  /** VK EXPERIMENTAL: attach plugin-owned JSON to the next ordinary Send. */
+  vkSetDispatchData?(pluginId: string, data: JsonValue | null): void;
   /**
    * VK EXPERIMENTAL: where the composer sits, beyond its scope (machine,
    * environment, workspace path), so a session policy can leave plugins out.

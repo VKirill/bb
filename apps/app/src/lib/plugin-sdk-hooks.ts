@@ -680,6 +680,12 @@ export function useComposer(): PluginComposerApi {
   );
   const textEffectKey = composerHost?.textEffectKey ?? routeDraft.storageKey;
   useComposerEditorBridge(textEffectKey);
+  // VK EXPERIMENTAL: a slot's dispatch data goes away with the slot.
+  const vkSetDispatchData = composerHost?.vkSetDispatchData;
+  useEffect(
+    () => () => vkSetDispatchData?.(pluginId, null),
+    [vkSetDispatchData, pluginId],
+  );
 
   const composerScope = composerHost?.scope;
   const scope: PluginComposerScope = useMemo(
