@@ -8,6 +8,7 @@ import {
 import { createConnection } from "node:net";
 import { createInterface } from "node:readline";
 import { z } from "zod";
+import { vkCursorSafeMcpInputSchema } from "../vk-cursor-mcp-schema.js";
 
 export const ACP_BRIDGE_MCP_SERVER_NAME = "bb-bridge";
 
@@ -287,7 +288,7 @@ async function handleRequest(
         tools: env.tools.map((tool) => ({
           name: tool.name,
           description: tool.description,
-          inputSchema: tool.inputSchema,
+          inputSchema: vkCursorSafeMcpInputSchema(tool.inputSchema),
         })),
       });
       return;
