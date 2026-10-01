@@ -106,6 +106,32 @@ Hook points: `packages/config/src/bb-app-managed-config.ts`,
 `apps/server/src/services/threads/title-generation.ts`,
 `packages/templates/src/templates/generate-thread-metadata.md`.
 
+## Composer dispatch (`composer-dispatch`)
+
+A plugin attaches opaque JSON to the next ordinary new-thread Send without
+changing the draft text or inserting a mention. Plugin API:
+`useComposer().experimental_vkSetDispatchData(data | null)`. Feature-test:
+`typeof composer.experimental_vkSetDispatchData === "function"`. Absent
+upstream. Data is per mounted composer, retained on failed send, cleared on
+success, scope change, or plugin unmount.
+
+Consumer: plugin `lane-pilot` (Enable for this chat).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/app/src/components/plugin/plugin-composer-host.tsx` | optional `vkSetDispatchData` |
+| `apps/app/src/components/promptbox/NewThreadComposer.tsx` | pending data on ordinary Send |
+| `apps/app/src/lib/plugin-sdk-hooks.ts` | `experimental_vkSetDispatchData` |
+| `packages/plugin-sdk/src/app-contract.ts` | `PluginComposerApi` member |
+| `packages/plugin-sdk/src/testing/app.tsx` | harness records `dispatchData` |
+| `plugins/plugin-api-docs/src/surfaces.ts` | docs symbol |
+| `docs/api_to_audit.md` | experimental audit note |
+
+New files (no conflicts): `apps/app/src/components/plugin/vk-composer-dispatch.ts`
+and its test.
+
 ## README
 
 `README.md` is replaced by the fork's install guide and FAQ. On a rebase

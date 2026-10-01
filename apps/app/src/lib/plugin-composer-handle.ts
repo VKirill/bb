@@ -46,6 +46,7 @@ export type ComposerSource = Pick<
   | "setSelection"
   | "getSelection"
   | "subscribeSelection"
+  | "vkSetDispatchData"
 >;
 
 type ComposerLifecycle = Pick<
@@ -237,6 +238,10 @@ function composerHandleTarget(source: ComposerSource): ComposerHandleTarget {
       return true;
     },
     ...(source.submit !== undefined ? { submit: source.submit } : {}),
+    // VK EXPERIMENTAL: composer dispatch data.
+    ...(source.vkSetDispatchData !== undefined
+      ? { vkSetDispatchData: source.vkSetDispatchData }
+      : {}),
     ...(hostSetSelection !== undefined
       ? {
           setSelection: (selection: ComposerSelection) =>
