@@ -52,6 +52,8 @@ export interface ComposerHandleTarget {
     pluginSubmission: { pluginId: string; data: JsonValue } | undefined,
   ): Promise<void>;
   setSelection?(selection: ComposerSelection): Promise<ComposerSelection>;
+  /** VK EXPERIMENTAL: attach plugin-owned JSON to the next ordinary Send. */
+  vkSetDispatchData?(pluginId: string, data: JsonValue | null): void;
 }
 
 export interface ComposerHandleController {
@@ -336,6 +338,15 @@ export function createComposerHandleBinding(
     }
     return hostSetSelection(selection);
   };
+  // VK EXPERIMENTAL: see PluginComposerApi.experimental_vkSetDispatchData.
+  const vkSetDispatchData = (data: JsonValue | null) => {
+    requireAvailable();
+    const hostSet = target().vkSetDispatchData;
+    if (hostSet === undefined) {
+      throw new Error("This composer cannot attach dispatch data.");
+    }
+    hostSet(controller.pluginId, data);
+  };
   const submittedListeners = new Set<() => void>();
   let submittedSubscription: {
     scope: string;
@@ -464,6 +475,7 @@ export function createComposerHandleBinding(
       warnDeprecatedComposerMember("experimental_setSelection", "setSelection");
       return setSelection(selection);
     },
+    experimental_vkSetDispatchData: vkSetDispatchData,
   };
   Object.defineProperties(handle, {
     run: {
