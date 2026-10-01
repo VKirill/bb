@@ -32,6 +32,27 @@ environment do not thrash the runtime.
 | OpenCode (ACP) | instruction list filtered | `OPENCODE_CONFIG_CONTENT` `permission.skill` | `OPENCODE_CONFIG_CONTENT` `mcp.<n>.enabled=false` | — |
 | Cursor (ACP) | instruction list filtered | — | per-policy `CURSOR_DATA_DIR` overlay: real project folder linked, own `mcp-disabled.json` | — |
 
+## Cursor bridge MCP (`cursor-bridge-mcp`)
+
+Cursor ACP (`cursor-agent`) does not put `session/new` MCP tools into Grok's
+native function list. Grok discovers MCP through `GetDynamicTools` from
+`~/.cursor/mcp.json`. This function intercepts Cursor launch: it starts
+`bb-bridge` **before** spawning the agent, writes that server into the user
+(and overlay) `mcp.json`, adds `--approve-mcps`, and tells the model to call
+plugin tools via `CallDynamicTool` namespace `bb-bridge`. On session stop it
+restores the previous `bb-bridge` key if this thread still owns it.
+
+No plugin API. No host-daemon protocol change. Covers every
+`bb.agents.registerTool` (Image Studio, Env Catalog, File Gateway, …).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/provider-bridge-acp/src/bridge/bridge.ts` | write `bb-bridge` before spawn; `--approve-mcps`; Cursor tool instructions; restore on stop |
+
+New files: `packages/provider-bridge-acp/src/vk-cursor-bridge-mcp.ts` and its test.
+
 Switches: `projectInstructions: false` drops the workspace `.bb/AGENTS.md` in core,
 and in the CLI — Claude `claudeMdExcludes` (folder, parents, subfolders; the
 user's `~/.claude` stays), Codex `-c project_doc_max_bytes=0`, OpenCode

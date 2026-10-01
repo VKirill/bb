@@ -1699,7 +1699,7 @@ describe("acp bridge", () => {
     symlinkSync(process.execPath, cursorAgent);
     const { providerThreadId } = await startThread({
       agent: { command: cursorAgent, args: [FAKE_AGENT_PATH] },
-      envVars: { CURSOR_DATA_DIR: cursorDataDir },
+      envVars: { CURSOR_DATA_DIR: cursorDataDir, HOME: cursorDataDir },
       dynamicTools: [
         {
           name: "update_environment_directory",
@@ -1722,11 +1722,18 @@ describe("acp bridge", () => {
     expect(approvals).toEqual([
       expect.stringMatching(`^${ACP_BRIDGE_MCP_SERVER_NAME}-[a-f0-9]{16}$`),
     ]);
+    const userMcp = JSON.parse(
+      readFileSync(join(cursorDataDir, ".cursor", "mcp.json"), "utf8"),
+    ) as { mcpServers?: Record<string, unknown> };
+    expect(userMcp.mcpServers?.[ACP_BRIDGE_MCP_SERVER_NAME]).toBeTruthy();
 
     await stopThread(providerThreadId);
     expect(JSON.parse(readFileSync(approvalPath, "utf8")) as unknown).toEqual(
       [],
     );
+    expect(
+      JSON.parse(readFileSync(join(cursorDataDir, ".cursor", "mcp.json"), "utf8")),
+    ).toEqual({});
   });
 
   it("forwards ACP dynamic tool calls through the runtime tool-call contract", async () => {
