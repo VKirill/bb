@@ -1179,6 +1179,30 @@ describe("ModelReasoningPicker", () => {
       screen.getAllByRole("button", { name: "Remove from favorites" }).length,
     ).toBeGreaterThan(0);
   });
+
+  it("opens a provider spoiler to show that family's models", () => {
+    renderPicker({
+      modelOptions: [
+        { value: "ds-pro", label: "DeepSeek/V4 Pro" },
+        { value: "ds-flash", label: "DeepSeek/V4.1 Flash" },
+        { value: "zen-pickle", label: "OpenCode Zen/Big Pickle" },
+        { value: "zen-mimo", label: "OpenCode Zen/MiMo" },
+        { value: "glm", label: "Z.AI/GLM-5.3-Flash" },
+        { value: "glm2", label: "Z.AI/GLM-5.3" },
+      ],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Provider, model and reasoning" }),
+    );
+
+    expect(screen.getByRole("button", { name: /DeepSeek/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "V4 Pro" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Big Pickle" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /OpenCode Zen/ }));
+    expect(screen.getByRole("option", { name: "Big Pickle" })).toBeTruthy();
+  });
 });
 
 describe("buildModelNavRows", () => {
@@ -1281,6 +1305,32 @@ describe("buildModelNavRows", () => {
       { kind: "section", id: "all" },
       { kind: "model", option: primary[0], list: "all" },
       { kind: "model", option: primary[1], list: "all" },
+    ]);
+  });
+
+  it("collapses provider families until a spoiler is expanded", () => {
+    const deepseek = [
+      { value: "a", label: "DeepSeek/V4 Pro" },
+      { value: "b", label: "DeepSeek/V4.1" },
+    ];
+    const zen = [{ value: "c", label: "OpenCode Zen/Big Pickle" }];
+    const collapsed = buildModelNavRows({
+      modelOptions: [...deepseek, ...zen],
+      moreModelOptions: [],
+      isCompactViewport: false,
+      isSearching: false,
+      showMoreModels: false,
+      groups: [
+        { id: "DeepSeek", label: "DeepSeek", options: deepseek },
+        { id: "OpenCode Zen", label: "OpenCode Zen", options: zen },
+      ],
+      expandedGroupIds: new Set(["DeepSeek"]),
+    });
+    expect(collapsed.map((row) => row.kind)).toEqual([
+      "group",
+      "model",
+      "model",
+      "group",
     ]);
   });
 });

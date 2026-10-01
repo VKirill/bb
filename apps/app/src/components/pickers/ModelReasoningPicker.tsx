@@ -90,6 +90,12 @@ import {
   vkFavoriteCopy,
   vkFavoriteOptionsForProvider,
 } from "./vk-favorite-models";
+import {
+  vkGroupContaining,
+  vkGroupModels,
+  vkSplitModelGroupLabel,
+  type VkModelGroup,
+} from "./vk-model-groups";
 
 interface ModelLabelParts {
   base: string;
@@ -148,11 +154,24 @@ function splitModelLabelTag(label: string): ModelLabelParts {
 }
 
 type ModelNavRow =
-  | { kind: "model"; option: ModelPickerOption; list?: "favorites" | "all" }
+  | {
+      kind: "model";
+      option: ModelPickerOption;
+      list?: "favorites" | "all";
+      inset?: boolean;
+    }
   | { kind: "more-toggle" }
-  | { kind: "section"; id: "favorites" | "all" };
+  | { kind: "section"; id: "favorites" | "all" }
+  | {
+      kind: "group";
+      id: string;
+      label: string;
+      count: number;
+      expanded: boolean;
+    };
 
 const EMPTY_FAVORITE_OPTIONS: readonly ModelPickerOption[] = [];
+const EMPTY_MODEL_GROUPS: readonly VkModelGroup[] = [];
 
 export function buildModelNavRows({
   modelOptions,
@@ -161,6 +180,8 @@ export function buildModelNavRows({
   isSearching,
   showMoreModels,
   favoriteOptions = EMPTY_FAVORITE_OPTIONS,
+  groups = EMPTY_MODEL_GROUPS,
+  expandedGroupIds,
 }: {
   modelOptions: readonly ModelPickerOption[];
   moreModelOptions: readonly ModelPickerOption[];
@@ -168,6 +189,8 @@ export function buildModelNavRows({
   isSearching: boolean;
   showMoreModels: boolean;
   favoriteOptions?: readonly ModelPickerOption[];
+  groups?: readonly VkModelGroup[];
+  expandedGroupIds?: ReadonlySet<string>;
 }): ModelNavRow[] {
   const showFavoriteBlock = favoriteOptions.length > 0;
   const rows: ModelNavRow[] = [];
@@ -179,6 +202,29 @@ export function buildModelNavRows({
     rows.push({ kind: "section", id: "all" });
   }
   const list = showFavoriteBlock ? "all" : undefined;
+  if (groups.length >= 2) {
+    for (const group of groups) {
+      const expanded =
+        isSearching || (expandedGroupIds?.has(group.id) ?? false);
+      rows.push({
+        kind: "group",
+        id: group.id,
+        label: group.label,
+        count: group.options.length,
+        expanded,
+      });
+      if (!expanded) continue;
+      for (const option of group.options) {
+        rows.push({
+          kind: "model",
+          option,
+          list,
+          inset: true,
+        });
+      }
+    }
+    return rows;
+  }
   for (const option of modelOptions) {
     rows.push({ kind: "model", option, list });
   }
@@ -303,6 +349,9 @@ export function ModelReasoningPicker({
   );
   const [showMoreModels, setShowMoreModels] = useState(false);
   const [moreModelsOpen, setMoreModelsOpen] = useState(false);
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [trackedSelectedProviderId, setTrackedSelectedProviderId] =
     useState(selectedProviderId);
   const [browsingHandoff, setHandoffMode] = useState(false);
@@ -322,6 +371,7 @@ export function ModelReasoningPicker({
     setPreviewProviderId(null);
     setShowMoreModels(false);
     setMoreModelsOpen(false);
+    setExpandedGroupIds(new Set());
     setSearchQuery("");
     setActiveIndex(-1);
   }
@@ -596,23 +646,74 @@ export function ModelReasoningPicker({
     isSearching,
     searchQuery,
   ]);
+  const groupingCatalog = useMemo(
+    () =>
+      isSearching
+        ? filteredModelOptions
+        : [...activeModelOptions, ...activeMoreModelOptions],
+    [
+      activeModelOptions,
+      activeMoreModelOptions,
+      filteredModelOptions,
+      isSearching,
+    ],
+  );
+  const modelGroups = useMemo(
+    () =>
+      vkGroupModels(groupingCatalog, (option) =>
+        stripModelBrandPrefix(option.label, activeBrandPrefix),
+      ),
+    [activeBrandPrefix, groupingCatalog],
+  );
+  const groupingActive = modelGroups.length >= 2;
+  useEffect(() => {
+    setExpandedGroupIds(() => {
+      const selectedGroup = vkGroupContaining(modelGroups, modelValue);
+      return selectedGroup ? new Set([selectedGroup.id]) : new Set();
+    });
+  }, [activeProviderId]);
+  useEffect(() => {
+    const selectedGroup = vkGroupContaining(modelGroups, modelValue);
+    if (!selectedGroup) return;
+    setExpandedGroupIds((current) => {
+      if (current.has(selectedGroup.id)) return current;
+      const next = new Set(current);
+      next.add(selectedGroup.id);
+      return next;
+    });
+  }, [modelGroups, modelValue]);
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
 
   const navRows = useMemo(
     () =>
       buildModelNavRows({
         modelOptions: filteredModelOptions,
-        moreModelOptions: filteredMoreModelOptions,
+        moreModelOptions: groupingActive
+          ? EMPTY_MODEL_OPTIONS
+          : filteredMoreModelOptions,
         isCompactViewport,
         isSearching,
         showMoreModels,
         favoriteOptions: filteredFavoriteOptions,
+        groups: modelGroups,
+        expandedGroupIds,
       }),
     [
+      expandedGroupIds,
       filteredFavoriteOptions,
       filteredModelOptions,
       filteredMoreModelOptions,
+      groupingActive,
       isCompactViewport,
       isSearching,
+      modelGroups,
       showMoreModels,
     ],
   );
@@ -645,6 +746,7 @@ export function ModelReasoningPicker({
     setPreviewProviderId(null);
     setShowMoreModels(false);
     setMoreModelsOpen(false);
+    setExpandedGroupIds(new Set());
     setSearchQuery("");
     setActiveIndex(-1);
   }, []);
@@ -977,12 +1079,14 @@ export function ModelReasoningPicker({
         event.preventDefault();
         if (row.kind === "model") {
           handleModelSelect(row.option.value);
+        } else if (row.kind === "group") {
+          toggleGroup(row.id);
         } else {
           setShowMoreModels((current) => !current);
         }
       }
     },
-    [navRows, highlightedIndex, handleModelSelect],
+    [navRows, highlightedIndex, handleModelSelect, toggleGroup],
   );
 
   useEffect(() => {
@@ -1212,7 +1316,9 @@ export function ModelReasoningPicker({
                 !isCompactViewport && "max-h-64",
               )}
             >
-              {isShowingModelError || filteredFavoriteOptions.length > 0 ? null : (
+              {isShowingModelError ||
+              filteredFavoriteOptions.length > 0 ||
+              groupingActive ? null : (
                 <MenuSectionLabel>Model</MenuSectionLabel>
               )}
               {activeModelIsLoading ? (
@@ -1247,17 +1353,36 @@ export function ModelReasoningPicker({
                         />
                       );
                     }
+                    if (row.kind === "group") {
+                      return (
+                        <ProviderGroupRow
+                          key={`group-${row.id}`}
+                          id={domId}
+                          label={row.label}
+                          count={row.count}
+                          expanded={row.expanded}
+                          isActive={active}
+                          onToggle={() => toggleGroup(row.id)}
+                        />
+                      );
+                    }
                     const option = row.option;
+                    const strippedLabel = stripModelBrandPrefix(
+                      option.label,
+                      activeBrandPrefix,
+                    );
                     return (
                       <MenuRowButton
                         key={`${row.list ?? "all"}:${option.value}`}
                         id={domId}
                         role={showSearchInput ? "option" : undefined}
                         isActive={active}
-                        label={stripModelBrandPrefix(
-                          option.label,
-                          activeBrandPrefix,
-                        )}
+                        inset={row.inset}
+                        label={
+                          row.inset
+                            ? vkSplitModelGroupLabel(strippedLabel).model
+                            : strippedLabel
+                        }
                         qualifier={option.routeProviderId}
                         selected={!isPreviewing && option.value === modelValue}
                         disabled={previewSelectionBlocked}
@@ -1271,6 +1396,7 @@ export function ModelReasoningPicker({
                   })}
                   {!isCompactViewport &&
                   !isSearching &&
+                  !groupingActive &&
                   filteredMoreModelOptions.length > 0 ? (
                     <MoreModelsSubmenu
                       open={moreModelsOpen}
@@ -1446,6 +1572,55 @@ function MenuSectionLabel({
     >
       {children}
     </div>
+  );
+}
+
+function ProviderGroupRow({
+  label,
+  count,
+  expanded,
+  onToggle,
+  isActive,
+  id,
+}: {
+  label: string;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  isActive?: boolean;
+  id?: string;
+}) {
+  const { hoverProps } = useMenuItemHover();
+  const isCompactViewport = useIsCompactViewport();
+  return (
+    <button
+      type="button"
+      id={id}
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className={cn(
+        "relative mt-0.5 flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
+        LIST_HOVER_TRANSITION,
+        MENU_ITEM_LAST_HOVERED_CLASS,
+        isActive && "bg-state-active",
+        isCompactViewport ? "py-2" : "py-1.5",
+      )}
+      {...hoverProps}
+    >
+      <Icon
+        name="ChevronRight"
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+          expanded && "rotate-90 text-foreground",
+        )}
+      />
+      <span className="min-w-0 flex-1 truncate text-left font-medium">
+        {label}
+      </span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">
+        {count}
+      </span>
+    </button>
   );
 }
 
@@ -1631,6 +1806,7 @@ function MenuRowButton({
   favoriteAddLabel,
   favoriteRemoveLabel,
   onToggleFavorite,
+  inset = false,
 }: {
   label: string;
   qualifier?: string;
@@ -1644,6 +1820,7 @@ function MenuRowButton({
   favoriteAddLabel?: string;
   favoriteRemoveLabel?: string;
   onToggleFavorite?: () => void;
+  inset?: boolean;
 }) {
   const { hoverProps } = useMenuItemHover();
   const isCompactViewport = useIsCompactViewport();
@@ -1655,6 +1832,7 @@ function MenuRowButton({
     isActive && "bg-state-active",
     disabled && "cursor-not-allowed opacity-60",
     isCompactViewport ? "py-2" : "py-[0.3125rem]",
+    inset && "pl-7",
   );
   return (
     <div className={rowClassName} data-last-hovered={hoverProps["data-last-hovered"]}>
