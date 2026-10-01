@@ -1175,7 +1175,7 @@ describe("ModelReasoningPicker", () => {
     expect(onModelChange).not.toHaveBeenCalled();
     expect(screen.getByText("Favorite models")).toBeTruthy();
     expect(screen.getByText("All models")).toBeTruthy();
-    expect(screen.getAllByRole("option", { name: "o3" })).toHaveLength(2);
+    expect(screen.getAllByRole("option", { name: "o3" })).toHaveLength(1);
     expect(
       screen.getAllByRole("button", { name: "Remove from favorites" }).length,
     ).toBeGreaterThan(0);
@@ -1290,7 +1290,7 @@ describe("buildModelNavRows", () => {
     ]);
   });
 
-  it("puts starred models above the catalog and keeps them in All", () => {
+  it("puts starred models above the catalog and omits them from All", () => {
     const rows = buildModelNavRows({
       modelOptions: primary,
       moreModelOptions: more,
@@ -1305,6 +1305,24 @@ describe("buildModelNavRows", () => {
       { kind: "model", option: more[0], list: "favorites" },
       { kind: "section", id: "all" },
       { kind: "model", option: primary[0], list: "all" },
+      { kind: "model", option: primary[1], list: "all" },
+    ]);
+  });
+
+  it("omits a starred catalog row from All", () => {
+    const rows = buildModelNavRows({
+      modelOptions: primary,
+      moreModelOptions: [],
+      isCompactViewport: false,
+      isSearching: false,
+      showMoreModels: false,
+      favoriteOptions: [primary[0]!],
+    });
+
+    expect(rows).toEqual([
+      { kind: "section", id: "favorites" },
+      { kind: "model", option: primary[0], list: "favorites" },
+      { kind: "section", id: "all" },
       { kind: "model", option: primary[1], list: "all" },
     ]);
   });

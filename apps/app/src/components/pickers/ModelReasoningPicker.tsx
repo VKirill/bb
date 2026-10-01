@@ -194,17 +194,39 @@ export function buildModelNavRows({
   expandedGroupIds?: ReadonlySet<string>;
 }): ModelNavRow[] {
   const showFavoriteBlock = favoriteOptions.length > 0;
+  const favoriteIds = new Set(favoriteOptions.map((option) => option.value));
+  const exceptFavorites = (
+    options: readonly ModelPickerOption[],
+  ): readonly ModelPickerOption[] =>
+    favoriteIds.size === 0
+      ? options
+      : options.filter((option) => !favoriteIds.has(option.value));
   const rows: ModelNavRow[] = [];
   if (showFavoriteBlock) {
     rows.push({ kind: "section", id: "favorites" });
     for (const option of favoriteOptions) {
       rows.push({ kind: "model", option, list: "favorites" });
     }
+  }
+  const restModelOptions = exceptFavorites(modelOptions);
+  const restMoreModelOptions = exceptFavorites(moreModelOptions);
+  const restGroups = groups
+    .map((group) => ({
+      ...group,
+      options: exceptFavorites(group.options),
+    }))
+    .filter((group) => group.options.length > 0);
+  const useGroups = restGroups.length >= 2;
+  const hasRest =
+    useGroups ||
+    restModelOptions.length > 0 ||
+    restMoreModelOptions.length > 0;
+  if (showFavoriteBlock && hasRest) {
     rows.push({ kind: "section", id: "all" });
   }
   const list = showFavoriteBlock ? "all" : undefined;
-  if (groups.length >= 2) {
-    for (const group of groups) {
+  if (useGroups) {
+    for (const group of restGroups) {
       const expanded =
         isSearching || (expandedGroupIds?.has(group.id) ?? false);
       rows.push({
@@ -226,13 +248,13 @@ export function buildModelNavRows({
     }
     return rows;
   }
-  for (const option of modelOptions) {
+  for (const option of restModelOptions) {
     rows.push({ kind: "model", option, list });
   }
-  if (moreModelOptions.length === 0) return rows;
+  if (restMoreModelOptions.length === 0) return rows;
 
   if (isSearching) {
-    for (const option of moreModelOptions) {
+    for (const option of restMoreModelOptions) {
       rows.push({ kind: "model", option, list });
     }
     return rows;
@@ -241,7 +263,7 @@ export function buildModelNavRows({
   if (isCompactViewport) {
     rows.push({ kind: "more-toggle" });
     if (showMoreModels) {
-      for (const option of moreModelOptions) {
+      for (const option of restMoreModelOptions) {
         rows.push({ kind: "model", option, list });
       }
     }
@@ -647,18 +669,22 @@ export function ModelReasoningPicker({
     isSearching,
     searchQuery,
   ]);
-  const groupingCatalog = useMemo(
-    () =>
-      isSearching
-        ? filteredModelOptions
-        : [...activeModelOptions, ...activeMoreModelOptions],
-    [
-      activeModelOptions,
-      activeMoreModelOptions,
-      filteredModelOptions,
-      isSearching,
-    ],
-  );
+  const groupingCatalog = useMemo(() => {
+    const favoriteIds = new Set(
+      filteredFavoriteOptions.map((option) => option.value),
+    );
+    const catalog = isSearching
+      ? filteredModelOptions
+      : [...activeModelOptions, ...activeMoreModelOptions];
+    if (favoriteIds.size === 0) return catalog;
+    return catalog.filter((option) => !favoriteIds.has(option.value));
+  }, [
+    activeModelOptions,
+    activeMoreModelOptions,
+    filteredFavoriteOptions,
+    filteredModelOptions,
+    isSearching,
+  ]);
   const modelGroups = useMemo(
     () =>
       vkGroupModels(groupingCatalog, (option) =>
@@ -1406,7 +1432,9 @@ export function ModelReasoningPicker({
                       activeBrandPrefix={activeBrandPrefix}
                       isPreviewing={isPreviewing}
                       modelValue={modelValue}
-                      options={filteredMoreModelOptions}
+                      options={filteredMoreModelOptions.filter(
+                        (option) => !isFavorite(option.value),
+                      )}
                       onSelect={handleModelSelect}
                       isFavorite={isFavorite}
                       favoriteAddLabel={favoriteCopy.add}
