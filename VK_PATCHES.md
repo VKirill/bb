@@ -173,6 +173,8 @@ as the composer and `experimental_ProviderModelPicker`.
 
 | File | What |
 | --- | --- |
-| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | star control, favorite block, keyboard skips section labels |
+| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | star control, favorite block, provider spoilers, keyboard skips section labels |
 
-New files: `apps/app/src/components/pickers/vk-favorite-models.ts` and tests.
+New files: `apps/app/src/components/pickers/vk-favorite-models.ts`, `vk-model-groups.ts` and tests.
+
+When model labels look like `Provider/Model` and there are at least two providers, the catalog is an accordion: click a provider row to expand its models.
