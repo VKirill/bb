@@ -29,6 +29,7 @@ date: 2026-09-24
 | 7 | `vkPlace` у композера | `plugin-composer-host.tsx`, `NewThreadComposer.tsx` | Композер знает место нового треда до его создания |
 | 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 | 9 | Избранные модели | `ModelReasoningPicker` | Звезда в пикере; список в `localStorage`, без API плагина |
+| 10 | `vkInstallCursorBridgeMcp` | мост ACP Cursor | Native tools плагинов BB в Cursor Grok через `bb-bridge` в `mcp.json` |
 
 ```mermaid
 flowchart TD
@@ -265,7 +266,8 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 
 | Что | Статус |
 | --- | --- |
-| Cursor: родные навыки и инструкции проекта | не ограничиваются: у Cursor нет таких настроек |
+| Cursor | родные навыки и инструкции проекта | не ограничиваются: у Cursor нет таких настроек |
+| Cursor Grok | tools плагинов BB | `vkInstallCursorBridgeMcp`: `bb-bridge` в `mcp.json` до запуска `cursor-agent` |
 | `bb-bridge` | всегда подключён, это служебный канал BB |
 | Смена правил посреди сессии | надёжно применяется при старте сессии провайдера. После изменения правил откройте новый тред |
 | Объединение правил нескольких плагинов | нет, побеждает первый ответ не `null` |
@@ -278,7 +280,7 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
   - `packages/domain/test/vk-session-policy.test.ts`;
   - `apps/server/test/threads/vk-session-policy.test.ts`;
   - `apps/server/test/services/plugins/plugin-vk-session-policy.test.ts`;
-  - тесты мостов Claude, Codex и ACP;
+  - `packages/provider-bridge-acp/src/vk-cursor-bridge-mcp.test.ts`;
   - `apps/app/src/components/plugin/vk-composer-exclusion.test.tsx`;
   - `apps/app/src/components/plugin/vk-composer-dispatch.test.ts`.
 - **Живые проверки на хабе** (runtime `0.43.3-vk.9`) через настоящие треды:
