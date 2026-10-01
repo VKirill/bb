@@ -50,8 +50,10 @@ No plugin API. No host-daemon protocol change. Covers every
 | File | What |
 | --- | --- |
 | `packages/provider-bridge-acp/src/bridge/bridge.ts` | write `bb-bridge` before spawn; `--approve-mcps`; Cursor tool instructions; restore on stop |
+| `packages/provider-bridge-acp/src/bridge/tool-proxy-mcp.ts` | `tools/list`: force `inputSchema.type=object` (Cursor drops the whole server otherwise) |
 
-New files: `packages/provider-bridge-acp/src/vk-cursor-bridge-mcp.ts` and its test.
+New files: `packages/provider-bridge-acp/src/vk-cursor-bridge-mcp.ts`,
+`vk-cursor-mcp-schema.ts`, and tests.
 
 Switches: `projectInstructions: false` drops the workspace `.bb/AGENTS.md` in core,
 and in the CLI — Claude `claudeMdExcludes` (folder, parents, subfolders; the
