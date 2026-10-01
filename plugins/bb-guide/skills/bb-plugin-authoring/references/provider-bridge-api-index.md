@@ -434,3 +434,4 @@ Feature-test before use; stock bb has none of these.
 - `vkFilterSkillRoot` — a filtered twin of a shared skills root, without denied skills
 - `VkPolicyFilter`
 - `VkRuntimeSessionPolicy`
+- `vkInstallCursorBridgeMcp` / `vkRevokeCursorBridgeMcp` — Cursor ACP only: write `bb-bridge` into `mcp.json` before `cursor-agent` starts so Grok can call BB plugin tools via `CallDynamicTool`
