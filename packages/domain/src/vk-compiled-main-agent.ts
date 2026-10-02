@@ -56,9 +56,11 @@ export function mutableMetadataTouchesCompiledAgent(
   metadata: Record<string, unknown>,
   pluginId?: string,
 ): boolean {
+  // Every "__vk." plugin id (snapshots and their required markers) belongs to core.
   if (
     pluginId === VK_COMPILED_MAIN_AGENT_PLUGIN_ID ||
-    pluginId === VK_REQUIRED_SESSION_POLICY_PLUGIN_ID
+    pluginId === VK_REQUIRED_SESSION_POLICY_PLUGIN_ID ||
+    pluginId?.startsWith("__vk.")
   )
     return true;
   if (VK_REQUIRED_SESSION_POLICY_METADATA_KEY in metadata) return true;
