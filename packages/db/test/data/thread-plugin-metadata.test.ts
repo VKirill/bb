@@ -1,3 +1,4 @@
+import { VK_COMPILED_MAIN_AGENT_MARKER_ID } from "../../src/data/vk-thread-marker.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -6,7 +7,6 @@ import { and, eq } from "drizzle-orm";
 import { createConnection, migrate } from "../../src/index.js";
 import {
   threadPluginMetadata,
-  threadVkCompiledMainRequired,
   threads,
 } from "../../src/schema.js";
 import { withWriteAfterFirstRead } from "../helpers/interleave.js";
@@ -365,7 +365,7 @@ describe("thread plugin metadata persistence", () => {
       },
     })).toThrow("vk_compiled_main_agent_source_hash_mismatch");
     expect(db.select().from(threads).all()).toHaveLength(0);
-    expect(db.select().from(threadVkCompiledMainRequired).all()).toHaveLength(0);
+    expect(db.select().from(threadPluginMetadata).where(eq(threadPluginMetadata.pluginId, VK_COMPILED_MAIN_AGENT_MARKER_ID)).all()).toHaveLength(0);
   });
 
   it("persists a required compiled snapshot that patch cannot overwrite or remove", () => {
