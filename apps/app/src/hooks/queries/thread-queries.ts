@@ -64,6 +64,8 @@ import {
   threadsQueryKey,
 } from "./query-keys";
 import { ARCHIVED_THREADS_PAGE_SIZE } from "./archived-threads-page-size";
+// VK EXPERIMENTAL: mention-recency
+import { vkSortMentionCandidatesByRecency } from "./vk-mention-recency";
 import { ingestThreadDetailBootstrap } from "../cache-owners/thread-detail-cache-owner";
 import { clearThreadTimelineUnseenEvents } from "../cache-owners/thread-timeline-unseen-events";
 import {
@@ -273,7 +275,10 @@ function getThreadMentionCandidatePlaceholder({
     }
   }
 
-  const candidates = Array.from(candidatesById.values()).slice(0, limit);
+  // VK EXPERIMENTAL: mention-recency
+  const candidates = vkSortMentionCandidatesByRecency(
+    Array.from(candidatesById.values()),
+  ).slice(0, limit);
   return candidates.length > 0 ? candidates : undefined;
 }
 
