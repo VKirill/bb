@@ -180,6 +180,25 @@ Not carried: the required-session-policy / compiled MAIN agent series
 New files: `apps/server/src/services/plugins/vk-plugin-lifecycle.ts`,
 `packages/plugin-sdk/src/vk-plugin-lifecycle.ts`, their tests, `docs/vk-experimental.md`.
 
+## Mention recency (`mention-recency`)
+
+The @-mention picker keeps only the first 200 thread candidates. Sidebar
+navigation lists threads project by project, so the plain slice dropped every
+thread of later projects even when they were the most recently active. The
+candidates are now sorted by `updatedAt` (newest first) before the slice. Same
+limit, same data already in memory, no extra requests.
+
+Consumer: core composer (no plugin API).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/app/src/hooks/queries/thread-queries.ts` | import + sort in `buildThreadMentionCandidates` before `.slice(0, limit)` |
+
+New files (no conflicts): `apps/app/src/hooks/queries/vk-mention-recency.ts`
+and its test.
+
 ## README
 
 `README.md` is replaced by the fork's install guide and FAQ. On a rebase
