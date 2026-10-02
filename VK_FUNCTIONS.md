@@ -246,6 +246,14 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 
 ---
 
+## 8. Обязательные правила и собранный профиль при создании треда
+
+`bb.agents.experimental_vkRequiredSessionPolicy()` возвращает, что ядро умеет: группы правил для каждого провайдера, переключатели инструкций и обязательные ресурсы (`bb-bridge`, папка проекта). Плагин передаёт снимок правил при создании треда: `threads.spawn({ experimental_vkRequiredSessionPolicy: { version: 1, policy } })`. В отличие от `experimental_vkSessionPolicy`, этот снимок записывается вместе с тредом и действует на каждый ход. Расширить его нельзя. Дочерний тред, форк и тред-владелец наследуют его как потолок.
+
+`bb.agents.experimental_vkCompiledMainAgent()` и `threads.spawn({ experimental_vkCompiledMainAgent: profile })` задают тред Claude Code собранный профиль главного агента (`id`, `prompt`, `sourceHash`).
+
+Снимки и отметки с их отпечатком лежат в зарезервированных строках метаданных треда с id, начинающимся на `__vk.`. Плагины эти строки не видят и записать в них не могут. Если отметка или снимок пропали или повреждены, тред не запускается. Миграций и изменений протокола машин нет.
+
 ## Как внедрить в Агентство
 
 > [!WARNING]

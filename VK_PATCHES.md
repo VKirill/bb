@@ -164,8 +164,6 @@ authenticated `callHost`, before the plugin is disposed. Capability:
 host-daemon wire changes. Details: `docs/vk-experimental.md`.
 
 Consumer: plugin `lane-pilot` (native CLI install/repair on registered hosts only).
-Not carried: the required-session-policy / compiled MAIN agent series
-(protocol 216) — it adds its own DB migrations and host-daemon protocol changes.
 
 ### Hook points in upstream files
 
@@ -179,6 +177,52 @@ Not carried: the required-session-policy / compiled MAIN agent series
 
 New files: `apps/server/src/services/plugins/vk-plugin-lifecycle.ts`,
 `packages/plugin-sdk/src/vk-plugin-lifecycle.ts`, their tests, `docs/vk-experimental.md`.
+
+## Required session policy and compiled MAIN agent (`required-session-policy`)
+
+A plugin fixes, at spawn, what a helper thread may load and with which main
+agent profile it runs; the snapshot cannot be widened later, and a child, fork
+or lifecycle-owned thread inherits the parent's ceiling.
+
+Plugin API:
+- `bb.agents.experimental_vkRequiredSessionPolicy()` — capability matrix
+  (`version`, `persist`, `requiredMarker`, `snapshotDigest`, `parentCeiling`,
+  `bridgeHandshakeVersion`, `markerStorage: "thread-plugin-metadata"`, provider
+  groups, instruction switches, mandatory BB plugins and MCP servers).
+- `threads.spawn({ experimental_vkRequiredSessionPolicy: { version: 1, policy } })`.
+- `bb.agents.experimental_vkCompiledMainAgent()` and
+  `threads.spawn({ experimental_vkCompiledMainAgent: profile })` (Claude Code).
+
+Storage: the snapshot and a required marker (its digest) are reserved rows of
+thread plugin metadata (`__vk.required-session-policy`,
+`__vk.required-session-policy.marker`, `__vk.compiled-main-agent`,
+`__vk.compiled-main-agent.marker`); every `__vk.` id is core-owned and refused
+to plugins. A missing or corrupt marker or snapshot fails closed. No table, no
+migration and no host-daemon protocol change: bridges, which the server ships
+to machines, report support with optional handshake fields
+`experimental_vkRequiredSessionPolicy` / `experimental_vkCompiledMainAgent`,
+and core refuses a required thread on a bridge without them.
+
+Ported 2026-10-02 from `vk-archive/required-session-policy` (protocol 216 with
+two migrations), with the marker tables moved into thread plugin metadata.
+
+Consumer: plugin `lane-pilot` (helper context «selected» / «none», PM profile).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/plugin-api.ts` | the two capability functions |
+| `apps/server/src/services/threads/thread-create*.ts` | spawn fields, parent ceiling, snapshot insert |
+| `apps/server/src/services/threads/thread-runtime-config.ts`, `thread-commands.ts` | snapshot into provider options |
+| `apps/server/src/routes/threads/data.ts`, `packages/server-contract/src/api/threads.ts` | request schema |
+| `apps/cli/src/commands/thread/spawn.ts` | `bb thread spawn` flags |
+| `packages/db/src/data/thread-plugin-metadata.ts`, `threads.ts` | reserved rows, refusal of `__vk.` ids |
+| `packages/agent-runtime/src/bridge-protocol-adapter.ts` | handshake check |
+| `packages/provider-bridge-protocol/src/handshake.ts` | optional handshake fields |
+| `plugins/provider-claude-code`, `plugins/provider-codex`, `packages/provider-bridge-acp` | enforcement and handshake |
+
+Own files: `packages/db/src/data/vk-thread-marker.ts`, `thread-required-session-policy.ts`, `packages/domain/src/vk-compiled-main-agent.ts`.
 
 ## Mention recency (`mention-recency`)
 
