@@ -91,3 +91,11 @@ describe("claude.ai sync off on providers without it", () => {
     }
   });
 });
+
+describe("Cursor and BB skills", () => {
+  it("narrows BB skills for Cursor, but still refuses dropping its project instructions", async () => {
+    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy");
+    expect(() => assertVkRequiredPolicyProvider("acp-cursor", { skills: { mode: "allow", names: ["writer-practices"] } })).not.toThrow();
+    expect(() => assertVkRequiredPolicyProvider("acp-cursor", { projectInstructions: false })).toThrow(/cursor/);
+  });
+});
