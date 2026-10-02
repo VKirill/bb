@@ -1,3 +1,4 @@
+import { VK_REQUIRED_SESSION_POLICY_MARKER_ID, VK_COMPILED_MAIN_AGENT_MARKER_ID } from "../../src/data/vk-thread-marker.js";
 import { describe, expect, it } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { vkPolicyAllows, type VkSessionPolicy } from "@bb/domain/vk-session-policy";
@@ -12,8 +13,6 @@ import { digestVkCompiledMainAgentSource, readVkCompiledMainAgentSnapshot } from
 import {
   threads,
   threadPluginMetadata,
-  threadVkCompiledMainRequired,
-  threadVkSessionPolicyRequired,
 } from "../../src/schema.js";
 
 function setup() {
@@ -36,7 +35,7 @@ describe("required policy persistence", () => {
       expect(readVkRequiredSessionPolicy(db, legacy.id)).toBeNull();
       expect(() => spawn({ skills: { mode: "allow", names: [] } }, {}, "acp-cursor")).toThrow("unsupported");
       expect(db.select().from(threads).all()).toHaveLength(1);
-      expect(db.select().from(threadVkSessionPolicyRequired).all()).toHaveLength(0);
+      expect(db.select().from(threadPluginMetadata).where(eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_MARKER_ID)).all()).toHaveLength(0);
     } finally { db.$client.close(); }
   });
 
@@ -138,8 +137,8 @@ describe("required policy persistence", () => {
         ...sourceBody,
         sourceHash: digestVkCompiledMainAgentSource(sourceBody),
       });
-      db.delete(threadVkSessionPolicyRequired)
-        .where(eq(threadVkSessionPolicyRequired.threadId, parent.id))
+      db.delete(threadPluginMetadata)
+        .where(and(eq(threadPluginMetadata.threadId, parent.id), eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_MARKER_ID)))
         .run();
       db.delete(threadPluginMetadata)
         .where(
@@ -156,7 +155,7 @@ describe("required policy persistence", () => {
         "vk_required_session_policy_dropped",
       );
       expect(db.select().from(threads).all()).toHaveLength(1);
-      expect(db.select().from(threadVkCompiledMainRequired).all()).toHaveLength(1);
+      expect(db.select().from(threadPluginMetadata).where(eq(threadPluginMetadata.pluginId, VK_COMPILED_MAIN_AGENT_MARKER_ID)).all()).toHaveLength(1);
     } finally {
       db.$client.close();
     }
@@ -198,7 +197,7 @@ describe("required policy persistence", () => {
     try {
       const thread = spawn({ userInstructions: false });
       const row = and(eq(threadPluginMetadata.threadId, thread.id), eq(threadPluginMetadata.pluginId, "__vk.required-session-policy"));
-      if (failure === "marker") db.delete(threadVkSessionPolicyRequired).where(eq(threadVkSessionPolicyRequired.threadId, thread.id)).run();
+      if (failure === "marker") db.delete(threadPluginMetadata).where(and(eq(threadPluginMetadata.threadId, thread.id), eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_MARKER_ID))).run();
       if (failure === "snapshot") db.delete(threadPluginMetadata).where(row).run();
       if (failure === "digest") db.update(threadPluginMetadata).set({ metadataJson: JSON.stringify({ version: 1, policy: {} }) }).where(row).run();
       if (failure === "json") db.update(threadPluginMetadata).set({ metadataJson: "{" }).where(row).run();

@@ -430,3 +430,8 @@ Feature-test before use; stock bb has none of these.
 - `VkPolicyFilter`
 - `VkRuntimeSessionPolicy`
 - `vkInstallCursorBridgeMcp` / `vkRevokeCursorBridgeMcp` — Cursor ACP only: write `bb-bridge` into `mcp.json` before `cursor-agent` starts so Grok can call BB plugin tools via `CallDynamicTool`
+- `VK_COMPILED_MAIN_AGENT_PROVIDER_OPTION` — the provider option key (`vkCompiledMainAgent`) under which core hands a compiled MAIN agent profile to the Claude Code bridge
+- `readVkCompiledMainAgent` — the compiled MAIN agent profile from provider options, or null
+- `parseVkCompiledMainAgent` — validate a stored compiled MAIN agent profile; null when incomplete
+- `vkCompiledMainAgentSchema` — the zod schema of that profile
+- `VkCompiledMainAgent`
