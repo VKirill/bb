@@ -7,7 +7,7 @@ import {
   readVkRequiredSessionPolicy,
   readVkCompiledMainAgentSnapshot,
   threadPluginMetadata,
-  threadVkSessionPolicyRequired,
+  VK_REQUIRED_SESSION_POLICY_MARKER_ID,
 } from "@bb/db";
 import { ApiError } from "../../src/errors.js";
 import { createThreadFromRequest } from "../../src/services/threads/thread-create.js";
@@ -286,8 +286,8 @@ describe("compiled main agent create path", () => {
         profile: compiled,
       });
       harness.deps.db
-        .delete(threadVkSessionPolicyRequired)
-        .where(eq(threadVkSessionPolicyRequired.threadId, thread.id))
+        .delete(threadPluginMetadata)
+        .where(and(eq(threadPluginMetadata.threadId, thread.id), eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_MARKER_ID)))
         .run();
       harness.deps.db
         .delete(threadPluginMetadata)
