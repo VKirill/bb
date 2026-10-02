@@ -90,6 +90,8 @@ import {
   type ThreadTimelineTurnSummaryDetailsQueryIdentity,
 } from "./query-keys";
 import { ARCHIVED_THREADS_PAGE_SIZE } from "./archived-threads-page-size";
+// VK EXPERIMENTAL: mention-recency
+import { vkSortMentionCandidatesByRecency } from "./vk-mention-recency";
 import { ingestThreadDetailBootstrap } from "../cache-owners/thread-detail-cache-owner";
 
 interface QueryOptions {
@@ -283,7 +285,10 @@ function buildThreadMentionCandidates(
   for (const thread of threads) {
     addThreadMentionCandidate(candidatesById, thread);
   }
-  return Array.from(candidatesById.values()).slice(0, limit);
+  // VK EXPERIMENTAL: mention-recency
+  return vkSortMentionCandidatesByRecency(
+    Array.from(candidatesById.values()),
+  ).slice(0, limit);
 }
 
 const EMPTY_THREAD_LIST: ThreadListResponse = [];
