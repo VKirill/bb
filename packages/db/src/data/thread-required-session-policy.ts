@@ -54,10 +54,11 @@ export function insertVkRequiredSessionPolicy(db: DbTransaction, args: {
   });
   if (args.requested === undefined && inherited.length === 0) return;
   const requested = args.requested === undefined ? null : vkRequiredSessionPolicySchema.parse(args.requested);
-  const snapshot: VkRequiredSessionPolicy = {
-    version: 1,
-    policy: intersectVkSessionPolicies([...inherited, ...(requested ? [requested.policy] : [])]),
-  };
+  const intersected = intersectVkSessionPolicies([...inherited, ...(requested ? [requested.policy] : [])]);
+  // VK EXPERIMENTAL: claude.ai sync exists only in Claude Code. A parent's «sync off» is already true for any
+  // other provider, so a codex or ACP child inherits the rest of the ceiling instead of being refused.
+  if (args.providerId !== "claude-code" && intersected.claudeAiSync === false) delete intersected.claudeAiSync;
+  const snapshot: VkRequiredSessionPolicy = { version: 1, policy: intersected };
   assertVkRequiredPolicyProvider(args.providerId, snapshot.policy);
   writeVkThreadMarker(db, args.threadId, VK_REQUIRED_SESSION_POLICY_MARKER_ID, { snapshotDigest: digest(snapshot) });
   db.insert(threadPluginMetadata).values({
