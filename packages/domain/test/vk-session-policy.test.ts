@@ -82,3 +82,12 @@ describe("required policy contract", () => {
     expect(vkPolicyAllows(policy.skills, "other:reader", "reader")).toBe(false);
   });
 });
+
+describe("claude.ai sync off on providers without it", () => {
+  it("is satisfied, not refused", async () => {
+    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy");
+    for (const provider of ["codex", "acp-opencode", "acp-cursor"]) {
+      expect(() => assertVkRequiredPolicyProvider(provider, { claudeAiSync: false })).not.toThrow();
+    }
+  });
+});
