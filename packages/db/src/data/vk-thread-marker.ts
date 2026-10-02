@@ -18,8 +18,10 @@ export function readVkThreadMarker(
     eq(threadPluginMetadata.pluginId, markerId),
   )).get();
   if (!row) return undefined;
-  const parsed = JSON.parse(row.metadataJson) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("vk_thread_marker_corrupt");
+  // A corrupt marker reads as an empty one: its digest then matches nothing and the snapshot fails closed.
+  let parsed: unknown;
+  try { parsed = JSON.parse(row.metadataJson); } catch { return {}; }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
   return Object.fromEntries(Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, String(value)]));
 }
 
