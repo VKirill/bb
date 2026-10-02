@@ -269,7 +269,8 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
   snapshotDigest: true,
   parentCeiling: true,
   bridgeHandshakeVersion: 1,
-  hostDaemonProtocolVersion: 216,
+  // Markers live in reserved thread plugin metadata rows; no table, migration or host-daemon protocol change.
+  markerStorage: "thread-plugin-metadata",
   providerGroups: {
     "claude-code": ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
     codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
