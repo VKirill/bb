@@ -243,9 +243,8 @@ export function assertVkRequiredPolicyProvider(
   ) {
     throw new Error("vk_required_session_policy_unsupported_provider");
   }
-  if (providerId !== "claude-code" && policy.claudeAiSync === false) {
-    throw new Error("vk_required_session_policy_unsupported_claude_ai_sync");
-  }
+  // claude.ai sync exists only in Claude Code; «off» is already true for every other provider, so a ceiling
+  // inherited from a Claude Code parent or a section's live policy does not refuse a codex or ACP thread.
   if (
     (providerId === "acp-opencode" || providerId === "acp-cursor") &&
     policy.nativePlugins
