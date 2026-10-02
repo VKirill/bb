@@ -20,8 +20,8 @@ import type {
 } from "../connection.js";
 import {
   threadPluginMetadata,
-  threadVkCompiledMainRequired,
 } from "../schema.js";
+import { VK_COMPILED_MAIN_AGENT_MARKER_ID, readVkThreadMarker, writeVkThreadMarker } from "./vk-thread-marker.js";
 
 export interface ThreadPluginMetadataPatch {
   threadId: string;
@@ -161,13 +161,10 @@ export function insertVkCompiledMainAgentSnapshot(
   if (digestVkCompiledMainAgentSource(sourceBody) !== sourceHash) {
     throw new Error("vk_compiled_main_agent_source_hash_mismatch");
   }
-  db.insert(threadVkCompiledMainRequired)
-    .values({
-      threadId: input.threadId,
-      sourceHash: snapshot.sourceHash,
-      snapshotDigest: digestVkCompiledMainAgent(snapshot),
-    })
-    .run();
+  writeVkThreadMarker(db, input.threadId, VK_COMPILED_MAIN_AGENT_MARKER_ID, {
+    sourceHash: snapshot.sourceHash,
+    snapshotDigest: digestVkCompiledMainAgent(snapshot),
+  });
   db.insert(threadPluginMetadata)
     .values({
       threadId: input.threadId,
@@ -186,14 +183,7 @@ export function readVkCompiledMainAgentSnapshot(
 ):
   | { required: false; profile: null }
   | { required: true; profile: VkCompiledMainAgent } {
-  const required = db
-    .select({
-      sourceHash: threadVkCompiledMainRequired.sourceHash,
-      snapshotDigest: threadVkCompiledMainRequired.snapshotDigest,
-    })
-    .from(threadVkCompiledMainRequired)
-    .where(eq(threadVkCompiledMainRequired.threadId, threadId))
-    .get();
+  const required = readVkThreadMarker(db, threadId, VK_COMPILED_MAIN_AGENT_MARKER_ID);
   const stored = getThreadPluginMetadata(
     db,
     threadId,

@@ -8,7 +8,8 @@ import {
   type VkRequiredSessionPolicy,
 } from "@bb/domain/vk-session-policy";
 import type { DbQueryConnection, DbTransaction } from "../connection.js";
-import { threadPluginMetadata, threadVkSessionPolicyRequired } from "../schema.js";
+import { threadPluginMetadata } from "../schema.js";
+import { VK_REQUIRED_SESSION_POLICY_MARKER_ID, readVkThreadMarker, writeVkThreadMarker } from "./vk-thread-marker.js";
 
 function digest(snapshot: VkRequiredSessionPolicy): string {
   const canonicalize = (value: unknown): unknown => {
@@ -29,8 +30,7 @@ function digest(snapshot: VkRequiredSessionPolicy): string {
 }
 
 export function readVkRequiredSessionPolicy(db: DbQueryConnection, threadId: string): VkRequiredSessionPolicy | null {
-  const marker = db.select().from(threadVkSessionPolicyRequired)
-    .where(eq(threadVkSessionPolicyRequired.threadId, threadId)).get();
+  const marker = readVkThreadMarker(db, threadId, VK_REQUIRED_SESSION_POLICY_MARKER_ID);
   const row = db.select().from(threadPluginMetadata).where(and(
     eq(threadPluginMetadata.threadId, threadId),
     eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_PLUGIN_ID),
@@ -59,7 +59,7 @@ export function insertVkRequiredSessionPolicy(db: DbTransaction, args: {
     policy: intersectVkSessionPolicies([...inherited, ...(requested ? [requested.policy] : [])]),
   };
   assertVkRequiredPolicyProvider(args.providerId, snapshot.policy);
-  db.insert(threadVkSessionPolicyRequired).values({ threadId: args.threadId, snapshotDigest: digest(snapshot) }).run();
+  writeVkThreadMarker(db, args.threadId, VK_REQUIRED_SESSION_POLICY_MARKER_ID, { snapshotDigest: digest(snapshot) });
   db.insert(threadPluginMetadata).values({
     threadId: args.threadId,
     pluginId: VK_REQUIRED_SESSION_POLICY_PLUGIN_ID,
@@ -72,8 +72,7 @@ export function narrowVkRequiredSessionPolicy(db: import("../connection.js").DbC
     const current = readVkRequiredSessionPolicy(tx, threadId);
     if (!current) throw new Error("vk_required_session_policy_dropped");
     const snapshot: VkRequiredSessionPolicy = { version: 1, policy: intersectVkSessionPolicies([current.policy, policy]) };
-    tx.update(threadVkSessionPolicyRequired).set({ snapshotDigest: digest(snapshot) })
-      .where(eq(threadVkSessionPolicyRequired.threadId, threadId)).run();
+    writeVkThreadMarker(tx, threadId, VK_REQUIRED_SESSION_POLICY_MARKER_ID, { snapshotDigest: digest(snapshot) });
     tx.update(threadPluginMetadata).set({ metadataJson: JSON.stringify(snapshot) }).where(and(
       eq(threadPluginMetadata.threadId, threadId),
       eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_PLUGIN_ID),
