@@ -55,6 +55,19 @@ describe("required policy persistence", () => {
     } finally { db.$client.close(); }
   });
 
+  it("lets a codex child inherit a Claude Code parent's ceiling that turns claude.ai sync off", () => {
+    const { db, spawn } = setup();
+    try {
+      const parent = spawn({ claudeAiSync: false, skills: { mode: "allow", names: ["ru-text"] } });
+      const child = spawn({ skills: { mode: "allow", names: ["ru-text", "other"] } }, { parentThreadId: parent.id }, "codex");
+      const policy = readVkRequiredSessionPolicy(db, child.id)!.policy;
+      expect(policy.claudeAiSync).toBeUndefined();
+      expect(vkPolicyAllows(policy.skills, "ru-text")).toBe(true);
+      expect(vkPolicyAllows(policy.skills, "other")).toBe(false);
+      expect(readVkRequiredSessionPolicy(db, parent.id)!.policy.claudeAiSync).toBe(false);
+    } finally { db.$client.close(); }
+  });
+
   it("retains system narrowing across retries and child creation", () => {
     const { db, spawn } = setup();
     try {
