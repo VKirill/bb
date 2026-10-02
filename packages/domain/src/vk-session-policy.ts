@@ -251,10 +251,9 @@ export function assertVkRequiredPolicyProvider(
   ) {
     throw new Error("vk_required_session_policy_unsupported_native_plugins");
   }
-  if (
-    providerId === "acp-cursor" &&
-    (policy.skills || policy.projectInstructions === false)
-  ) {
+  // VK EXPERIMENTAL: Cursor gets BB skills as a list the ACP bridge filters, so a skills filter narrows the
+  // BB side; Cursor's own skill folders have no per-process switch and stay as they are.
+  if (providerId === "acp-cursor" && policy.projectInstructions === false) {
     throw new Error(
       "vk_required_session_policy_unsupported_cursor_instructions_or_skills",
     );
@@ -274,7 +273,7 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     "claude-code": ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
     codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
     "acp-opencode": ["bbPlugins", "skills", "mcpServers"],
-    "acp-cursor": ["bbPlugins", "mcpServers"],
+    "acp-cursor": ["bbPlugins", "skills", "mcpServers"],
   },
   instructionSwitches: {
     "claude-code": ["userInstructions", "projectInstructions", "claudeAiSync"],
