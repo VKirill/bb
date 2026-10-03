@@ -33,7 +33,8 @@ describe("required policy persistence", () => {
     try {
       const legacy = spawn();
       expect(readVkRequiredSessionPolicy(db, legacy.id)).toBeNull();
-      expect(() => spawn({ skills: { mode: "allow", names: [] } }, {}, "acp-cursor")).toThrow("unsupported");
+      // Cursor narrows BB skills since vk.15; native plugins it still cannot narrow.
+      expect(() => spawn({ nativePlugins: { mode: "allow", names: [] } }, {}, "acp-cursor")).toThrow("unsupported");
       expect(db.select().from(threads).all()).toHaveLength(1);
       expect(db.select().from(threadPluginMetadata).where(eq(threadPluginMetadata.pluginId, VK_REQUIRED_SESSION_POLICY_MARKER_ID)).all()).toHaveLength(0);
     } finally { db.$client.close(); }
