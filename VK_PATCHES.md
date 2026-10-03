@@ -264,3 +264,21 @@ as the composer and `experimental_ProviderModelPicker`.
 New files: `apps/app/src/components/pickers/vk-favorite-models.ts`, `vk-model-groups.ts` and tests.
 
 When model labels look like `Provider/Model` and there are at least two providers, the catalog is an accordion: click a provider row to expand its models.
+
+## Quiet child threads (`quiet-child`)
+
+A plugin that watches its own helper threads marks them `experimental_vkQuietChild: true` in the `pluginMetadata`
+it passes to `threads.spawn`. When such a child finishes, fails or is interrupted, core does not queue the
+`child-completed` / `child-failed` / `child-interrupted` system message into the parent, so the parent agent is not
+woken. «Needs attention» notices still go through. Consumer: Lane Pilot (writers, critiques, readers, memory, docs,
+project life — not errands or specialists, which the PM waits for). No schema, no migration, no SDK change: the flag
+is a key in the plugin's own metadata row; core without this patch stores it and ignores it.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/threads/child-thread-notifications.ts` | import + early return in `queueChildThreadTurnNotificationBestEffort` |
+| `packages/db/src/data/index.ts` | export `isVkQuietChildThread`, `VK_QUIET_CHILD_KEY` |
+
+New files: `packages/db/src/data/vk-quiet-child.ts` and `packages/db/test/data/vk-quiet-child.test.ts`.

@@ -3,7 +3,7 @@ import type {
   SystemMessageSubject,
   ThreadEventTurnStatus,
 } from "@bb/domain";
-import { listActiveBackgroundTaskCountsByThreadIds } from "@bb/db";
+import { isVkQuietChildThread, listActiveBackgroundTaskCountsByThreadIds } from "@bb/db";
 import { renderTemplate } from "@bb/templates";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import {
@@ -441,6 +441,8 @@ export async function queueChildThreadTurnNotificationBestEffort(
   args: QueueChildThreadTurnNotificationArgs,
 ): Promise<void> {
   try {
+    // VK EXPERIMENTAL: a quiet child (plugin metadata experimental_vkQuietChild) does not wake its parent.
+    if (isVkQuietChildThread(deps.db, args.childThread.id)) return;
     queueChildThreadTurnNotificationBatchItem(deps, args);
   } catch (error) {
     deps.logger.error(

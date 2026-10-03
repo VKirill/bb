@@ -518,3 +518,5 @@ export * from "./project-attachment-backfill.js";
 
 export { readVkRequiredSessionPolicy, insertVkRequiredSessionPolicy, narrowVkRequiredSessionPolicy } from "./thread-required-session-policy.js";
 export { VK_REQUIRED_SESSION_POLICY_MARKER_ID, VK_COMPILED_MAIN_AGENT_MARKER_ID } from "./vk-thread-marker.js";
+// VK EXPERIMENTAL: quiet child threads (plugin metadata flag), see vk-quiet-child.ts.
+export { VK_QUIET_CHILD_KEY, isVkQuietChildThread } from "./vk-quiet-child.js";
