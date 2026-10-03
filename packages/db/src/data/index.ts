@@ -44,3 +44,4 @@ export * from "./thread-sections.js";
 export * from "./thread-tabs.js";
 export * from "./threads.js";
 export * from "./ui-preferences.js";
+export * from "./vk-quiet-child.js";
