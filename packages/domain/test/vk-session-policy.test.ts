@@ -85,7 +85,7 @@ describe("required policy contract", () => {
 
 describe("claude.ai sync off on providers without it", () => {
   it("is satisfied, not refused", async () => {
-    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy");
+    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy.js");
     for (const provider of ["codex", "acp-opencode", "acp-cursor"]) {
       expect(() => assertVkRequiredPolicyProvider(provider, { claudeAiSync: false })).not.toThrow();
     }
@@ -94,7 +94,7 @@ describe("claude.ai sync off on providers without it", () => {
 
 describe("Cursor and BB skills", () => {
   it("narrows BB skills for Cursor, but still refuses dropping its project instructions", async () => {
-    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy");
+    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy.js");
     expect(() => assertVkRequiredPolicyProvider("acp-cursor", { skills: { mode: "allow", names: ["writer-practices"] } })).not.toThrow();
     expect(() => assertVkRequiredPolicyProvider("acp-cursor", { projectInstructions: false })).toThrow(/cursor/);
   });
