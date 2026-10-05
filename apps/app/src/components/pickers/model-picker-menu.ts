@@ -1,4 +1,5 @@
-export const MODEL_PICKER_MENU_WIDTH_CLASS_NAME = "w-max min-w-64 max-w-80";
+// VK EXPERIMENTAL: a fixed width so the picker does not jump between providers.
+export const MODEL_PICKER_MENU_WIDTH_CLASS_NAME = "w-80 max-md:w-full";
 
 interface ModelLabelParts {
   base: string;
