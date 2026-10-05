@@ -74,12 +74,11 @@ sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false.
 | `apps/server/src/services/plugins/plugin-agent-contributions.ts` | `resolvePluginVkSessionPolicy` |
 | `apps/server/src/services/threads/thread-runtime-config.ts` | resolve + filter tools/instructions, `vkSessionPolicy` in result |
 | `apps/server/src/services/threads/thread-commands.ts` | merge `vkSessionPolicy` into provider options |
-| `plugins/provider-claude-code/src/**` | params schema, session options, SDK options, filtered skill plugins |
+| `plugins/provider-claude-code/src/**` | params schema, session options, SDK options (`vkDisallowedTools` → SDK `disallowedTools`; 0.45 dropped the generic field), filtered skill plugins |
 | `plugins/provider-codex/src/bridge/bridge.ts` | launch `-c` args, per-session skill roots, construction signature |
 | `packages/provider-bridge-acp/src/bridge/bridge.ts` | OpenCode env, Cursor data dir, filtered skill list, same env on every turn |
 | `packages/provider-bridge-acp/src/bridge/cursor-mcp-approval.ts` | export `cursorProjectSlug`, `cursorDataDirectory` |
 | `plugins/bb-guide/skills/bb-plugin-authoring/references/*-api-index.md` | docs for new exports |
-| `apps/server/test/services/plugins/plugin-agent-tools.test.ts` | `bb.agents` key list |
 | `apps/server/src/routes/plugins.ts` | `GET /plugins/vk-excluded-plugins` |
 | `apps/server/src/services/threads/dispatch-hooks.ts` | skip excluded plugins' hooks and submission |
 | `apps/app/src/components/plugin/composer-slot-hooks.ts` | hide excluded plugins' composer UI |
@@ -146,7 +145,9 @@ Consumer: plugin `lane-pilot` (Enable for this chat).
 | --- | --- |
 | `apps/app/src/components/plugin/plugin-composer-host.tsx` | optional `vkSetDispatchData` |
 | `apps/app/src/components/promptbox/NewThreadComposer.tsx` | pending data on ordinary Send |
-| `apps/app/src/lib/plugin-sdk-hooks.ts` | `experimental_vkSetDispatchData` |
+| `apps/app/src/lib/plugin-sdk-hooks.ts` | clear the slot's data on unmount |
+| `packages/plugin-sdk/src/internal/composer-handle.ts` | `vkSetDispatchData` on the handle target, `experimental_vkSetDispatchData` on the handle (0.45 shared composer handle) |
+| `apps/app/src/lib/plugin-composer-handle.ts` | pass the host's `vkSetDispatchData` to the target |
 | `packages/plugin-sdk/src/app-contract.ts` | `PluginComposerApi` member |
 | `packages/plugin-sdk/src/testing/app.tsx` | harness records `dispatchData` |
 | `plugins/plugin-api-docs/src/surfaces.ts` | docs symbol |
@@ -169,7 +170,7 @@ Consumer: plugin `lane-pilot` (native CLI install/repair on registered hosts onl
 
 | File | What |
 | --- | --- |
-| `apps/server/src/services/plugins/plugin-runtime.ts` | `createVkPluginLifecycleRunner` beside safe-mode helpers; `runLifecycle`, `lifecyclePluginIds` in the runtime |
+| `apps/server/src/services/plugins/plugin-runtime.ts` | `createVkPluginLifecycleRunner` beside safe-mode helpers (imports the built server entry, cjs or esm, as 0.45 loads plugins); `runLifecycle`, `lifecyclePluginIds` in the runtime |
 | `apps/server/src/services/plugins/plugin-service.ts` | run the transition before disposal |
 | `apps/server/src/services/plugins/plugin-api.ts` | advertise `experimental_vkPluginLifecycle` |
 | `packages/plugin-sdk/src/backend-contract.ts`, `index.ts` | capability and type export |
@@ -259,7 +260,9 @@ as the composer and `experimental_ProviderModelPicker`.
 
 | File | What |
 | --- | --- |
-| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | star, spoilers, fixed `w-80` / list `h-52` |
+| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | favorite/section/group rows, group state, keyboard skips sections |
+| `apps/app/src/components/pickers/ModelReasoningMenu.tsx` | `vk` prop: star, section labels, group rows, list `h-52` (0.45 moved the menu here) |
+| `apps/app/src/components/pickers/model-picker-menu.ts` | fixed `w-80` |
 
 New files: `apps/app/src/components/pickers/vk-favorite-models.ts`, `vk-model-groups.ts` and tests.
 

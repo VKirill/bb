@@ -41,6 +41,20 @@ import {
   ModelLoadErrorMessage,
 } from "./model-load-error-message";
 import type { ModelNavRow } from "./ModelReasoningPicker";
+import type { VkFavoriteCopy } from "./vk-favorite-models";
+import { vkSplitModelGroupLabel } from "./vk-model-groups";
+
+/** VK EXPERIMENTAL: favorite models and accordion groups. */
+export interface VkModelMenuProps {
+  favoriteCopy: VkFavoriteCopy;
+  isFavorite: (model: string) => boolean;
+  onToggleFavorite: (model: string) => void;
+  onToggleGroup: (groupId: string) => void;
+  hideModelLabel: boolean;
+}
+
+// VK EXPERIMENTAL: a fixed list height, about six models, then scroll.
+const MODEL_PICKER_LIST_HEIGHT_CLASS_NAME = "h-52 shrink-0";
 
 export interface ModelReasoningMenuProps {
   listRef: RefObject<HTMLDivElement | null>;
@@ -74,6 +88,7 @@ export interface ModelReasoningMenuProps {
   serviceTierValue: ServiceTier | undefined;
   onServiceTierChange: (value: ServiceTier) => void;
   onStartHandoff: (() => void) | null;
+  vk?: VkModelMenuProps;
 }
 
 export function ModelReasoningMenu({
@@ -108,6 +123,7 @@ export function ModelReasoningMenu({
   serviceTierValue,
   onServiceTierChange,
   onStartHandoff,
+  vk,
 }: ModelReasoningMenuProps) {
   const isCompactViewport = useIsCompactViewport();
   const brandPrefix = provider?.brandPrefix;
@@ -135,11 +151,11 @@ export function ModelReasoningMenu({
           id={listboxId}
           aria-label={listboxId ? "Models" : undefined}
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1 pt-0",
-            !isCompactViewport && "max-h-64",
+            "min-h-0 overflow-y-auto overscroll-contain px-1 pb-1 pt-0",
+            MODEL_PICKER_LIST_HEIGHT_CLASS_NAME,
           )}
         >
-          {isShowingModelError ? null : (
+          {isShowingModelError || vk?.hideModelLabel ? null : (
             <MenuSectionLabel>Model</MenuSectionLabel>
           )}
           {modelIsLoading ? (
@@ -152,6 +168,28 @@ export function ModelReasoningMenu({
               {navRows.map((row, index) => {
                 const active = highlightedIndex === index;
                 const domId = optionId(index);
+                if (row.kind === "section") {
+                  return (
+                    <MenuSectionLabel key={`section-${row.id}`}>
+                      {row.id === "favorites"
+                        ? vk?.favoriteCopy.favorites
+                        : vk?.favoriteCopy.all}
+                    </MenuSectionLabel>
+                  );
+                }
+                if (row.kind === "group") {
+                  return (
+                    <ProviderGroupRow
+                      key={`group-${row.id}`}
+                      id={domId}
+                      label={row.label}
+                      count={row.count}
+                      expanded={row.expanded}
+                      isActive={active}
+                      onToggle={() => vk?.onToggleGroup(row.id)}
+                    />
+                  );
+                }
                 if (row.kind === "more-toggle") {
                   return (
                     <MoreModelsToggleRow
@@ -164,16 +202,26 @@ export function ModelReasoningMenu({
                   );
                 }
                 const option = row.option;
+                const strippedLabel = stripModelBrandPrefix(
+                  option.label,
+                  brandPrefix,
+                );
                 return (
                   <MenuRowButton
-                    key={option.value}
+                    key={`${row.list ?? "all"}:${option.value}`}
                     id={domId}
                     role={listboxId ? "option" : undefined}
                     isActive={active}
-                    label={stripModelBrandPrefix(option.label, brandPrefix)}
+                    inset={row.inset}
+                    label={
+                      row.inset
+                        ? vkSplitModelGroupLabel(strippedLabel).model
+                        : strippedLabel
+                    }
                     qualifier={option.routeProviderId}
                     selected={!isPreviewing && option.value === modelValue}
                     disabled={selectionBlocked}
+                    {...vkFavoriteRowProps(vk, option.value)}
                     onClick={() => onModelSelect(option.value)}
                   />
                 );
@@ -190,6 +238,7 @@ export function ModelReasoningMenu({
                   modelValue={modelValue}
                   options={moreModelOptions}
                   onSelect={onModelSelect}
+                  vk={vk}
                 />
               ) : null}
               {isSearching && navRows.length === 0 ? (
@@ -384,6 +433,68 @@ function MenuSectionLabel({
   );
 }
 
+function ProviderGroupRow({
+  label,
+  count,
+  expanded,
+  onToggle,
+  isActive,
+  id,
+}: {
+  label: string;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  isActive?: boolean;
+  id?: string;
+}) {
+  const { hoverProps } = useMenuItemHover();
+  const isCompactViewport = useIsCompactViewport();
+  return (
+    <button
+      type="button"
+      id={id}
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className={cn(
+        "relative mt-0.5 flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
+        LIST_HOVER_TRANSITION,
+        MENU_ITEM_LAST_HOVERED_CLASS,
+        isActive && "bg-state-active",
+        isCompactViewport ? "py-2" : "py-1.5",
+      )}
+      {...hoverProps}
+    >
+      <Icon
+        name="ChevronRight"
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+          expanded && "rotate-90 text-foreground",
+        )}
+      />
+      <span className="min-w-0 flex-1 truncate text-left font-medium">
+        {label}
+      </span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function vkFavoriteRowProps(
+  vk: VkModelMenuProps | undefined,
+  model: string,
+) {
+  if (!vk) return {};
+  return {
+    favorite: vk.isFavorite(model),
+    favoriteAddLabel: vk.favoriteCopy.add,
+    favoriteRemoveLabel: vk.favoriteCopy.remove,
+    onToggleFavorite: () => vk.onToggleFavorite(model),
+  };
+}
+
 function MoreModelsToggleRow({
   expanded,
   onToggle,
@@ -430,6 +541,7 @@ function MoreModelsSubmenu({
   modelValue,
   options,
   onSelect,
+  vk,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -439,6 +551,7 @@ function MoreModelsSubmenu({
   modelValue: string;
   options: readonly ModelPickerOption[];
   onSelect: (value: string) => void;
+  vk?: VkModelMenuProps;
 }) {
   const { isLastHovered, hoverProps } = useMenuItemHover();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -523,6 +636,7 @@ function MoreModelsSubmenu({
               label={stripModelBrandPrefix(option.label, activeBrandPrefix)}
               qualifier={option.routeProviderId}
               selected={!isPreviewing && option.value === modelValue}
+              {...vkFavoriteRowProps(vk, option.value)}
               onClick={() => onSelect(option.value)}
             />
           ))}
@@ -541,6 +655,11 @@ function MenuRowButton({
   isActive,
   id,
   role,
+  favorite = false,
+  favoriteAddLabel,
+  favoriteRemoveLabel,
+  onToggleFavorite,
+  inset = false,
 }: {
   label: string;
   qualifier?: string;
@@ -550,51 +669,86 @@ function MenuRowButton({
   isActive?: boolean;
   id?: string;
   role?: React.AriaRole;
+  favorite?: boolean;
+  favoriteAddLabel?: string;
+  favoriteRemoveLabel?: string;
+  onToggleFavorite?: () => void;
+  inset?: boolean;
 }) {
   const { hoverProps } = useMenuItemHover();
   const isCompactViewport = useIsCompactViewport();
   const { base, tag } = splitModelLabelTag(label);
+  const rowClassName = cn(
+    "relative flex w-full cursor-default select-none items-center justify-between gap-1 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
+    LIST_HOVER_TRANSITION,
+    MENU_ITEM_LAST_HOVERED_CLASS,
+    isActive && "bg-state-active",
+    disabled && "cursor-not-allowed opacity-60",
+    isCompactViewport ? "py-2" : "py-[0.3125rem]",
+    inset && "pl-7",
+  );
   return (
-    <button
-      type="button"
-      id={id}
-      role={role}
-      disabled={disabled}
-      aria-selected={role === "option" ? Boolean(isActive) : undefined}
-      onClick={onClick}
-      className={cn(
-        "relative flex w-full cursor-default select-none items-center justify-between gap-3 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
-        LIST_HOVER_TRANSITION,
-        MENU_ITEM_LAST_HOVERED_CLASS,
-        isActive && "bg-state-active",
-        disabled && "cursor-not-allowed opacity-60",
-        isCompactViewport ? "py-2" : "py-[0.3125rem]",
-      )}
-      {...hoverProps}
-    >
-      <span
-        className="truncate"
-        title={qualifier ? `${label} · ${qualifier}` : label}
+    <div className={rowClassName} data-last-hovered={hoverProps["data-last-hovered"]}>
+      <button
+        type="button"
+        id={id}
+        role={role}
+        disabled={disabled}
+        aria-selected={role === "option" ? Boolean(isActive) : undefined}
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left outline-none"
+        {...hoverProps}
       >
-        {base}
-        {tag ? (
-          <span className="ml-1.5 text-subtle-foreground">{tag}</span>
-        ) : null}
-        {qualifier ? (
-          <span className="ml-1.5 text-subtle-foreground">{qualifier}</span>
-        ) : null}
-      </span>
-      <span className="flex shrink-0 items-center gap-1.5">
-        <Icon
-          name="Check"
+        <span
+          className="truncate"
+          title={qualifier ? `${label} · ${qualifier}` : label}
+        >
+          {base}
+          {tag ? (
+            <span className="ml-1.5 text-subtle-foreground">{tag}</span>
+          ) : null}
+          {qualifier ? (
+            <span className="ml-1.5 text-subtle-foreground">{qualifier}</span>
+          ) : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Icon
+            name="Check"
+            className={cn(
+              COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+              "text-subtle-foreground",
+              selected ? "opacity-100" : "opacity-0",
+            )}
+          />
+        </span>
+      </button>
+      {onToggleFavorite ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled}
+          aria-label={favorite ? favoriteRemoveLabel : favoriteAddLabel}
+          aria-pressed={favorite}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleFavorite();
+          }}
           className={cn(
-            COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
-            "text-subtle-foreground",
-            selected ? "opacity-100" : "opacity-0",
+            "shrink-0 rounded-sm p-0.5 text-muted-foreground outline-none hover:text-foreground",
+            favorite && "text-foreground",
           )}
-        />
-      </span>
-    </button>
+        >
+          <Icon
+            name="Star"
+            className={cn(
+              COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+              favorite && "fill-current",
+            )}
+          />
+        </button>
+      ) : null}
+    </div>
   );
 }
 

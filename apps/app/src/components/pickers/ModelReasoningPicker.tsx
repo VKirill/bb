@@ -80,6 +80,16 @@ import {
   nextCycleValue,
   previousCycleValue,
 } from "./modelPickerCycle";
+import {
+  useVkFavoriteModels,
+  vkFavoriteCopy,
+  vkFavoriteOptionsForProvider,
+} from "./vk-favorite-models";
+import {
+  vkGroupContaining,
+  vkGroupModels,
+  type VkModelGroup,
+} from "./vk-model-groups";
 
 interface ResolvedProviderPreview {
   providerId: string;
@@ -125,9 +135,26 @@ const MODEL_SEARCH_MIN_OPTIONS = 5;
 const HANDOFF_DRAWER_TOP_CLASS_NAME =
   "[&>[data-persistent-drawer-handle]]:w-full [&>[data-persistent-drawer-handle]]:rounded-t-xl [&>[data-persistent-drawer-handle]]:bg-background";
 
+// VK EXPERIMENTAL: favorites, section and accordion group rows.
 export type ModelNavRow =
-  | { kind: "model"; option: ModelPickerOption }
-  | { kind: "more-toggle" };
+  | {
+      kind: "model";
+      option: ModelPickerOption;
+      list?: "favorites" | "all";
+      inset?: boolean;
+    }
+  | { kind: "more-toggle" }
+  | { kind: "section"; id: "favorites" | "all" }
+  | {
+      kind: "group";
+      id: string;
+      label: string;
+      count: number;
+      expanded: boolean;
+    };
+
+const EMPTY_FAVORITE_OPTIONS: readonly ModelPickerOption[] = [];
+const EMPTY_MODEL_GROUPS: readonly VkModelGroup[] = [];
 
 export function buildModelNavRows({
   modelOptions,
@@ -135,34 +162,110 @@ export function buildModelNavRows({
   isCompactViewport,
   isSearching,
   showMoreModels,
+  favoriteOptions = EMPTY_FAVORITE_OPTIONS,
+  groups = EMPTY_MODEL_GROUPS,
+  expandedGroupIds,
 }: {
   modelOptions: readonly ModelPickerOption[];
   moreModelOptions: readonly ModelPickerOption[];
   isCompactViewport: boolean;
   isSearching: boolean;
   showMoreModels: boolean;
+  favoriteOptions?: readonly ModelPickerOption[];
+  groups?: readonly VkModelGroup[];
+  expandedGroupIds?: ReadonlySet<string>;
 }): ModelNavRow[] {
-  const rows: ModelNavRow[] = modelOptions.map((option): ModelNavRow => ({
-    kind: "model",
-    option,
-  }));
-  if (moreModelOptions.length === 0) return rows;
+  const showFavoriteBlock = favoriteOptions.length > 0;
+  const favoriteIds = new Set(favoriteOptions.map((option) => option.value));
+  const exceptFavorites = (
+    options: readonly ModelPickerOption[],
+  ): readonly ModelPickerOption[] =>
+    favoriteIds.size === 0
+      ? options
+      : options.filter((option) => !favoriteIds.has(option.value));
+  const rows: ModelNavRow[] = [];
+  if (showFavoriteBlock) {
+    rows.push({ kind: "section", id: "favorites" });
+    for (const option of favoriteOptions) {
+      rows.push({ kind: "model", option, list: "favorites" });
+    }
+  }
+  const restModelOptions = exceptFavorites(modelOptions);
+  const restMoreModelOptions = exceptFavorites(moreModelOptions);
+  const restGroups = groups
+    .map((group) => ({
+      ...group,
+      options: exceptFavorites(group.options),
+    }))
+    .filter((group) => group.options.length > 0);
+  const useGroups = restGroups.length >= 2;
+  const hasRest =
+    useGroups ||
+    restModelOptions.length > 0 ||
+    restMoreModelOptions.length > 0;
+  if (showFavoriteBlock && hasRest) {
+    rows.push({ kind: "section", id: "all" });
+  }
+  const list = showFavoriteBlock ? "all" : undefined;
+  if (useGroups) {
+    for (const group of restGroups) {
+      const expanded =
+        isSearching || (expandedGroupIds?.has(group.id) ?? false);
+      rows.push({
+        kind: "group",
+        id: group.id,
+        label: group.label,
+        count: group.options.length,
+        expanded,
+      });
+      if (!expanded) continue;
+      for (const option of group.options) {
+        rows.push({
+          kind: "model",
+          option,
+          list,
+          inset: true,
+        });
+      }
+    }
+    return rows;
+  }
+  for (const option of restModelOptions) {
+    rows.push({ kind: "model", option, list });
+  }
+  if (restMoreModelOptions.length === 0) return rows;
 
   if (isSearching) {
-    for (const option of moreModelOptions) rows.push({ kind: "model", option });
+    for (const option of restMoreModelOptions) {
+      rows.push({ kind: "model", option, list });
+    }
     return rows;
   }
 
   if (isCompactViewport) {
     rows.push({ kind: "more-toggle" });
     if (showMoreModels) {
-      for (const option of moreModelOptions) {
-        rows.push({ kind: "model", option });
+      for (const option of restMoreModelOptions) {
+        rows.push({ kind: "model", option, list });
       }
     }
   }
 
   return rows;
+}
+
+function nextNavigableNavIndex(
+  rows: readonly ModelNavRow[],
+  from: number,
+  direction: 1 | -1,
+): number {
+  if (rows.length === 0) return -1;
+  let index = from;
+  for (let step = 0; step < rows.length; step += 1) {
+    index = (index + direction + rows.length) % rows.length;
+    if (rows[index]?.kind !== "section") return index;
+  }
+  return -1;
 }
 
 interface ModelReasoningPickerProps {
@@ -250,6 +353,9 @@ export function ModelReasoningPicker({
   );
   const [showMoreModels, setShowMoreModels] = useState(false);
   const [moreModelsOpen, setMoreModelsOpen] = useState(false);
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [trackedSelectedProviderId, setTrackedSelectedProviderId] =
     useState(selectedProviderId);
   const [browsingHandoff, setHandoffMode] = useState(false);
@@ -269,6 +375,7 @@ export function ModelReasoningPicker({
     setPreviewProviderId(null);
     setShowMoreModels(false);
     setMoreModelsOpen(false);
+    setExpandedGroupIds(new Set());
     setSearchQuery("");
     setActiveIndex(-1);
   }
@@ -443,6 +550,23 @@ export function ModelReasoningPicker({
     (!isShowingModelError || activeModelErrorIsProviderSpecific);
 
   const activeBrandPrefix = activeProvider?.brandPrefix;
+  // VK EXPERIMENTAL: starred models for this provider, stored in localStorage.
+  const favoriteCopy = vkFavoriteCopy();
+  const { favorites, toggle: toggleFavorite, isFavorite } =
+    useVkFavoriteModels(activeProviderId);
+  const favoriteCatalogOptions = useMemo(
+    () =>
+      vkFavoriteOptionsForProvider(favorites, activeProviderId, [
+        ...activeModelOptions,
+        ...activeMoreModelOptions,
+      ]),
+    [
+      activeModelOptions,
+      activeMoreModelOptions,
+      activeProviderId,
+      favorites,
+    ],
+  );
   const filteredModelOptions = useMemo(() => {
     if (!isSearching) {
       return activeModelOptions;
@@ -467,21 +591,106 @@ export function ModelReasoningPicker({
   const filteredMoreModelOptions = isSearching
     ? EMPTY_MODEL_OPTIONS
     : activeMoreModelOptions;
+  const filteredFavoriteOptions = useMemo(() => {
+    if (favoriteCatalogOptions.length === 0) return EMPTY_FAVORITE_OPTIONS;
+    if (!isSearching) return favoriteCatalogOptions;
+    return searchPickerOptions({
+      options: favoriteCatalogOptions,
+      query: searchQuery,
+      getLabel: (option) =>
+        stripModelBrandPrefix(option.label, activeBrandPrefix),
+      getAliases: (option) =>
+        option.routeProviderId
+          ? [option.routeProviderId, option.value]
+          : [option.value],
+    });
+  }, [
+    activeBrandPrefix,
+    favoriteCatalogOptions,
+    isSearching,
+    searchQuery,
+  ]);
+  const groupingCatalog = useMemo(() => {
+    const favoriteIds = new Set(
+      filteredFavoriteOptions.map((option) => option.value),
+    );
+    const catalog = isSearching
+      ? filteredModelOptions
+      : [...activeModelOptions, ...activeMoreModelOptions];
+    if (favoriteIds.size === 0) return catalog;
+    return catalog.filter((option) => !favoriteIds.has(option.value));
+  }, [
+    activeModelOptions,
+    activeMoreModelOptions,
+    filteredFavoriteOptions,
+    filteredModelOptions,
+    isSearching,
+  ]);
+  const modelGroups = useMemo(
+    () =>
+      vkGroupModels(groupingCatalog, (option) =>
+        stripModelBrandPrefix(option.label, activeBrandPrefix),
+      ),
+    [activeBrandPrefix, groupingCatalog],
+  );
+  const groupingActive = modelGroups.length >= 2;
+  useEffect(() => {
+    setExpandedGroupIds(() => {
+      const selectedGroup = vkGroupContaining(modelGroups, modelValue);
+      return selectedGroup ? new Set([selectedGroup.id]) : new Set();
+    });
+  }, [activeProviderId]);
+  useEffect(() => {
+    const selectedGroup = vkGroupContaining(modelGroups, modelValue);
+    if (!selectedGroup) return;
+    setExpandedGroupIds((current) => {
+      if (current.has(selectedGroup.id)) return current;
+      const next = new Set(current);
+      next.add(selectedGroup.id);
+      return next;
+    });
+  }, [modelGroups, modelValue]);
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
+
+  // VK EXPERIMENTAL: the More models submenu holds neither favorites nor grouped models.
+  const vkMoreModelOptions = useMemo(
+    () =>
+      groupingActive
+        ? EMPTY_MODEL_OPTIONS
+        : filteredMoreModelOptions.filter((option) => !isFavorite(option.value)),
+    [filteredMoreModelOptions, groupingActive, isFavorite],
+  );
 
   const navRows = useMemo(
     () =>
       buildModelNavRows({
         modelOptions: filteredModelOptions,
-        moreModelOptions: filteredMoreModelOptions,
+        moreModelOptions: groupingActive
+          ? EMPTY_MODEL_OPTIONS
+          : filteredMoreModelOptions,
         isCompactViewport,
         isSearching,
         showMoreModels,
+        favoriteOptions: filteredFavoriteOptions,
+        groups: modelGroups,
+        expandedGroupIds,
       }),
     [
+      expandedGroupIds,
+      filteredFavoriteOptions,
       filteredModelOptions,
       filteredMoreModelOptions,
+      groupingActive,
       isCompactViewport,
       isSearching,
+      modelGroups,
       showMoreModels,
     ],
   );
@@ -555,6 +764,7 @@ export function ModelReasoningPicker({
     setPreviewProviderId(null);
     setShowMoreModels(false);
     setMoreModelsOpen(false);
+    setExpandedGroupIds(new Set());
     setSearchQuery("");
     setActiveIndex(-1);
   }, []);
@@ -853,7 +1063,7 @@ export function ModelReasoningPicker({
         if (total === 0) return;
         setActiveIndex((current) => {
           const from = current >= total ? -1 : current;
-          return from >= total - 1 ? 0 : from + 1;
+          return nextNavigableNavIndex(navRows, from, 1);
         });
         return;
       }
@@ -863,7 +1073,7 @@ export function ModelReasoningPicker({
         if (total === 0) return;
         setActiveIndex((current) => {
           const from = current >= total ? -1 : current;
-          return from <= 0 ? total - 1 : from - 1;
+          return nextNavigableNavIndex(navRows, from, -1);
         });
         return;
       }
@@ -871,16 +1081,24 @@ export function ModelReasoningPicker({
       if (event.key === "Enter") {
         if (highlightedIndex < 0) return;
         const row = navRows[highlightedIndex];
-        if (!row) return;
+        if (!row || row.kind === "section") return;
         event.preventDefault();
         if (row.kind === "model") {
           handleModelSelect(row.option.value);
+        } else if (row.kind === "group") {
+          toggleGroup(row.id);
         } else {
           toggleShowMoreModels();
         }
       }
     },
-    [navRows, highlightedIndex, handleModelSelect, toggleShowMoreModels],
+    [
+      navRows,
+      highlightedIndex,
+      handleModelSelect,
+      toggleGroup,
+      toggleShowMoreModels,
+    ],
   );
 
   useEffect(() => {
@@ -1119,7 +1337,7 @@ export function ModelReasoningPicker({
           isSearching={isSearching}
           showMoreModels={showMoreModels}
           onToggleMoreModels={toggleShowMoreModels}
-          moreModelOptions={filteredMoreModelOptions}
+          moreModelOptions={vkMoreModelOptions}
           moreModelsOpen={moreModelsOpen}
           onMoreModelsOpenChange={setMoreModelsOpen}
           isPreviewing={isPreviewing}
@@ -1138,6 +1356,14 @@ export function ModelReasoningPicker({
               ? startHandoffMode
               : null
           }
+          vk={{
+            favoriteCopy,
+            isFavorite,
+            onToggleFavorite: toggleFavorite,
+            onToggleGroup: toggleGroup,
+            hideModelLabel:
+              filteredFavoriteOptions.length > 0 || groupingActive,
+          }}
         />
       </PopoverContent>
     </Popover>
