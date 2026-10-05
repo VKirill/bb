@@ -7,6 +7,9 @@ const base = {
   permissionMode: "acceptEdits" as const,
   permissionScope: "workspace" as const,
   workflowsEnabled: false,
+  serviceTier: "default" as const,
+  disable1MContext: false,
+  sandboxEnabled: false,
   chromeEnabled: false,
 };
 

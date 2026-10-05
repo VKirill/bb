@@ -99,8 +99,13 @@ export function applyBbAppManagedConfig(
   args.targetConfig.sharedSkillRoots =
     args.managedConfig.sharedSkillRoots ?? args.baseConfig.sharedSkillRoots;
   // VK EXPERIMENTAL: service tier for helper inference.
+  const managedInferenceServiceTier =
+    managedConfig.BB_INFERENCE_SERVICE_TIER === "fast" ||
+    managedConfig.BB_INFERENCE_SERVICE_TIER === "default"
+      ? managedConfig.BB_INFERENCE_SERVICE_TIER
+      : undefined;
   args.targetConfig.inferenceServiceTier =
-    managedConfig.BB_INFERENCE_SERVICE_TIER ??
+    managedInferenceServiceTier ??
     args.baseConfig.inferenceServiceTier ??
     null;
   if (args.targetConfig.inferenceServiceTier === "fast") {
