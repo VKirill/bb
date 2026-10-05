@@ -61,6 +61,7 @@ it("shares a temporary artifact across concurrent cleanup calls and disposes it 
       rootDir,
       version: "0.1.0",
       enabled: false,
+      enabledFollowsDefault: false,
     });
     const artifact = {
       path: "host.mjs",

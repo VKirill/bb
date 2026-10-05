@@ -48,10 +48,6 @@ function vkPlaceOf(host: PluginComposerHost | null): VkComposerPlace | null {
     case "thread":
     case "queued-message":
       return { threadId: scope.threadId };
-    case "side-chat":
-      return scope.childThreadId
-        ? { threadId: scope.childThreadId }
-        : { projectId: scope.projectId };
     case "new-thread":
       return { projectId: scope.projectId };
     default:

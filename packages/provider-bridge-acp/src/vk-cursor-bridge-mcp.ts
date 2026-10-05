@@ -187,7 +187,7 @@ function restoreBridgeServer(
   } else {
     servers[ACP_BRIDGE_MCP_SERVER_NAME] = previous as Record<string, unknown>;
   }
-  const next = { ...doc, mcpServers: servers };
+  const next: Record<string, unknown> = { ...doc, mcpServers: servers };
   if (Object.keys(servers).length === 0) {
     delete next.mcpServers;
   }

@@ -51,7 +51,12 @@ const bbAppManagedConfigValuesSchema = z
   .object({
     BB_APP_URL: z.string().optional(),
     // VK EXPERIMENTAL: service tier for helper inference (titles, metadata).
-    BB_INFERENCE_SERVICE_TIER: z.enum(["fast", "default"]).optional(),
+    BB_INFERENCE_SERVICE_TIER: z
+      .string()
+      .refine((value) => ["fast", "default"].includes(value), {
+        message: 'BB_INFERENCE_SERVICE_TIER must be "fast" or "default"',
+      })
+      .optional(),
     BB_LOG_LEVEL: z.string().optional(),
     // VK EXPERIMENTAL: language of generated thread titles, e.g. "Russian".
     BB_THREAD_TITLE_LANGUAGE: z.string().trim().min(1).max(40).optional(),
