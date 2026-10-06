@@ -30,6 +30,7 @@ date: 2026-09-24
 | 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 | 9 | Избранные модели | `ModelReasoningPicker` | Звезда в пикере; список в `localStorage`, без API плагина |
 | 10 | `vkInstallCursorBridgeMcp` | мост ACP Cursor | Native tools плагинов BB в Cursor Grok через `bb-bridge` в `mcp.json` |
+| 11 | `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata` | API плагина (SDK) | Идемпотентный spawn по ключу и поиск своих тредов по метаданным без перебора списка |
 
 ```mermaid
 flowchart TD
@@ -253,6 +254,45 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 `bb.agents.experimental_vkCompiledMainAgent()` и `threads.spawn({ experimental_vkCompiledMainAgent: profile })` задают тред Claude Code собранный профиль главного агента (`id`, `prompt`, `sourceHash`).
 
 Снимки и отметки с их отпечатком лежат в зарезервированных строках метаданных треда с id, начинающимся на `__vk.`. Плагины эти строки не видят и записать в них не могут. Если отметка или снимок пропали или повреждены, тред не запускается. Миграций и изменений протокола машин нет.
+
+## 9. Ключи тредов: `experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata`
+
+Зачем. Если ответ на `threads.spawn` потерялся (reload, обрыв), плагин не знает id своего треда и ищет его перебором `threads.list`. В проекте с тысячами тредов перебор упирается в лимит страниц, и задача зависает. Ключ делает spawn повторяемым, а поиск по метаданным не требует перебора.
+
+```ts
+// на обычном BB этих методов нет
+if (typeof bb.sdk.threads.experimental_vkSpawnKeyed === "function") {
+  const { thread, reused } = await bb.sdk.threads.experimental_vkSpawnKeyed({
+    ...обычные поля spawn, // projectId, prompt, environment, pluginMetadata ...
+    key: `lp:${attemptId}:writer:1`, // 1..200 символов, уникален в пределах плагина
+  });
+  // reused === true: живой тред с этим ключом уже был, второй не создан
+}
+const found = await bb.sdk.threads.experimental_vkFindByKey(key); // тред или null
+const list = await bb.sdk.threads.experimental_vkFindByPluginMetadata({
+  match: { attemptId: "att1", role: "writer" }, // строки, числа, булевы; не пусто
+  projectId, includeArchived: false, limit: 100, // projectId и includeArchived необязательны, limit 1..100
+}); // новые первыми
+```
+
+Поведение.
+
+| Случай | Результат |
+| --- | --- |
+| Два параллельных `vkSpawnKeyed` с одним ключом | один тред; у второго `reused: true` |
+| Ключ у плагина A, тот же ключ у плагина B | независимы: ключ действует только в пределах плагина |
+| Тред с ключом удалён | `vkFindByKey` его не возвращает, ключ можно использовать заново |
+| Тред с ключом в архиве | ключ за ним сохраняется, `vkSpawnKeyed` вернёт его с `reused: true` |
+| `vkFindByPluginMetadata` | видит только строки метаданных вызывающего плагина; удалённые треды не попадают, архивные только с `includeArchived: true` |
+| Обычные `threads.spawn`, `threads.list` | не изменены |
+
+Хранение. Ключ лежит в зарезервированном поле `__vk.key` строки `thread_plugin_metadata` самого плагина, рядом с его обычными метаданными. Проверка «ключ занят» и вставка идут в одной транзакции создания треда. `updatePluginMetadata` может повторно отправить ключ без изменений, но изменить или удалить его не может (`reserved_key`). Миграций, новых таблиц и изменений протокола машин нет.
+
+Скорость. Индекса по полю нет, запрос читает строки метаданных одного плагина. Замер на выгрузке хаба 2026-10-07 (5963 строки метаданных, из них 2414 у lane-pilot, у всех поставлен ключ; 4104 треда): промах 1,7 мс, попадание 0,1 мс, `vkFindByPluginMetadata` по роли 1,7 мс на запрос. Время растёт линейно с числом строк плагина; порог 50 мс будет достигнут примерно на 70 000 строках. Если дойдёт, делать `projectId` обязательным.
+
+Без функции. Метода нет, `typeof` даёт `"undefined"`: плагин остаётся на `threads.spawn` и переборе списка.
+
+---
 
 ## Как внедрить в Агентство
 
