@@ -6,6 +6,7 @@ import {
   type NormalizedPluginInteractionRequest,
 } from "@get-bb/plugin-sdk/internal/host-policy";
 import { listPluginVkContextContributions } from "./plugin-agent-contributions.js";
+import { createVkThreadKeyMethods } from "./vk-thread-keys.js";
 import { createMachineBootstrapApi } from "../machines/bootstrap.js";
 import type { MachineEnrollments } from "../machines/enrollments.js";
 import { listServerAccessProviders } from "./plugin-server-access-registry.js";
@@ -356,6 +357,7 @@ function wrapSdkForPlugin(
   sdk: BbSdk,
   pluginId: string,
   rpcCallerSdk: BbSdk,
+  db: DbConnection,
 ): PluginBbSdk {
   return {
     ...sdk,
@@ -403,6 +405,14 @@ function wrapSdkForPlugin(
       spawn(args: ThreadSpawnArgs) {
         return sdk.threads.spawn(withPluginThreadAttribution(args, pluginId));
       },
+      // VK EXPERIMENTAL: experimental_vkSpawnKeyed, experimental_vkFindByKey, experimental_vkFindByPluginMetadata.
+      ...createVkThreadKeyMethods({
+        db,
+        pluginId,
+        sdk,
+        spawn: (args) =>
+          sdk.threads.spawn(withPluginThreadAttribution(args, pluginId)),
+      }),
     },
   };
 }
@@ -1404,6 +1414,7 @@ export function createPluginApi(options: {
           baseUrl: loopbackBaseUrl,
           token: rpcCaller.token,
         }),
+        db,
       );
       return wrappedSdk;
     },
