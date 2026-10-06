@@ -16,6 +16,7 @@ type ExpectedBbPluginApiKey =
   | "cli"
   | "events"
   | "experimental_aiServices"
+  | "vk"
   | "experimental_environments"
   | "experimental_hooks"
   | "experimental_machines"
@@ -34,8 +35,7 @@ type ExpectedBbPluginApiKey =
   | "settings"
   | "status"
   | "storage"
-  | "ui"
-  | "vk";
+  | "ui";
 
 const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
   "BbPluginApi",

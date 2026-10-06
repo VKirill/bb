@@ -6,7 +6,7 @@ import type {
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type { MachineBootstrapApi } from "./machine-bootstrap.js";
 import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
-import type { ExperimentalVkLifecycleInfo } from "./vk-plugin-lifecycle.js";
+import type { PluginVkApi } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
@@ -2185,10 +2185,10 @@ export interface BbPluginApi {
    */
   readonly experimental_aiServices: PluginAiServices;
   /**
-   * VK builds only (undefined on stock BB): `startReason` and `afterDrain` of this plugin instance.
-   * Feature-test `bb.vk?.startReason`.
+   * VK EXPERIMENTAL: only on a core with the VK layer (undefined on stock BB); feature-test members before use.
+   * `startReason` and `afterDrain` describe this instance, `experimental_vkOnHookTimeout` reports hook timeouts.
    */
-  readonly vk?: ExperimentalVkLifecycleInfo;
+  readonly vk?: PluginVkApi;
   /**
    * The full BB SDK, bound to this server over loopback (design §4.1).
    * Bind-gated: reading this before the host binds the SDK throws. The real

@@ -15,6 +15,8 @@ This series extends the protocol-215 baseline `c02ca4246f54a94d81a0440c9a43a856b
 | --- | --- | --- |
 | Plugin enable, disable and removal | `apps/server/src/services/plugins/vk-plugin-lifecycle.ts` | `plugin-runtime.ts` loads the export; `plugin-service.ts` invokes transitions before disposal; `plugin-api.ts` advertises support |
 | Lifecycle SDK contract | `packages/plugin-sdk/src/vk-plugin-lifecycle.ts` | SDK index export and optional `PluginServerApi.experimental_vkPluginLifecycle` capability |
+| Hook time limits and visible timeouts | `apps/server/src/services/plugins/vk-hook-policy.ts` | `manifest.ts` reads `vk.hookPolicy`; `plugin-service.ts`, `dispatch-hooks.ts` apply limits and report timeouts; `plugin-api.ts` adds `bb.vk`; `server.ts` installs the timeline sink |
+| Hook policy SDK contract | `packages/plugin-sdk/src/vk-hook-policy.ts` | SDK index export and optional `BbPluginApi.vk` |
 | Isolated schedules | `apps/server/src/services/plugins/vk-schedule-options.ts`, `packages/plugin-sdk/src/vk-schedule-options.ts` | `plugin-service.ts` `sweepDueSchedules` hands isolated schedules to the runner; `plugin-runtime.ts` creates it and aborts runs on dispose; `plugin-api.ts` registers `experimental_vkSchedule`; `manifest.ts` reads `vk.schedules` |
 | Native new-thread selection | `apps/app/src/components/plugin/plugin-composer-host.tsx`, `apps/app/src/components/promptbox/composer-environment-provenance.ts` | Composer context, SDK hook adapter, `RootComposeView`, `NewThreadComposer`, SDK declarations |
 

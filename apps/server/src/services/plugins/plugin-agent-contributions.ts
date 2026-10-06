@@ -87,6 +87,8 @@ export function listPluginInstructionContributions(): Array<{
 export async function resolvePluginProviderEnv(args: {
   providerId: string;
   context: ExperimentalPluginProviderEnvContext;
+  /** VK EXPERIMENTAL: plugins the session policy drops are not held to `required`. */
+  vkPluginAllowed?: (pluginId: string) => boolean;
 }): Promise<HostDaemonContributedEnvEntry[]> {
   const active = contributions;
   if (!active?.resolveProviderEnv) return [];

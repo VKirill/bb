@@ -1,6 +1,10 @@
 import { getEnvironment } from "@bb/db";
 import { resolveVkExcludedPluginIds } from "./vk-excluded-plugins.js";
 import {
+  noteVkHookFailure,
+  vkHookTimeoutMs,
+} from "../plugins/vk-hook-policy.js"; // VK EXPERIMENTAL
+import {
   QUEUED_MESSAGE_WAIT_REASON_MAX_LENGTH,
   type Environment,
   type Host,
@@ -425,19 +429,35 @@ export async function runMessageDispatchHookPass(
 
     for (const hook of hooks) {
       if (excluded.has(hook.pluginId)) continue;
+      // VK EXPERIMENTAL: the plugin's own decision box, when it declared one.
+      const vkPolicy = provider.vkHookPolicy?.(hook.pluginId);
+      const decisionTimeoutMs = vkHookTimeoutMs(
+        vkPolicy,
+        "messageDispatch",
+        provider.decisionTimeoutMs,
+      );
       const invocation = await provider.invokeHook(
         hook.pluginId,
         "message.dispatch hook",
         () =>
           decideWithinBox(
             async () => hook.handler(context),
-            provider.decisionTimeoutMs,
+            decisionTimeoutMs,
           ),
       );
       if (!invocation.ok) {
         throw messageDispatchHookFailure(hook.pluginId, invocation.error);
       }
       if (!invocation.value.ok) {
+        noteVkHookFailure({
+          hook: "messageDispatch",
+          pluginId: hook.pluginId,
+          policy: vkPolicy,
+          timeoutMs: decisionTimeoutMs,
+          error: invocation.value.error,
+          threadId: request.thread.id,
+          projectId: request.project.id,
+        }); // VK EXPERIMENTAL
         throw messageDispatchHookFailure(hook.pluginId, invocation.value.error);
       }
       const parsed = messageDispatchHookDecisionSchema.safeParse(

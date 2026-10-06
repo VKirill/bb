@@ -1,4 +1,8 @@
-import type { PluginHookHandler, PluginHookName } from "@get-bb/plugin-sdk";
+import type {
+  ExperimentalVkHookPolicy,
+  PluginHookHandler,
+  PluginHookName,
+} from "@get-bb/plugin-sdk";
 import { errorMessage } from "../lib/error-log-fields.js";
 
 /** One plugin's handler for one hook. */
@@ -67,6 +71,8 @@ export interface PluginHookProvider {
   ): Promise<PluginHookInvocation<T>>;
   /** Per-handler decision box in milliseconds. */
   readonly decisionTimeoutMs: number;
+  /** VK EXPERIMENTAL: the `vk.hookPolicy` a plugin declared, if any. */
+  vkHookPolicy?(pluginId: string): ExperimentalVkHookPolicy | undefined;
 }
 
 /**

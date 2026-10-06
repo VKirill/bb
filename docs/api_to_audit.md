@@ -59,6 +59,10 @@ composer contributions, and whether commands need an availability callback.
 
 Audit multi-host partial progress, unavailable hosts, disabled-plugin removal after server restart, changed/missing handler source, artifact retention and cancellation, and recovery after a failed enable. Registered handlers cannot silently disappear. Hooks must record idempotent progress; rejection preserves registration but cannot undo completed host effects. A 30-minute deadline cancels host calls and expires KV access. Do not stabilize until lifecycle cleanup has installed-host evidence across reload, disable, re-enable and remove.
 
+## VK hook policy
+
+`vk.hookPolicy` (top-level `vk` key of the plugin package.json, parsed leniently by the server `vk-hook-policy.ts`) sets per-plugin limits for the `message.dispatch` decision box, the provider env resolver and mention `resolve`, and `bb.vk.experimental_vkOnHookTimeout(cb)` reports a timeout of a declared hook. Opt-in: a plugin without the key keeps stock limits and silent behaviour. `contributeEnv.required` turns a resolver timeout or error into a retryable 503 `vk_required_env_unavailable` before the turn starts. No wire or schema change. Audit the shape of `bb.vk` once the other VK namespaces land and whether upstream wants per-plugin limits natively.
+
 ## VK isolated schedules
 
 `bb.background.experimental_vkSchedule(name, cron, fn, options)` and the package.json top-level `vk.schedules.<name>` start a due schedule without awaiting it, so one slow run does not hold the other schedules of `sweepDueSchedules`. Implementation is isolated in the server and SDK `vk-schedule-options.ts` modules. One run per (plugin, name), a ceiling of 8 isolated runs, a 15-minute default timeout (6 hours at most) and an abort on dispose, reload or disable. A timeout is stored as `last_status = "error"`, not as a new status value, so the schedule status contract is unchanged.

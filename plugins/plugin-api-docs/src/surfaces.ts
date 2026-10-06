@@ -1220,6 +1220,26 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         ],
       },
       {
+        id: "vk-hook-policy",
+        title: "VK hook time limits and visible timeouts",
+        summary:
+          "Raises the time limit of a plugin's own hooks and reports timeouts. With this, a plugin can:",
+        bullets: [
+          "Declare vk.hookPolicy in package.json (top-level vk key beside bb): messageDispatch up to 30000 ms, contributeEnv up to 15000 ms (optional required: true), mentionResolve up to 30000 ms; values are clamped to 1000..max, invalid entries are ignored with a log line",
+          "A timeout of a declared hook appends a service row to the thread timeline and calls every callback registered with bb.vk.experimental_vkOnHookTimeout",
+          "contributeEnv required: true makes a timeout or error of the resolver stop the turn with a retryable 503 (vk_required_env_unavailable) instead of dropping the env silently",
+          "A plugin that declares nothing keeps the stock limits and behaviour; feature-test with typeof bb.vk?.experimental_vkOnHookTimeout === \"function\"",
+        ],
+        apiSymbols: [
+          "ExperimentalVkHookName",
+          "ExperimentalVkHookPolicy",
+          "ExperimentalVkHookTimeoutEvent",
+          "PluginVkApi",
+          "PluginVkApi.experimental_vkOnHookTimeout",
+          "BbPluginApi.vk",
+        ],
+      },
+      {
         id: "vk-schedule-options",
         title: "VK isolated schedules",
         summary:

@@ -260,6 +260,7 @@ export async function resolveThreadRuntimeCommandConfig(
           projectId: project.id,
           hostId: host.id,
         },
+        vkPluginAllowed: (pluginId) => vkPluginAllowed(vkPolicy, pluginId),
       })
     ).filter((entry) => vkPluginAllowed(vkPolicy, vkEnvPluginId(entry))),
   );

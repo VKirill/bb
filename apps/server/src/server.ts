@@ -44,6 +44,7 @@ import {
 import { setPluginAgentContributions } from "./services/plugins/plugin-agent-contributions.js";
 import { setPluginThreadEventEmitter } from "./services/plugins/plugin-thread-events.js";
 import { setPluginHookProvider } from "./services/plugins/plugin-hook-registry.js";
+import { installVkHookPolicy } from "./services/plugins/vk-hook-policy.js"; // VK EXPERIMENTAL
 import {
   setEnvironmentProviderRecheckHandler,
   setEnvironmentProvisioningRecheckHandler,
@@ -790,6 +791,8 @@ export function createApp(
   // Bridge the dispatch pipeline to this service's hooks. Until this runs
   // there are no hooks, which is exactly the zero-overhead path.
   setPluginHookProvider(pluginService.hooks);
+  // VK EXPERIMENTAL: hook timeouts show on the thread timeline.
+  installVkHookPolicy(deps);
   setPluginEnvironmentProviderBridge(pluginService.environmentProviders);
   setEnvironmentProvisioningRecheckHandler((threadId) =>
     recheckEnvironmentProvisioning(deps, threadId),
