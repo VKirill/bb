@@ -390,3 +390,38 @@ or handler). In-memory only; no migrations, no host-daemon wire changes. Consume
 New files: `apps/server/src/services/plugins/vk-plugin-drain.ts`, test
 `apps/server/test/services/plugins/vk-lifecycle-drain.test.ts`.
 
+## Hook policy (`hook-policy`)
+
+A plugin raises the time limit of its own hooks and sees when one times out. The top-level `vk.hookPolicy` key of
+its package.json (beside `bb`; the `bb` object is strict) declares `messageDispatch` (≤ 30000 ms, stock 10000),
+`contributeEnv` (≤ 15000 ms, stock 5000, optional `required`) and `mentionResolve` (≤ 30000 ms, stock 10000);
+values are clamped to 1000..max and invalid entries are ignored with a warning, never failing plugin load.
+`bb.vk.experimental_vkOnHookTimeout(cb)` (feature-test `typeof bb.vk?.experimental_vkOnHookTimeout === "function"`)
+reports a timeout of a declared hook. For a declared plugin a timeout, and only a timeout, appends a `system/error`
+row (code `vk_hook_timeout`) to the thread timeline when the thread is known and calls the plugin's callbacks.
+`contributeEnv.required: true` makes a resolver timeout or error throw `ApiError` 503 `vk_required_env_unavailable`
+(retryable) from provider env resolution, so the turn does not start (first start: provisioning failure with Retry;
+live send: 503 to the composer; queued row: failure reason and retry); a plugin the session policy drops is not
+held to `required`. A plugin without the key keeps stock limits and the stock silent behaviour. No schema, no
+migration, no protocol change. Details: `VK_FUNCTIONS.md` section 9.
+
+Consumer: plugin `lane-pilot` (its provider env variables no longer vanish silently).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/manifest.ts` | `vk?` field on `PluginManifest` and one spread line in `readPluginManifest` |
+| `apps/server/src/services/plugins/plugin-api.ts` | `vk` namespace on the plugin API, built from `createVkHookPolicyApi` |
+| `apps/server/src/services/plugins/plugin-hook-registry.ts` | optional `vkHookPolicy(pluginId)` on `PluginHookProvider` |
+| `apps/server/src/services/plugins/plugin-service.ts` | `hooks.vkHookPolicy`; own limit and failure handling in `resolveProviderEnv` and `resolveMention`; `vkPluginAllowed` argument |
+| `apps/server/src/services/plugins/plugin-agent-contributions.ts` | pass `vkPluginAllowed` through `resolvePluginProviderEnv` |
+| `apps/server/src/services/threads/thread-runtime-config.ts` | pass `vkPluginAllowed` from the session policy |
+| `apps/server/src/services/threads/dispatch-hooks.ts` | per-plugin decision box and timeout report in `runMessageDispatchHookPass` |
+| `apps/server/src/server.ts` | `installVkHookPolicy(deps)` (timeline row and logger) |
+| `packages/plugin-sdk/src/backend-contract.ts`, `index.ts` | optional `BbPluginApi.vk`, type export |
+| `plugins/plugin-api-docs/src/surfaces.ts`, `docs/api_to_audit.md`, `plugins/bb-guide/.../backend-api-index.md` | docs |
+| `packages/plugin-sdk/src/__tests__/public-types.test.ts`, `apps/server/test/services/plugins/plugin-authoring-docs.test.ts` | `vk` added to the `BbPluginApi` key lists |
+
+New files: `apps/server/src/services/plugins/vk-hook-policy.ts`, `packages/plugin-sdk/src/vk-hook-policy.ts`,
+`apps/server/test/services/plugins/vk-hook-policy.test.ts`, `apps/server/test/threads/vk-hook-policy-dispatch.test.ts`.
