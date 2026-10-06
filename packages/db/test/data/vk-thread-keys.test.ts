@@ -11,6 +11,8 @@ import {
   isValidVkThreadKey,
 } from "../../src/data/vk-thread-keys.js";
 import { noopNotifier } from "../../src/notifier.js";
+import { threads } from "../../src/schema.js";
+import { eq } from "drizzle-orm";
 import { createMigratedConnection } from "../helpers/migrated-connection.js";
 
 function setup() {
@@ -87,6 +89,8 @@ describe("VK thread keys", () => {
     for (let index = 0; index < 4; index += 1) {
       ids.push(createThread(db, noopNotifier, { projectId: project.id, providerId: "codex", pluginMetadata: { pluginId: "lane-pilot", metadata: { attempt: "a1", n: index, live: index % 2 === 0 } } }).id);
     }
+    // Distinct creation times: threads made in the same millisecond tie on createdAt and fall back to id order.
+    ids.forEach((id, index) => db.update(threads).set({ createdAt: 1_000 + index }).where(eq(threads.id, id)).run());
     const foreign = createThread(db, noopNotifier, { projectId: other.id, providerId: "codex", pluginMetadata: { pluginId: "lane-pilot", metadata: { attempt: "a1", n: 9, live: true } } });
     const notMine = createThread(db, noopNotifier, { projectId: project.id, providerId: "codex", pluginMetadata: { pluginId: "someone", metadata: { attempt: "a1" } } });
     archiveThread(db, noopNotifier, ids[1]!);
