@@ -33,7 +33,7 @@ Export `experimental_vkLifecycle` beside a plugin's default server factory. The 
 | `disable` | Before enabled state changes or workers stop | Disable owned integrations and persist progress |
 | `remove` | Before registration, storage and workers are removed, including when disabled | Remove owned files and restore owned config changes |
 
-Ordinary reload and server shutdown do not call disable/remove. A handler error prevents the requested disable/removal from completing. Completed work on one host is not rolled back if another host fails: store progress and retry idempotently. A missing export after registration is an error, not successful cleanup. Calls have an abort signal and a bounded deadline; handlers must honor cancellation.
+Ordinary reload and server shutdown do not call disable/remove. A plugin that declares `vk.lifecycle.drain` in package.json additionally receives `reload` and `shutdown` (a non-destructive drain, see VK_PATCHES.md, "Plugin lifecycle drain"). A handler error prevents the requested disable/removal from completing. Completed work on one host is not rolled back if another host fails: store progress and retry idempotently. A missing export after registration is an error, not successful cleanup. Calls have an abort signal and a bounded deadline; handlers must honor cancellation.
 
 The core does not decide which CLI files belong to Lane Pilot. The plugin must keep an ownership manifest, preserve pre-existing/user-modified files, and refuse installation on an older core if it relies on this cleanup contract.
 

@@ -734,6 +734,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     runLifecycle,
     lifecyclePluginIds,
     vkScheduleRunner,
+    vkDrainGate,
     brandingAssets,
     safeModeActivationRefusal,
     setDevBuildProblem,
@@ -1916,7 +1917,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           if (nextEnabled) {
             const row = getInstalledPlugin(deps.db, pluginId);
             if (row) {
-              await withLifecycleLock(pluginId, () => loadOne(row));
+              await withLifecycleLock(pluginId, () =>
+                loadOne(row, { startReason: "enable" }),
+              );
             }
           } else {
             await withLifecycleLock(pluginId, async () => {
@@ -2577,7 +2580,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     async resolveProviderEnv({ providerId, context }) {
       const entries: PluginResolvedProviderEnv["entries"] = [];
       const ownerByName = new Map<string, string>();
-      for (const [pluginId, plugin] of loaded) {
+      for (const [pluginId, snapshot] of loaded) {
+        // VK EXPERIMENTAL: while a plugin drains, wait for its new instance and use that one.
+        let plugin = snapshot;
+        if (vkDrainGate.isDraining(pluginId)) {
+          await vkDrainGate.waitUpTo(pluginId, providerEnvResolveTimeoutMs);
+          plugin = loaded.get(pluginId) ?? snapshot;
+        }
         const resolve = plugin.handle.providerEnvResolvers.get(providerId);
         if (resolve === undefined) continue;
         const outcome = await invokeWrapped(
@@ -2660,7 +2669,20 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return collectAgentTools().find((entry) => entry.record.name === name);
     },
 
-    async invokeAgentTool({ pluginId, record, input, ctx }) {
+    async invokeAgentTool({ pluginId, record: requestedRecord, input, ctx }) {
+      // VK EXPERIMENTAL: a draining plugin's tool call waits for the new instance and runs its tool of that name.
+      let record = requestedRecord;
+      if (vkDrainGate.isDraining(pluginId)) {
+        await vkDrainGate.waitUpTo(
+          pluginId,
+          loaded.get(pluginId)?.manifest.vkLifecycleDrain?.timeoutMs ?? 0,
+        );
+        record =
+          loaded
+            .get(pluginId)
+            ?.handle.agentTools.find((tool) => tool.name === record.name) ??
+          requestedRecord;
+      }
       const owner = loaded.get(pluginId);
       if (owner === undefined || !owner.handle.agentTools.includes(record)) {
         return {
@@ -2774,6 +2796,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     },
 
     async resolveMention({ pluginId, itemId }) {
+      // VK EXPERIMENTAL: a draining plugin's mention is resolved by its new instance.
+      if (vkDrainGate.isDraining(pluginId)) {
+        await vkDrainGate.waitUpTo(pluginId, mentionResolveTimeoutMs);
+      }
       const separatorIndex = itemId.indexOf(":");
       const providerId =
         separatorIndex > 0 ? itemId.slice(0, separatorIndex) : "";
@@ -2949,7 +2975,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
                 excludedKeys,
                 limit: SCHEDULE_SWEEP_BATCH_SIZE,
                 now,
-                pluginIds: [...loaded.keys()],
+                // VK EXPERIMENTAL: a draining plugin's due schedules stay due and run once its new instance is live.
+                pluginIds: [...loaded.keys()].filter(
+                  (pluginId) => !vkDrainGate.isDraining(pluginId),
+                ),
               }),
         key: (row) => pluginScheduleKey(row),
         process: async (row) => {
