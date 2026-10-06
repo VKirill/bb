@@ -1,6 +1,7 @@
 import type { EnvironmentRemoval } from "@bb/domain";
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type { MachineBootstrapApi } from "./machine-bootstrap.js";
+import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
@@ -2237,7 +2238,8 @@ export type PluginBbSdk = Omit<BbSdk, "threads"> & {
     | "getPluginMetadata"
     | "updatePluginMetadata"
     | "experimental_listPluginMetadata"
-  > & {
+  > &
+    ExperimentalVkThreadKeys & {
     getPluginMetadata(
       args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
     ): Promise<ThreadPluginMetadataResult>;

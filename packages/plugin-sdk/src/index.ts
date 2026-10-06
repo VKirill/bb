@@ -20,6 +20,7 @@ export {
   experimental_THREAD_INFO_SECTION_GROUPS,
 } from "./thread-info-groups.js";
 export type * from "./vk-plugin-lifecycle.js";
+export type * from "./vk-thread-keys.js";
 export type {
   ExperimentalDesktopBrowsersArea,
   ExperimentalDesktopBrowserScope,
