@@ -30,6 +30,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createVkPluginLifecycleRunner } from "./vk-plugin-lifecycle.js";
+import { createVkScheduleRunner } from "./vk-schedule-options.js";
 import semver from "semver";
 import { HOST_ARTIFACT_MAX_BYTES } from "@bb/host-daemon-contract/protocol";
 import { buildPluginApp } from "@bb/plugin-build";
@@ -962,6 +963,23 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     }
   }
 
+  // VK EXPERIMENTAL: isolated schedule runs, see vk-schedule-options.ts.
+  const vkScheduleRunner = createVkScheduleRunner({
+    db: deps.db,
+    logger,
+    invoke: async (pluginId, label, run) => {
+      const instance = loaded.get(pluginId);
+      if (instance === undefined) {
+        return {
+          ok: false,
+          error: `${label}: plugin "${pluginId}" is not loaded`,
+        };
+      }
+      const outcome = await invokeWrapped(instance, label, () => run());
+      return outcome.ok ? { ok: true } : { ok: false, error: outcome.error };
+    },
+  });
+
   async function invokeOwned<T>(
     record: object,
     label: string,
@@ -1747,6 +1765,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         error instanceof Error ? error.message : String(error),
       );
     }
+    vkScheduleRunner.noteManifest(row.id, manifest); // VK EXPERIMENTAL
     const engineProblem =
       checkEngineRange(manifest) ?? checkPluginSdkRange(manifest);
     if (engineProblem) {
@@ -2169,6 +2188,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           `plugin ${id} interaction cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+      vkScheduleRunner.abortPlugin(id); // VK EXPERIMENTAL
       await stopServices(id, plugin);
       await waitForWebSocketsClosed(plugin);
       for (const hook of [...plugin.handle.disposeHooks].reverse()) {
@@ -2296,6 +2316,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     loadOne,
     runLifecycle,
     lifecyclePluginIds,
+    vkScheduleRunner,
     brandingAssets,
     safeModeActivationRefusal,
     setDevBuildProblem,
