@@ -13,6 +13,8 @@ import {
   type VkScheduleManifest,
 } from "./vk-schedule-options.js";
 import { resolvePluginCodeThemePath } from "../system/code-themes.js";
+import type { ExperimentalVkHookPolicy } from "@get-bb/plugin-sdk"; // VK EXPERIMENTAL
+import { readVkHookPolicyManifest } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import {
   parseVkLifecycleDrain,
   type VkLifecycleDrainDeclaration,
@@ -64,6 +66,8 @@ export interface PluginManifest {
   vkLifecycleDrain?: VkLifecycleDrainDeclaration;
   /** VK EXPERIMENTAL: problems found in the package.json `vk` field; logged by the loader, never fatal. */
   vkLifecycleDrainWarnings?: string[];
+  /** VK EXPERIMENTAL: the package.json `vk` key (only `hookPolicy` is read here). */
+  vk?: { hookPolicy?: ExperimentalVkHookPolicy };
 }
 
 async function readSkillNames(rootPaths: string[]): Promise<string[]> {
@@ -276,5 +280,6 @@ export async function readPluginManifest(
     ...(vkLifecycleDrainWarnings.length === 0
       ? {}
       : { vkLifecycleDrainWarnings }),
+    ...readVkHookPolicyManifest(parsed.data.vk), // VK EXPERIMENTAL
   };
 }
