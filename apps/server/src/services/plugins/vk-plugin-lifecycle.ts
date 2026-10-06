@@ -23,12 +23,16 @@ export async function runVkPluginLifecycle(input: {
   module: unknown;
   callHost: ExperimentalVkPluginLifecycleContext["callHost"];
   timeoutMs?: number;
+  /** reload/shutdown drain: epoch ms exposed to the handler as `ctx.deadline`. */
+  deadline?: number;
 }): Promise<boolean> {
   const handler =
     input.module !== null && typeof input.module === "object"
       ? Reflect.get(input.module, "experimental_vkLifecycle")
       : undefined;
   if (handler === undefined) {
+    // A drain is best effort: a module without the export simply has nothing to quiesce.
+    if (input.action === "reload" || input.action === "shutdown") return false;
     if (
       getPluginKvValue(
         input.db,
@@ -57,6 +61,7 @@ export async function runVkPluginLifecycle(input: {
   const context: ExperimentalVkPluginLifecycleContext = {
     pluginId: input.pluginId,
     action: input.action,
+    ...(input.deadline === undefined ? {} : { deadline: input.deadline }),
     signal: controller.signal,
     kv: {
       async get(key) {
@@ -157,7 +162,8 @@ export function createVkPluginLifecycleRunner(input: {
     row: InstalledPluginRow,
     action: ExperimentalVkPluginLifecycleAction,
     imported?: unknown,
-  ): Promise<void> {
+    drain?: { timeoutMs: number; deadline: number },
+  ): Promise<boolean> {
     let manifest: PluginManifest;
     let mod: unknown;
     try {
@@ -170,7 +176,7 @@ export function createVkPluginLifecycleRunner(input: {
           "true"
       )
         throw error;
-      return;
+      return false;
     }
     const temporary: { artifact: PluginHostArtifactSnapshot | null } = {
       artifact: null,
@@ -178,11 +184,12 @@ export function createVkPluginLifecycleRunner(input: {
     let loadingArtifact: Promise<PluginHostArtifactSnapshot> | undefined;
     lifecyclePluginIds.add(row.id);
     try {
-      await runVkPluginLifecycle({
+      return await runVkPluginLifecycle({
         pluginId: row.id,
         action,
         db: input.db,
         module: mod,
+        ...(drain === undefined ? {} : drain),
         callHost: async (args) => {
           let artifact = input.hostArtifacts.get(row.id);
           if (artifact === undefined) {

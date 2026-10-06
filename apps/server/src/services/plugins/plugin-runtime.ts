@@ -19,6 +19,7 @@ import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createVkPluginLifecycleRunner } from "./vk-plugin-lifecycle.js";
 import { createVkScheduleRunner } from "./vk-schedule-options.js";
+import { createVkDrainGate } from "./vk-plugin-drain.js";
 import semver from "semver";
 import { HOST_ARTIFACT_MAX_BYTES } from "@bb/host-daemon-contract/protocol";
 import {
@@ -41,6 +42,7 @@ import { createNodeBbSdk, type BbSdk } from "@bb/sdk";
 import {
   getInstalledPlugin,
   getPluginSafeMode,
+  listDuePluginSchedules,
   listInstalledPlugins,
   prunePluginSchedules,
   upsertPluginSchedule,
@@ -69,10 +71,14 @@ import {
   settledWithin,
 } from "./plugin-time-box.js";
 import type {
+  PluginHookHandler,
   PluginHookName,
   PluginSettingDescriptors,
 } from "@get-bb/plugin-sdk";
-import type { PluginHookRegistration } from "./plugin-hook-registry.js";
+import {
+  DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
+  type PluginHookRegistration,
+} from "./plugin-hook-registry.js";
 import type { PluginEnvironmentProviderRecord } from "./plugin-environment-provider-registry.js";
 import type { PluginMachineProviderRecord } from "./plugin-machine-provider-registry.js";
 import {
@@ -710,7 +716,28 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     const registrations: PluginHookRegistration<K>[] = [];
     for (const [id, plugin] of loaded) {
       const handler = plugin.handle.hooks[hook];
-      if (handler !== null) registrations.push({ pluginId: id, handler });
+      if (handler === null) continue;
+      registrations.push({
+        pluginId: id,
+        // VK EXPERIMENTAL: a draining plugin's hook waits for the new instance and then runs its handler.
+        handler:
+          plugin.manifest.vkLifecycleDrain === undefined
+            ? handler
+            : ((async (...args: Parameters<PluginHookHandler<K>>) => {
+                if (
+                  !(await vkDrainGate.waitUpTo(
+                    id,
+                    DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
+                  ))
+                ) {
+                  throw new Error(
+                    `plugin "${id}" is draining and its new instance is not ready`,
+                  );
+                }
+                const live = loaded.get(id)?.handle.hooks[hook] ?? handler;
+                return live(...args);
+              }) as PluginHookHandler<K>),
+      });
     }
     return registrations;
   }
@@ -1564,7 +1591,42 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     disposePluginHost: deps.disposePluginHost,
   });
 
-  async function loadOne(row: InstalledPluginRow): Promise<string | null> {
+  // VK EXPERIMENTAL: reload/shutdown drain (vk-plugin-drain.ts); idle for plugins without `vk.lifecycle.drain`.
+  const vkDrainGate = createVkDrainGate();
+
+  /** Runs the replaced instance's `experimental_vkLifecycle` for reload or shutdown. True when it finished in time. */
+  async function vkRunDrain(
+    row: InstalledPluginRow,
+    previous: LoadedPlugin,
+    action: "reload" | "shutdown",
+  ): Promise<boolean> {
+    const declared = previous.manifest.vkLifecycleDrain;
+    if (declared === undefined) return false;
+    vkDrainGate.begin(row.id, declared.timeoutMs);
+    try {
+      const ran = await runLifecycle(row, action, previous.vkModule, {
+        timeoutMs: declared.timeoutMs,
+        deadline: Date.now() + declared.timeoutMs,
+      });
+      if (!ran) {
+        logger.warn(
+          `plugin ${row.id} declares vk.lifecycle.drain but exports no experimental_vkLifecycle; ${action} goes on without a drain`,
+        );
+      }
+      return ran;
+    } catch (error) {
+      logger.warn(
+        `plugin ${row.id} ${action} drain did not finish (${error instanceof Error ? error.message : String(error)}); ${action} goes on`,
+      );
+      return false;
+    }
+  }
+
+  async function loadOne(
+    row: InstalledPluginRow,
+    // VK EXPERIMENTAL: `enable` when the user switched the plugin on; otherwise reload or boot is inferred.
+    options?: { startReason?: "enable" },
+  ): Promise<string | null> {
     const held = await heldDetail(row);
     if (held !== null) {
       await disposeOne(row.id);
@@ -1628,6 +1690,9 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       );
     }
     vkScheduleRunner.noteManifest(row.id, manifest); // VK EXPERIMENTAL
+    for (const warning of manifest.vkLifecycleDrainWarnings ?? []) {
+      logger.warn(`plugin ${row.id}: ${warning}`);
+    }
     const engineProblem =
       checkEngineRange(manifest) ?? checkPluginSdkRange(manifest);
     if (engineProblem) {
@@ -1782,6 +1847,12 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         });
       },
       declaredIconNames: new Set(manifest.branding.icons.keys()),
+      // VK EXPERIMENTAL: bb.vk.startReason and the clearer host-call error for a draining plugin.
+      vk: {
+        startReason:
+          previous !== undefined ? "reload" : (options?.startReason ?? "boot"),
+        drainDeclared: manifest.vkLifecycleDrain !== undefined,
+      },
       brandingIcon: manifest.branding.icon,
       assertProviderRegistrable: (providerId) => {
         if (manifest.hostEntry !== undefined) {
@@ -1800,6 +1871,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     settingsDescriptorsRef.current = handle.settings.descriptors;
     const rollbackGenerations: Array<() => void> = [];
     const candidateModuleRootUrls = new Set<string>();
+    let vkLoadedModule: unknown;
     try {
       const serverEntry = await resolveServerEntry(row, manifest);
       if (row.sourceKind === "path" || row.sourceKind === "builtin") {
@@ -1840,6 +1912,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           default?: unknown;
         };
       }
+      vkLoadedModule = mod;
       const factory = mod.default;
       if (typeof factory !== "function") {
         throw new Error(
@@ -1893,6 +1966,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       manifest,
       handle,
       moduleRootUrls: candidateModuleRootUrls,
+      // VK EXPERIMENTAL: the module the drain handler of this instance will run from.
+      ...(manifest.vkLifecycleDrain === undefined
+        ? {}
+        : { vkModule: vkLoadedModule }),
       services: handle.backgroundServices.map((record) => ({
         record,
         state: "stopped" as const,
@@ -1905,9 +1982,13 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       })),
     };
     if (previous !== undefined) {
+      // VK EXPERIMENTAL: let the instance being replaced quiesce; new work for it waits for this one.
+      if (await vkRunDrain(row, previous, "reload"))
+        handle.vkSetAfterDrain(true);
       await disposePluginInstance(row.id, previous);
       const hungAfterDispose = hungServices.get(row.id);
       if (hungAfterDispose !== undefined && hungAfterDispose.size > 0) {
+        vkDrainGate.end(row.id);
         for (const rollback of rollbackGenerations.reverse()) rollback();
         loaded.delete(row.id);
         deps.sharedPorts?.clearDeclarationsForOwner(row.id);
@@ -1930,6 +2011,14 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     agentToolProblems.delete(row.id);
     handle.activate();
     const now = Date.now();
+    // VK EXPERIMENTAL: runs that came due while a drain held them stay due for the new instance.
+    const vkHeldRuns = new Map<string, number>(
+      previous?.manifest.vkLifecycleDrain === undefined
+        ? []
+        : listDuePluginSchedules(deps.db, { now, limit: 1_000 })
+            .filter((due) => due.pluginId === row.id)
+            .map((due): [string, number] => [due.name, due.nextRunAt]),
+    );
     prunePluginSchedules(
       deps.db,
       row.id,
@@ -1940,12 +2029,14 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         pluginId: row.id,
         name: schedule.name,
         cron: schedule.cron,
-        nextRunAt: nextCronRunAt(schedule.cron, now),
+        nextRunAt:
+          vkHeldRuns.get(schedule.name) ?? nextCronRunAt(schedule.cron, now),
       });
     }
     for (const service of plugin.services) {
       runService(row.id, service);
     }
+    vkDrainGate.end(row.id);
     if (!needsConfiguration.has(row.id)) {
       const details = [
         agentToolProblems.get(row.id),
@@ -2033,7 +2124,22 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       ...unavailableProviderRegistrations.keys(),
     ]);
     for (const id of pluginIds) {
-      await withLifecycleLock(id, () => disposeOne(id));
+      await withLifecycleLock(id, async () => {
+        // VK EXPERIMENTAL: a plugin that declared a drain gets to quiesce before the server stops it.
+        const running = loaded.get(id);
+        const row = getInstalledPlugin(deps.db, id);
+        if (
+          running?.manifest.vkLifecycleDrain !== undefined &&
+          row !== undefined
+        ) {
+          await vkRunDrain(row, running, "shutdown");
+        }
+        try {
+          await disposeOne(id);
+        } finally {
+          vkDrainGate.end(id);
+        }
+      });
     }
   }
 
@@ -2108,6 +2214,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     runLifecycle,
     lifecyclePluginIds,
     vkScheduleRunner,
+    vkDrainGate,
     brandingAssets,
     safeModeActivationRefusal,
     setDevBuildProblem,

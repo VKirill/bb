@@ -60,6 +60,7 @@ import type {
   PluginAiServices,
   PluginProviderDeclaration,
   ExperimentalPluginProviderEnvContext,
+  ExperimentalVkLifecycleStartReason,
   ExperimentalPluginProviderEnvEntry,
   ExperimentalPluginProviderEnvHealth,
   ExperimentalPluginProviderEnvHealthContext,
@@ -299,6 +300,8 @@ export interface PluginApiHandle {
   /** VK EXPERIMENTAL: this plugin's session policy resolver, if any. */
   vkSessionPolicyResolver: PluginVkSessionPolicyResolver | null;
   mentionProviders: PluginMentionProviderRecord[];
+  /** VK EXPERIMENTAL: the previous instance finished its reload drain; read by `bb.vk.afterDrain`. */
+  vkSetAfterDrain(value: boolean): void;
   activate(): void;
   closeWebSockets(): void;
   invalidate(): void;
@@ -524,6 +527,11 @@ export function createPluginApi(options: {
    * name. Empty when the manifest declares none.
    */
   declaredIconNames: ReadonlySet<string>;
+  /** VK EXPERIMENTAL: why this instance started, and whether its manifest declares `vk.lifecycle.drain`. */
+  vk?: {
+    startReason: ExperimentalVkLifecycleStartReason;
+    drainDeclared: boolean;
+  };
   brandingIcon: string | undefined;
   requestInteraction: (
     args: Omit<NormalizedPluginInteractionRequest, "presentation"> & {
@@ -590,6 +598,7 @@ export function createPluginApi(options: {
   } = options;
   let invalidated = false;
   let activated = false;
+  let vkAfterDrain = false;
   let wrappedSdk: PluginBbSdk | undefined;
   let pendingNeedsConfiguration: string | null = null;
   const pendingAgentToolProblems: string[] = [];
@@ -1098,7 +1107,9 @@ export function createPluginApi(options: {
           assertLive();
           if (!activated) {
             throw new Error(
-              "host plugin calls are unavailable during factory registration; call from a handler, service, or timer",
+              options.vk?.drainDeclared === true
+                ? "host plugin calls are unavailable in the factory of a plugin that declares vk.lifecycle.drain: call the host from a background service (bb.background.service) or a handler, which start after the previous instance has drained"
+                : "host plugin calls are unavailable during factory registration; call from a handler, service, or timer",
             );
           }
           if (typeof method !== "string" || contract[method] === undefined) {
@@ -1410,6 +1421,13 @@ export function createPluginApi(options: {
     server,
     hosts,
     experimental_aiServices,
+    // VK EXPERIMENTAL: lifecycle facts for a plugin that drains on reload.
+    vk: {
+      startReason: options.vk?.startReason ?? "boot",
+      get afterDrain(): boolean {
+        return vkAfterDrain;
+      },
+    },
     get sdk(): PluginBbSdk {
       assertLive();
       const sdk = getSdk();
@@ -1478,6 +1496,9 @@ export function createPluginApi(options: {
       return vkSessionPolicyResolver;
     },
     mentionProviders,
+    vkSetAfterDrain(value) {
+      vkAfterDrain = value;
+    },
     activate() {
       if (activated) return;
       assertLive();

@@ -47,6 +47,8 @@ export interface LoadedPlugin {
   handle: PluginApiHandle;
   services: ServiceRuntime[];
   moduleRootUrls: Set<string>;
+  /** VK EXPERIMENTAL: the loaded server module, kept only for a plugin that declares `vk.lifecycle.drain`. */
+  vkModule?: unknown;
 }
 
 export interface PluginHostArtifactSnapshot {

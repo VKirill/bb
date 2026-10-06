@@ -55,6 +55,8 @@ composer contributions, and whether commands need an availability callback.
 
 `experimental_vkLifecycle` is an opt-in named server export typed by `ExperimentalVkPluginLifecycleHandler`. `PluginServerApi.experimental_vkPluginLifecycle` advertises support. Implementation is isolated in the server and SDK `vk-plugin-lifecycle.ts` modules. Enable executes on cold loads, not ordinary reloads; disable/remove execute before disposal. Disabled removal imports only the named handler, without running the default factory. Existing UI/SDK/CLI plugin mutations share these gates. Host RPC uses the existing protocol without a wire change.
 
+`vk.lifecycle.drain` (package.json top level) opts a plugin into `reload` and `shutdown` actions of `experimental_vkLifecycle`, run in the instance being replaced or stopped with a deadline, while new dispatch, env, mention, tool-call and schedule work for the plugin waits for the new instance. `bb.vk.startReason` and `bb.vk.afterDrain` describe the new instance. In-memory state only. Stabilization requires deciding whether the drain belongs in the stock reload sequence, and whether the new factory should run before or after the drain.
+
 Audit multi-host partial progress, unavailable hosts, disabled-plugin removal after server restart, changed/missing handler source, artifact retention and cancellation, and recovery after a failed enable. Registered handlers cannot silently disappear. Hooks must record idempotent progress; rejection preserves registration but cannot undo completed host effects. A 30-minute deadline cancels host calls and expires KV access. Do not stabilize until lifecycle cleanup has installed-host evidence across reload, disable, re-enable and remove.
 
 ## VK isolated schedules
