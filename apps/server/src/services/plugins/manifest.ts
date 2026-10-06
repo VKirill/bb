@@ -14,6 +14,10 @@ import {
 } from "./vk-schedule-options.js";
 import { resolvePluginCodeThemePath } from "../system/code-themes.js";
 import {
+  parseVkLifecycleDrain,
+  type VkLifecycleDrainDeclaration,
+} from "./vk-plugin-drain.js";
+import {
   readPluginPackageJsonFile,
   resolveManifestAssetFile,
   resolveManifestEntryFile,
@@ -56,6 +60,10 @@ export interface PluginManifest {
   rootDir: string;
   /** VK EXPERIMENTAL: package.json top-level `vk.schedules`. */
   vkSchedules?: VkScheduleManifest;
+  /** VK EXPERIMENTAL: package.json `vk.lifecycle.drain`, see vk-plugin-drain.ts. */
+  vkLifecycleDrain?: VkLifecycleDrainDeclaration;
+  /** VK EXPERIMENTAL: problems found in the package.json `vk` field; logged by the loader, never fatal. */
+  vkLifecycleDrainWarnings?: string[];
 }
 
 async function readSkillNames(rootPaths: string[]): Promise<string[]> {
@@ -203,7 +211,11 @@ export async function readPluginManifest(
       id: theme.id,
       name: theme.name,
       description: theme.description ?? null,
-      cssPath: resolveManifestPath(rootDir, theme.css, `bb.themes.${theme.id}.css`),
+      cssPath: resolveManifestPath(
+        rootDir,
+        theme.css,
+        `bb.themes.${theme.id}.css`,
+      ),
       codeTheme,
       codeThemePaths,
     };
@@ -226,6 +238,11 @@ export async function readPluginManifest(
       }
     }
   }
+  const vkLifecycleDrainWarnings: string[] = [];
+  const vkLifecycleDrain = parseVkLifecycleDrain(
+    (parsed.data as { vk?: unknown }).vk,
+    (message) => vkLifecycleDrainWarnings.push(message),
+  );
   return {
     id: derivePluginId(packageName),
     packageName,
@@ -246,12 +263,18 @@ export async function readPluginManifest(
       ({ id, displayName }) => ({ id, displayName }),
     ),
     serverEntry,
-    appEntry: bb.app ? resolveManifestPath(rootDir, bb.app, "bb.app") : undefined,
+    appEntry: bb.app
+      ? resolveManifestPath(rootDir, bb.app, "bb.app")
+      : undefined,
     hostEntry,
     themes,
     skillsRootPaths,
     skillNames: await readSkillNames(skillsRootPaths),
     rootDir,
     ...vkScheduleManifestField(parsed.data), // VK EXPERIMENTAL
+    ...(vkLifecycleDrain === undefined ? {} : { vkLifecycleDrain }),
+    ...(vkLifecycleDrainWarnings.length === 0
+      ? {}
+      : { vkLifecycleDrainWarnings }),
   };
 }

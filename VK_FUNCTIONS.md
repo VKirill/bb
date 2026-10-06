@@ -30,6 +30,7 @@ date: 2026-09-24
 | 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 | 9 | Избранные модели | `ModelReasoningPicker` | Звезда в пикере; список в `localStorage`, без API плагина |
 | 10 | `vkInstallCursorBridgeMcp` | мост ACP Cursor | Native tools плагинов BB в Cursor Grok через `bb-bridge` в `mcp.json` |
+| 12 | `experimental_vkLifecycle` с действиями `reload` и `shutdown`, `bb.vk.startReason`, `bb.vk.afterDrain` | экспорт плагина, `vk.lifecycle.drain` в package.json | Плагин успевает остановить приём работы и сохранить состояние до перезагрузки и остановки сервера |
 | 11 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
 | 11 | `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata` | API плагина (SDK) | Идемпотентный spawn по ключу и поиск своих тредов по метаданным без перебора списка |
 
@@ -253,6 +254,57 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 `bb.agents.experimental_vkRequiredSessionPolicy()` возвращает, что ядро умеет: группы правил для каждого провайдера, переключатели инструкций и обязательные ресурсы (`bb-bridge`, папка проекта). Плагин передаёт снимок правил при создании треда: `threads.spawn({ experimental_vkRequiredSessionPolicy: { version: 1, policy } })`. В отличие от `experimental_vkSessionPolicy`, этот снимок записывается вместе с тредом и действует на каждый ход. Расширить его нельзя. Дочерний тред, форк и тред-владелец наследуют его как потолок.
 
 `bb.agents.experimental_vkCompiledMainAgent()` и `threads.spawn({ experimental_vkCompiledMainAgent: profile })` задают тред Claude Code собранный профиль главного агента (`id`, `prompt`, `sourceHash`).
+
+## 10. Drain при reload и shutdown: `experimental_vkLifecycle` с `reload` и `shutdown`
+
+Зачем. Стоковый reload сразу отключает старый экземпляр плагина: обрываются вызовы инструментов, сервисы и host-воркер, ретраи теряются, стадии расходятся. Если плагин объявил drain, ядро сначала даёт старому экземпляру время остановить приём новой работы и сохранить состояние.
+
+Включение. Только явное, полем package.json верхнего уровня (рядом с `bb`, не внутри него):
+
+```json
+{ "vk": { "lifecycle": { "drain": { "timeoutMs": 120000 } } } }
+```
+
+`timeoutMs` от 1000 до 600000, без значения 30000. Значения вне диапазона урезаются с записью в лог плагина, ошибка в поле не мешает загрузке плагина. Без поля reload и остановка сервера идут как в стоковом BB.
+
+Что происходит при reload плагина с drain.
+
+1. Новый экземпляр загружен (фабрика отработала), но ещё не активирован.
+2. Плагин переходит в состояние draining: новые `message.dispatch`, `contributeEnv`, разбор упоминаний и вызовы инструментов этого плагина ждут нового экземпляра (не дольше собственного таймаута хука) и исполняются уже в нём. Расписания, которые наступили за это время, не запускаются сейчас и остаются просроченными для нового экземпляра.
+3. Ядро вызывает `experimental_vkLifecycle({ action: "reload", deadline, signal, kv, callHost })` у старого экземпляра (в том модуле, что его породил). По дедлайну `signal` срабатывает, в лог идёт запись, reload продолжается. Исключение из обработчика тоже только логируется.
+4. Старый экземпляр освобождается, новый активируется, очередь ожидающих работы отпускается.
+
+При остановке сервера то же самое с `action: "shutdown"`, но нового экземпляра нет: ожидающая работа упирается в собственные таймауты.
+
+```ts
+export async function experimental_vkLifecycle(ctx) {
+  if (ctx.action === "reload" || ctx.action === "shutdown") {
+    stopAcceptingNewStages();
+    await waitForAcceptanceAndLocks({ signal: ctx.signal }); // до ctx.deadline
+    await ctx.kv.set("drain.snapshot", snapshot());
+    return;
+  }
+  // enable / disable / remove: как раньше
+}
+export default function plugin(bb) {
+  // бывает undefined на стоковом BB
+  const reason = bb.vk?.startReason; // "boot" | "enable" | "reload"
+  bb.background.service("recovery", {
+    async start(signal) {
+      // afterDrain читать здесь, не в фабрике: в фабрике он ещё false
+      if (bb.vk?.afterDrain) await resumeFromSnapshot();
+      else await fullRecovery();
+      await waitForAbort(signal);
+    },
+  });
+}
+```
+
+Новому экземпляру. `bb.vk.startReason`: `boot` (старт сервера или первая загрузка), `enable` (пользователь включил плагин) или `reload` (заменил работающий). `bb.vk.afterDrain`: предыдущий экземпляр успел завершить drain до дедлайна. Фабрика плагина, объявившего drain, получает понятную ошибку, если зовёт host: «call the host from a background service (bb.background.service) or a handler». Вызывать host надо из сервиса или обработчика, они стартуют после того, как предыдущий экземпляр остановлен.
+
+Чего нет. Состояние drain хранится только в памяти сервера. Обычные enable, disable и remove работают как раньше. Дев-перезагрузка встроенных плагинов (`reloadPlugin`), отключение и приостановка при переезде сервера drain не запускают. Миграций и изменений протокола машин нет.
+
+---
 
 Снимки и отметки с их отпечатком лежат в зарезервированных строках метаданных треда с id, начинающимся на `__vk.`. Плагины эти строки не видят и записать в них не могут. Если отметка или снимок пропали или повреждены, тред не запускается. Миграций и изменений протокола машин нет.
 

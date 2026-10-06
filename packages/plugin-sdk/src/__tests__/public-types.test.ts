@@ -39,7 +39,8 @@ type ExpectedBbPluginApiKey =
   | "settings"
   | "status"
   | "storage"
-  | "ui";
+  | "ui"
+  | "vk";
 
 const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
   "BbPluginApi",
