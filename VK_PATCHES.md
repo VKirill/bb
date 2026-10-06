@@ -285,3 +285,38 @@ is a key in the plugin's own metadata row; core without this patch stores it and
 | `packages/db/src/data/index.ts` | export `isVkQuietChildThread`, `VK_QUIET_CHILD_KEY` |
 
 New files: `packages/db/src/data/vk-quiet-child.ts` and `packages/db/test/data/vk-quiet-child.test.ts`.
+
+## Thread keys (`thread-keys`)
+
+Idempotent spawn and own-metadata lookup on `bb.sdk.threads`, so a plugin that lost the answer to a spawn finds its
+thread without paging through the list (Lane Pilot hit `page_cap` / `holder_ambiguous` in a project with 1000+
+threads). New methods on the plugin-bound SDK (`PluginBbSdk`), all optional, feature-tested with
+`typeof bb.sdk.threads.experimental_vkSpawnKeyed === "function"`:
+
+- `experimental_vkSpawnKeyed({ ...spawn args, key })` -> `{ thread, reused }`
+- `experimental_vkFindByKey(key)` -> thread or `null`
+- `experimental_vkFindByPluginMetadata({ match, projectId?, includeArchived?, limit? })` -> threads
+
+The key is the reserved field `__vk.key` in the spawning plugin's own `thread_plugin_metadata` row; the uniqueness
+check and the insert run in the same immediate transaction as the thread row. A deleted thread frees its key; an
+archived one still holds it. No table, no migration, no protocol change. The public thread-create request accepts the
+extra optional field `experimental_vkKey` (only with `origin: "plugin"`); ordinary `threads.spawn`, `threads.list`
+and the HTTP routes are unchanged. Consumer: Lane Pilot (writers, holders, critics, stage children, reconcile).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/db/src/data/threads.ts` | `vkKey` on `CreateThreadInput`; `assertVkThreadKeyFree` at the start of the `createThread` transaction; the plugin-metadata insert goes through `vkThreadMetadataRows` (identical to the old insert when no key) |
+| `packages/db/src/data/thread-plugin-metadata.ts` | `patchThreadPluginMetadata` refuses to change or drop `__vk.key` (re-sending it unchanged is fine) |
+| `packages/db/src/data/index.ts` | exports |
+| `packages/server-contract/src/api/threads.ts` | optional `experimental_vkKey` on `createThreadRequestSchema` + origin check |
+| `apps/server/src/services/threads/thread-create-request.ts`, `thread-create-helpers.ts` | carry the field; `VkThreadKeyConflictError` becomes `409 vk_thread_key_conflict` with `details.threadId` |
+| `apps/server/src/services/plugins/plugin-api.ts` | `wrapSdkForPlugin` takes `db` and spreads `createVkThreadKeyMethods` into `threads` |
+| `packages/plugin-sdk/src/backend-contract.ts`, `index.ts` | `PluginBbSdk.threads` gains `ExperimentalVkThreadKeys`; type export |
+| `plugins/bb-guide/skills/bb-plugin-authoring/references/backend-api-index.md`, `docs/api_to_audit.md` | docs |
+
+New files: `packages/db/src/data/vk-thread-keys.ts`, `apps/server/src/services/plugins/vk-thread-keys.ts`,
+`packages/plugin-sdk/src/vk-thread-keys.ts`, tests `packages/db/test/data/vk-thread-keys.test.ts` and
+`apps/server/test/threads/vk-thread-keys.test.ts`.
+
