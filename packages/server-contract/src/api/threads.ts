@@ -125,6 +125,8 @@ export const createThreadRequestSchema = z
       .optional(),
     experimental_vkRequiredSessionPolicy:
       vkRequiredSessionPolicySchema.optional(),
+    /** VK EXPERIMENTAL: one live thread per (originPluginId, key); a repeat answers 409 vk_thread_key_conflict. */
+    experimental_vkKey: z.string().min(1).max(200).optional(),
     experimental_vkCompiledMainAgent: z
       .object({
         id: z.string().min(1).max(80),
@@ -160,6 +162,13 @@ export const createThreadRequestSchema = z
         code: "custom",
         message: 'pluginMetadata requires origin "plugin"',
         path: ["pluginMetadata"],
+      });
+    }
+    if (value.experimental_vkKey !== undefined && value.origin !== "plugin") {
+      ctx.addIssue({
+        code: "custom",
+        message: 'experimental_vkKey requires origin "plugin"',
+        path: ["experimental_vkKey"],
       });
     }
     if (

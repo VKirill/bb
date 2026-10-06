@@ -67,6 +67,17 @@ export {
 } from "./thread-plugin-metadata.js";
 
 export {
+  VK_FIND_BY_METADATA_MAX_LIMIT,
+  VK_THREAD_KEY_MAX_LENGTH,
+  VK_THREAD_KEY_METADATA_KEY,
+  VkThreadKeyConflictError,
+  findVkThreadIdByKey,
+  findVkThreadIdsByPluginMetadata,
+  isValidVkThreadKey,
+  type VkThreadMetadataMatch,
+} from "./vk-thread-keys.js";
+
+export {
   createThread,
   InvalidLifecycleOwnerError,
   countLiveThreadsInEnvironment,

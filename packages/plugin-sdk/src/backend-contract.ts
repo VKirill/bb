@@ -1,5 +1,6 @@
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type { MachineBootstrapApi } from "./machine-bootstrap.js";
+import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
@@ -2087,16 +2088,19 @@ export type PluginBbSdk = Omit<BbSdk, "threads"> & {
   threads: Omit<
     BbSdk["threads"],
     "getPluginMetadata" | "updatePluginMetadata"
-  > & {
-    getPluginMetadata(
-      args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
-    ): Promise<ThreadPluginMetadataResult>;
-    updatePluginMetadata(
-      args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
-        pluginId?: string;
-      },
-    ): Promise<ThreadPluginMetadataResult>;
-  };
+  > &
+    ExperimentalVkThreadKeys & {
+      getPluginMetadata(
+        args: Omit<ThreadPluginMetadataArgs, "pluginId"> & {
+          pluginId?: string;
+        },
+      ): Promise<ThreadPluginMetadataResult>;
+      updatePluginMetadata(
+        args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
+          pluginId?: string;
+        },
+      ): Promise<ThreadPluginMetadataResult>;
+    };
 };
 
 /**

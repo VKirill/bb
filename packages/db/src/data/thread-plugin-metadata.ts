@@ -21,6 +21,7 @@ import type {
 import {
   threadPluginMetadata,
 } from "../schema.js";
+import { VK_THREAD_KEY_METADATA_KEY } from "./vk-thread-keys.js";
 import { VK_COMPILED_MAIN_AGENT_MARKER_ID, readVkThreadMarker, writeVkThreadMarker } from "./vk-thread-marker.js";
 
 export interface ThreadPluginMetadataPatch {
@@ -230,7 +231,13 @@ export function patchThreadPluginMetadata(
         mutableMetadataTouchesCompiledAgent(input.set, input.pluginId) ||
         input.remove.includes(VK_COMPILED_MAIN_AGENT_METADATA_KEY) ||
         input.remove.includes(VK_REQUIRED_SESSION_POLICY_METADATA_KEY) ||
-        input.pluginId === VK_COMPILED_MAIN_AGENT_PLUGIN_ID;
+        input.pluginId === VK_COMPILED_MAIN_AGENT_PLUGIN_ID ||
+        // VK EXPERIMENTAL: a thread key can be re-sent unchanged, never changed or dropped.
+        (VK_THREAD_KEY_METADATA_KEY in input.set &&
+          input.set[VK_THREAD_KEY_METADATA_KEY] !==
+            existing.metadata[VK_THREAD_KEY_METADATA_KEY]) ||
+        (input.remove.includes(VK_THREAD_KEY_METADATA_KEY) &&
+          VK_THREAD_KEY_METADATA_KEY in existing.metadata);
       if (reservedTouch) {
         return {
           ok: false,

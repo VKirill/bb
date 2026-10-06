@@ -57,6 +57,7 @@ import {
   digestVkCompiledMainAgentSource,
 } from "./thread-plugin-metadata.js";
 import type { VkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
+import { assertVkThreadKeyFree, vkThreadMetadataRows } from "./vk-thread-keys.js";
 
 type ThreadWriteConnection = DbConnection | DbTransaction;
 
@@ -287,6 +288,8 @@ export interface CreateThreadInput {
   visibility?: ThreadVisibility;
   vkCompiledMainAgent?: VkCompiledMainAgent;
   vkRequiredSessionPolicy?: VkRequiredSessionPolicy;
+  /** VK EXPERIMENTAL: one live thread per (plugin, key); see vk-thread-keys.ts. */
+  vkKey?: { pluginId: string; key: string };
 }
 
 export class InvalidLifecycleOwnerError extends Error {
@@ -307,6 +310,10 @@ export function createThread(
   const originKind = input.originKind ?? null;
   const thread = db.transaction(
     (tx) => {
+      // VK EXPERIMENTAL: the key check shares this immediate transaction with the insert.
+      if (input.vkKey !== undefined) {
+        assertVkThreadKeyFree(tx, input.vkKey.pluginId, input.vkKey.key);
+      }
       if (input.lifecycleOwnerThreadId) {
         const owner = tx
           .select({ id: threads.id })
@@ -376,15 +383,12 @@ export function createThread(
         titleFallback: createdThread.titleFallback,
         updatedAt: now,
       });
-      if (
-        input.pluginMetadata !== undefined &&
-        input.pluginMetadata !== null &&
-        Object.keys(input.pluginMetadata.metadata).length > 0
-      ) {
+      // VK EXPERIMENTAL: vkThreadMetadataRows adds the reserved key field; without a key it is the plain seed.
+      for (const row of vkThreadMetadataRows(input.pluginMetadata, input.vkKey)) {
         insertThreadPluginMetadata(tx, {
           threadId: createdThread.id,
-          pluginId: input.pluginMetadata.pluginId,
-          metadata: input.pluginMetadata.metadata,
+          pluginId: row.pluginId,
+          metadata: row.metadata,
         });
       }
       const parentIds = [input.parentThreadId, input.sourceThreadId, input.lifecycleOwnerThreadId].filter((id): id is string => typeof id === "string");

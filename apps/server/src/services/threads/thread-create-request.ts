@@ -45,6 +45,7 @@ export interface ThreadCreateServiceRequestInput {
   visibility?: ThreadVisibility;
   experimental_vkRequiredSessionPolicy?: CreateThreadRequest["experimental_vkRequiredSessionPolicy"];
   experimental_vkCompiledMainAgent?: CreateThreadRequest["experimental_vkCompiledMainAgent"];
+  experimental_vkKey?: CreateThreadRequest["experimental_vkKey"];
 }
 
 export interface ThreadCreateServiceRequest extends Omit<
