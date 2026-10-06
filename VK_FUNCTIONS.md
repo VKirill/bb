@@ -30,10 +30,10 @@ date: 2026-09-24
 | 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 | 9 | Избранные модели | `ModelReasoningPicker` | Звезда в пикере; список в `localStorage`, без API плагина |
 | 10 | `vkInstallCursorBridgeMcp` | мост ACP Cursor | Native tools плагинов BB в Cursor Grok через `bb-bridge` в `mcp.json` |
-| 11 | `vk.hookPolicy` и `bb.vk.experimental_vkOnHookTimeout(cb)` | `package.json` плагина и API плагина (сервер) | Свой лимит времени для хуков плагина и видимый таймаут вместо тихой потери env |
-| 12 | `experimental_vkLifecycle` с действиями `reload` и `shutdown`, `bb.vk.startReason`, `bb.vk.afterDrain` | экспорт плагина, `vk.lifecycle.drain` в package.json | Плагин успевает остановить приём работы и сохранить состояние до перезагрузки и остановки сервера |
-| 11 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
 | 11 | `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata` | API плагина (SDK) | Идемпотентный spawn по ключу и поиск своих тредов по метаданным без перебора списка |
+| 12 | `experimental_vkLifecycle` с действиями `reload` и `shutdown`, `bb.vk.startReason`, `bb.vk.afterDrain` | экспорт плагина, `vk.lifecycle.drain` в package.json | Плагин успевает остановить приём работы и сохранить состояние до перезагрузки и остановки сервера |
+| 13 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
+| 14 | `vk.hookPolicy` и `bb.vk.experimental_vkOnHookTimeout(cb)` | `package.json` плагина и API плагина (сервер) | Свой лимит времени для хуков плагина и видимый таймаут вместо тихой потери env |
 
 ```mermaid
 flowchart TD
@@ -258,55 +258,44 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 
 ---
 
-## 9. Лимиты хуков и видимые таймауты: `vk.hookPolicy`
+## 9. Ключи тредов: `experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata`
 
-**Проблема.** У хуков ядра жёсткие лимиты: `message.dispatch` решает за 10 с, env провайдера (`bb.providers.experimental_contributeEnv`) собирается за 5 с, `resolve` упоминания за 10 с. Если env-резолвер не успел, ядро молча пропускает вклад плагина, и тред стартует без его переменных (у Lane Pilot это его env). Никто этого не видит.
-
-**Манифест.** Ключ `vk` верхнего уровня `package.json` плагина, рядом с `bb` (внутрь `bb` не класть: он строгий):
-
-```json
-{
-  "bb": { "...": "..." },
-  "vk": {
-    "hookPolicy": {
-      "messageDispatch": { "timeoutMs": 20000 },
-      "contributeEnv": { "timeoutMs": 12000, "required": true },
-      "mentionResolve": { "timeoutMs": 20000 }
-    }
-  }
-}
-```
-
-| Поле | Максимум | Стандарт ядра | Что заменяет |
-| --- | --- | --- | --- |
-| `messageDispatch.timeoutMs` | 30000 | 10000 | время на решение хука `message.dispatch` этого плагина |
-| `contributeEnv.timeoutMs` | 15000 | 5000 | время env-резолвера этого плагина |
-| `contributeEnv.required` | | `false` | `true`: если резолвер не успел или упал, ход не стартует |
-| `mentionResolve.timeoutMs` | 30000 | 10000 | время `resolve` упоминания этого плагина |
-
-Минимум 1000 мс. Значения вне диапазона обрезаются, неверные записи игнорируются, в лог идёт предупреждение. Загрузку плагина это не ломает. Остальные ключи `vk` эта функция не читает.
-
-**API.** `bb.vk.experimental_vkOnHookTimeout(callback)` возвращает `{ dispose() }`. Колбэк получает `{ hook: "messageDispatch" | "contributeEnv" | "mentionResolve", pluginId, timeoutMs, threadId?, projectId?, required }`. Он вызывается **только при таймауте** хука, для которого плагин объявил политику. Ошибки колбэка проглатываются и логируются. У упоминания `threadId` нет: резолв идёт до отправки.
-
-**Что делает ядро при таймауте** (только для объявившего политику плагина):
-
-1. В ленту треда (если `threadId` известен) добавляется служебная строка `system/error` с кодом `vk_hook_timeout`: `plugin <id> did not answer in <N> ms: env not applied` (для диспетчера `dispatch hook not applied`, для упоминания `mention not resolved`, для `required` `env required, turn not started`).
-2. Вызываются все колбэки плагина.
-3. Для `contributeEnv.required: true` любой сбой резолвера (таймаут или ошибка) бросает `ApiError` 503 `vk_required_env_unavailable` (`retryable`), сообщение называет плагин и просит повторить. Ход не стартует. Новый тред получает `system/error` «Provisioning thread failed» с этим текстом и обычную кнопку Retry. Отправка в живой тред возвращает ошибку 503 в композер, сообщение не принимается. Сообщение из очереди остаётся в очереди с причиной сбоя и повторяется. Если правила сессии исключают плагин из треда, `required` к нему не применяется.
-
-**Без функции.** Плагин без `vk.hookPolicy` работает по стандартным лимитам ядра и по стандартному молчаливому поведению (таймаут env: вклад пропущен без следа; диспетчер и упоминание: ошибка, как раньше). `bb.vk` существует всегда, но колбэки для такого плагина не вызываются.
-
-**Пример (Lane Pilot).**
+Зачем. Если ответ на `threads.spawn` потерялся (reload, обрыв), плагин не знает id своего треда и ищет его перебором `threads.list`. В проекте с тысячами тредов перебор упирается в лимит страниц, и задача зависает. Ключ делает spawn повторяемым, а поиск по метаданным не требует перебора.
 
 ```ts
-if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
-  bb.vk.experimental_vkOnHookTimeout((event) => {
-    if (event.hook === "contributeEnv") bb.log.warn(`env timed out after ${event.timeoutMs} ms`);
+// на обычном BB этих методов нет
+if (typeof bb.sdk.threads.experimental_vkSpawnKeyed === "function") {
+  const { thread, reused } = await bb.sdk.threads.experimental_vkSpawnKeyed({
+    ...обычные поля spawn, // projectId, prompt, environment, pluginMetadata ...
+    key: `lp:${attemptId}:writer:1`, // 1..200 символов, уникален в пределах плагина
   });
+  // reused === true: живой тред с этим ключом уже был, второй не создан
 }
+const found = await bb.sdk.threads.experimental_vkFindByKey(key); // тред или null
+const list = await bb.sdk.threads.experimental_vkFindByPluginMetadata({
+  match: { attemptId: "att1", role: "writer" }, // строки, числа, булевы; не пусто
+  projectId, includeArchived: false, limit: 100, // projectId и includeArchived необязательны, limit 1..100
+}); // новые первыми
 ```
 
-**Проверка наличия.** `typeof bb.vk?.experimental_vkOnHookTimeout === "function"`. Типы: `ExperimentalVkHookPolicy`, `ExperimentalVkHookTimeoutEvent`, `PluginVkApi` в `@get-bb/plugin-sdk` (в опубликованном пакете их нет, объявляйте локально). Миграций и изменений протокола нет.
+Поведение.
+
+| Случай | Результат |
+| --- | --- |
+| Два параллельных `vkSpawnKeyed` с одним ключом | один тред; у второго `reused: true` |
+| Ключ у плагина A, тот же ключ у плагина B | независимы: ключ действует только в пределах плагина |
+| Тред с ключом удалён | `vkFindByKey` его не возвращает, ключ можно использовать заново |
+| Тред с ключом в архиве | ключ за ним сохраняется, `vkSpawnKeyed` вернёт его с `reused: true` |
+| `vkFindByPluginMetadata` | видит только строки метаданных вызывающего плагина; удалённые треды не попадают, архивные только с `includeArchived: true` |
+| Обычные `threads.spawn`, `threads.list` | не изменены |
+
+Хранение. Ключ лежит в зарезервированном поле `__vk.key` строки `thread_plugin_metadata` самого плагина, рядом с его обычными метаданными. Проверка «ключ занят» и вставка идут в одной транзакции создания треда. `updatePluginMetadata` может повторно отправить ключ без изменений, но изменить или удалить его не может (`reserved_key`). Миграций, новых таблиц и изменений протокола машин нет.
+
+Скорость. Индекса по полю нет, запрос читает строки метаданных одного плагина. Замер на выгрузке хаба 2026-10-07 (5963 строки метаданных, из них 2414 у lane-pilot, у всех поставлен ключ; 4104 треда): промах 1,7 мс, попадание 0,1 мс, `vkFindByPluginMetadata` по роли 1,7 мс на запрос. Время растёт линейно с числом строк плагина; порог 50 мс будет достигнут примерно на 70 000 строках. Если дойдёт, делать `projectId` обязательным.
+
+Без функции. Метода нет, `typeof` даёт `"undefined"`: плагин остаётся на `threads.spawn` и переборе списка.
+
+---
 
 ## 10. Drain при reload и shutdown: `experimental_vkLifecycle` с `reload` и `shutdown`
 
@@ -361,7 +350,9 @@ export default function plugin(bb) {
 
 Снимки и отметки с их отпечатком лежат в зарезервированных строках метаданных треда с id, начинающимся на `__vk.`. Плагины эти строки не видят и записать в них не могут. Если отметка или снимок пропали или повреждены, тред не запускается. Миграций и изменений протокола машин нет.
 
-## 9. Изолированные расписания: `bb.background.experimental_vkSchedule`
+---
+
+## 11. Изолированные расписания: `bb.background.experimental_vkSchedule`
 
 В обычном BB `sweepDueSchedules` запускает просроченные расписания всех плагинов по очереди и ждёт каждое. Одно долгое расписание держит все остальные: 03.10 запуск Lane Pilot стоял 50 минут и заблокировал и самовосстановление, и расписания других плагинов. Изолированное расписание запускается без ожидания.
 
@@ -417,42 +408,55 @@ if (typeof bb.background.experimental_vkSchedule === "function") {
 
 ---
 
-## 9. Ключи тредов: `experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata`
+## 12. Лимиты хуков и видимые таймауты: `vk.hookPolicy`
 
-Зачем. Если ответ на `threads.spawn` потерялся (reload, обрыв), плагин не знает id своего треда и ищет его перебором `threads.list`. В проекте с тысячами тредов перебор упирается в лимит страниц, и задача зависает. Ключ делает spawn повторяемым, а поиск по метаданным не требует перебора.
+**Проблема.** У хуков ядра жёсткие лимиты: `message.dispatch` решает за 10 с, env провайдера (`bb.providers.experimental_contributeEnv`) собирается за 5 с, `resolve` упоминания за 10 с. Если env-резолвер не успел, ядро молча пропускает вклад плагина, и тред стартует без его переменных (у Lane Pilot это его env). Никто этого не видит.
 
-```ts
-// на обычном BB этих методов нет
-if (typeof bb.sdk.threads.experimental_vkSpawnKeyed === "function") {
-  const { thread, reused } = await bb.sdk.threads.experimental_vkSpawnKeyed({
-    ...обычные поля spawn, // projectId, prompt, environment, pluginMetadata ...
-    key: `lp:${attemptId}:writer:1`, // 1..200 символов, уникален в пределах плагина
-  });
-  // reused === true: живой тред с этим ключом уже был, второй не создан
+**Манифест.** Ключ `vk` верхнего уровня `package.json` плагина, рядом с `bb` (внутрь `bb` не класть: он строгий):
+
+```json
+{
+  "bb": { "...": "..." },
+  "vk": {
+    "hookPolicy": {
+      "messageDispatch": { "timeoutMs": 20000 },
+      "contributeEnv": { "timeoutMs": 12000, "required": true },
+      "mentionResolve": { "timeoutMs": 20000 }
+    }
+  }
 }
-const found = await bb.sdk.threads.experimental_vkFindByKey(key); // тред или null
-const list = await bb.sdk.threads.experimental_vkFindByPluginMetadata({
-  match: { attemptId: "att1", role: "writer" }, // строки, числа, булевы; не пусто
-  projectId, includeArchived: false, limit: 100, // projectId и includeArchived необязательны, limit 1..100
-}); // новые первыми
 ```
 
-Поведение.
+| Поле | Максимум | Стандарт ядра | Что заменяет |
+| --- | --- | --- | --- |
+| `messageDispatch.timeoutMs` | 30000 | 10000 | время на решение хука `message.dispatch` этого плагина |
+| `contributeEnv.timeoutMs` | 15000 | 5000 | время env-резолвера этого плагина |
+| `contributeEnv.required` | | `false` | `true`: если резолвер не успел или упал, ход не стартует |
+| `mentionResolve.timeoutMs` | 30000 | 10000 | время `resolve` упоминания этого плагина |
 
-| Случай | Результат |
-| --- | --- |
-| Два параллельных `vkSpawnKeyed` с одним ключом | один тред; у второго `reused: true` |
-| Ключ у плагина A, тот же ключ у плагина B | независимы: ключ действует только в пределах плагина |
-| Тред с ключом удалён | `vkFindByKey` его не возвращает, ключ можно использовать заново |
-| Тред с ключом в архиве | ключ за ним сохраняется, `vkSpawnKeyed` вернёт его с `reused: true` |
-| `vkFindByPluginMetadata` | видит только строки метаданных вызывающего плагина; удалённые треды не попадают, архивные только с `includeArchived: true` |
-| Обычные `threads.spawn`, `threads.list` | не изменены |
+Минимум 1000 мс. Значения вне диапазона обрезаются, неверные записи игнорируются, в лог идёт предупреждение. Загрузку плагина это не ломает. Остальные ключи `vk` эта функция не читает.
 
-Хранение. Ключ лежит в зарезервированном поле `__vk.key` строки `thread_plugin_metadata` самого плагина, рядом с его обычными метаданными. Проверка «ключ занят» и вставка идут в одной транзакции создания треда. `updatePluginMetadata` может повторно отправить ключ без изменений, но изменить или удалить его не может (`reserved_key`). Миграций, новых таблиц и изменений протокола машин нет.
+**API.** `bb.vk.experimental_vkOnHookTimeout(callback)` возвращает `{ dispose() }`. Колбэк получает `{ hook: "messageDispatch" | "contributeEnv" | "mentionResolve", pluginId, timeoutMs, threadId?, projectId?, required }`. Он вызывается **только при таймауте** хука, для которого плагин объявил политику. Ошибки колбэка проглатываются и логируются. У упоминания `threadId` нет: резолв идёт до отправки.
 
-Скорость. Индекса по полю нет, запрос читает строки метаданных одного плагина. Замер на выгрузке хаба 2026-10-07 (5963 строки метаданных, из них 2414 у lane-pilot, у всех поставлен ключ; 4104 треда): промах 1,7 мс, попадание 0,1 мс, `vkFindByPluginMetadata` по роли 1,7 мс на запрос. Время растёт линейно с числом строк плагина; порог 50 мс будет достигнут примерно на 70 000 строках. Если дойдёт, делать `projectId` обязательным.
+**Что делает ядро при таймауте** (только для объявившего политику плагина):
 
-Без функции. Метода нет, `typeof` даёт `"undefined"`: плагин остаётся на `threads.spawn` и переборе списка.
+1. В ленту треда (если `threadId` известен) добавляется служебная строка `system/error` с кодом `vk_hook_timeout`: `plugin <id> did not answer in <N> ms: env not applied` (для диспетчера `dispatch hook not applied`, для упоминания `mention not resolved`, для `required` `env required, turn not started`).
+2. Вызываются все колбэки плагина.
+3. Для `contributeEnv.required: true` любой сбой резолвера (таймаут или ошибка) бросает `ApiError` 503 `vk_required_env_unavailable` (`retryable`), сообщение называет плагин и просит повторить. Ход не стартует. Новый тред получает `system/error` «Provisioning thread failed» с этим текстом и обычную кнопку Retry. Отправка в живой тред возвращает ошибку 503 в композер, сообщение не принимается. Сообщение из очереди остаётся в очереди с причиной сбоя и повторяется. Если правила сессии исключают плагин из треда, `required` к нему не применяется.
+
+**Без функции.** Плагин без `vk.hookPolicy` работает по стандартным лимитам ядра и по стандартному молчаливому поведению (таймаут env: вклад пропущен без следа; диспетчер и упоминание: ошибка, как раньше). `bb.vk` существует всегда, но колбэки для такого плагина не вызываются.
+
+**Пример (Lane Pilot).**
+
+```ts
+if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
+  bb.vk.experimental_vkOnHookTimeout((event) => {
+    if (event.hook === "contributeEnv") bb.log.warn(`env timed out after ${event.timeoutMs} ms`);
+  });
+}
+```
+
+**Проверка наличия.** `typeof bb.vk?.experimental_vkOnHookTimeout === "function"`. Типы: `ExperimentalVkHookPolicy`, `ExperimentalVkHookTimeoutEvent`, `PluginVkApi` в `@get-bb/plugin-sdk` (в опубликованном пакете их нет, объявляйте локально). Миграций и изменений протокола нет.
 
 ---
 
@@ -492,7 +496,11 @@ const list = await bb.sdk.threads.experimental_vkFindByPluginMetadata({
   - `apps/server/test/services/plugins/plugin-vk-session-policy.test.ts`;
   - `packages/provider-bridge-acp/src/vk-cursor-bridge-mcp.test.ts`;
   - `apps/app/src/components/plugin/vk-composer-exclusion.test.tsx`;
-  - `apps/app/src/components/plugin/vk-composer-dispatch.test.ts`.
+  - `apps/app/src/components/plugin/vk-composer-dispatch.test.ts`;
+  - `packages/db/test/data/vk-thread-keys.test.ts`, `apps/server/test/threads/vk-thread-keys.test.ts`;
+  - `apps/server/test/services/plugins/vk-lifecycle-drain.test.ts`;
+  - `apps/server/test/services/plugins/plugin-vk-schedule-options.test.ts`;
+  - `apps/server/test/services/plugins/vk-hook-policy.test.ts`, `apps/server/test/threads/vk-hook-policy-dispatch.test.ts`.
 - **Живые проверки на хабе** (runtime `0.43.3-vk.9`) через настоящие треды:
   - навыки, MCP и плагины CLI в Claude Code, Codex и OpenCode;
   - сторона BB и MCP в Cursor;
