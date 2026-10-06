@@ -30,6 +30,7 @@ date: 2026-09-24
 | 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 | 9 | Избранные модели | `ModelReasoningPicker` | Звезда в пикере; список в `localStorage`, без API плагина |
 | 10 | `vkInstallCursorBridgeMcp` | мост ACP Cursor | Native tools плагинов BB в Cursor Grok через `bb-bridge` в `mcp.json` |
+| 11 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
 | 11 | `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata` | API плагина (SDK) | Идемпотентный spawn по ключу и поиск своих тредов по метаданным без перебора списка |
 
 ```mermaid
@@ -254,6 +255,62 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 `bb.agents.experimental_vkCompiledMainAgent()` и `threads.spawn({ experimental_vkCompiledMainAgent: profile })` задают тред Claude Code собранный профиль главного агента (`id`, `prompt`, `sourceHash`).
 
 Снимки и отметки с их отпечатком лежат в зарезервированных строках метаданных треда с id, начинающимся на `__vk.`. Плагины эти строки не видят и записать в них не могут. Если отметка или снимок пропали или повреждены, тред не запускается. Миграций и изменений протокола машин нет.
+
+## 9. Изолированные расписания: `bb.background.experimental_vkSchedule`
+
+В обычном BB `sweepDueSchedules` запускает просроченные расписания всех плагинов по очереди и ждёт каждое. Одно долгое расписание держит все остальные: 03.10 запуск Lane Pilot стоял 50 минут и заблокировал и самовосстановление, и расписания других плагинов. Изолированное расписание запускается без ожидания.
+
+```ts
+experimental_vkSchedule?(
+  name: string,
+  cron: string,
+  fn: (context: { signal: AbortSignal }) => void | Promise<void>,
+  options?: { isolated?: boolean; timeoutMs?: number; overlap?: "skip" },
+): void;
+```
+
+Без кода, в `package.json` плагина, на верхнем уровне (рядом с `bb`, не внутри него):
+
+```json
+{ "bb": { "...": "..." }, "vk": { "schedules": { "sweep": { "isolated": true, "timeoutMs": 1800000 } } } }
+```
+
+Запись `vk.schedules.<имя>` действует на расписание, зарегистрированное обычным `bb.background.schedule(имя, ...)`. Такая функция тоже получает `{ signal }` первым аргументом (старая запись `() => ...` работает как есть). Параметры вызова API сильнее манифеста, поле за полем. Манифест читается мягко: неверное или неизвестное значение игнорируется с предупреждением в логе при загрузке, плагин всё равно загружается. Из ключа `vk` читается только `schedules`.
+
+**Что делает ядро:**
+
+| Правило | Как |
+| --- | --- |
+| Без ожидания | расписание стартует и сразу отпускает проход, остальные идут как обычно |
+| Один запуск на (плагин, имя) | пока предыдущий идёт, просроченный тик пропускается: `next_run_at` сдвигается по cron, `last_run_at` и `last_status` остаются от идущего запуска |
+| Потолок 8 | одновременно не больше 8 изолированных запусков; сверх этого тик пропускается так же и пишется в лог, очереди нет |
+| Таймаут | по умолчанию 15 минут, максимум 6 часов (больше обрезается с предупреждением). По истечении сигнал `signal` срабатывает, результат записывается как `last_status = error`, `last_error = "timeout after <N>ms"` |
+| Слот до конца функции | после таймаута слот занят, пока функция не завершится: функция, не слушающая `signal`, не получит второй запуск поверх себя |
+| Выгрузка плагина | отключение, перезагрузка и удаление плагина срабатывают `signal` и освобождают слоты (`last_error = "aborted: plugin stopped or reloaded"`) |
+
+Значение `timeout` в колонке статуса не вводится: перечень `running | ok | error` в API и интерфейсе остаётся прежним, поэтому `bb plugin list` и вкладка плагина показывают таймаут как ошибку с понятным текстом.
+
+**Без функции.** В обычном BB метода нет, ключ `vk` в `package.json` игнорируется (схема внешнего `package.json` пропускает неизвестные поля). Плагин проверяет `typeof bb.background.experimental_vkSchedule === "function"` и иначе вызывает `bb.background.schedule(...)`: расписание работает, но по очереди. Плагин без опций ведёт себя байт в байт как раньше.
+
+**Пример (Lane Pilot).**
+
+```ts
+const fn = async ({ signal }: { signal?: AbortSignal } = {}) => { await runSweep(signal); };
+if (typeof bb.background.experimental_vkSchedule === "function") {
+  bb.background.experimental_vkSchedule("stage-sweep", "*/5 * * * *", fn, {
+    isolated: true,
+    timeoutMs: 45 * 60_000,
+  });
+} else {
+  bb.background.schedule("stage-sweep", "*/5 * * * *", () => fn());
+}
+```
+
+**Проверка наличия:** `typeof bb.background.experimental_vkSchedule === "function"`.
+
+**Тест:** `apps/server/test/services/plugins/plugin-vk-schedule-options.test.ts`. Код: `apps/server/src/services/plugins/vk-schedule-options.ts`.
+
+---
 
 ## 9. Ключи тредов: `experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata`
 
