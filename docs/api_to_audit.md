@@ -57,6 +57,12 @@ composer contributions, and whether commands need an availability callback.
 
 Audit multi-host partial progress, unavailable hosts, disabled-plugin removal after server restart, changed/missing handler source, artifact retention and cancellation, and recovery after a failed enable. Registered handlers cannot silently disappear. Hooks must record idempotent progress; rejection preserves registration but cannot undo completed host effects. A 30-minute deadline cancels host calls and expires KV access. Do not stabilize until lifecycle cleanup has installed-host evidence across reload, disable, re-enable and remove.
 
+## VK isolated schedules
+
+`bb.background.experimental_vkSchedule(name, cron, fn, options)` and the package.json top-level `vk.schedules.<name>` start a due schedule without awaiting it, so one slow run does not hold the other schedules of `sweepDueSchedules`. Implementation is isolated in the server and SDK `vk-schedule-options.ts` modules. One run per (plugin, name), a ceiling of 8 isolated runs, a 15-minute default timeout (6 hours at most) and an abort on dispose, reload or disable. A timeout is stored as `last_status = "error"`, not as a new status value, so the schedule status contract is unchanged.
+
+Audit a function that ignores its signal (it keeps its slot until it settles), skipped ticks (`next_run_at` moves on, nothing is queued), the lenient manifest parser, and plugins that register the same name with and without the option. Do not stabilize before a real long schedule has run isolated on a hub across reload and disable.
+
 ## VK thread keys
 
 `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey` and `experimental_vkFindByPluginMetadata` are optional methods on the plugin-bound SDK, implemented in the server `vk-thread-keys.ts`. The key is stored in the reserved `__vk.key` field of the spawning plugin's own thread plugin-metadata row, checked and inserted in the thread-create transaction; a deleted thread frees it. No table, migration or host protocol change; stock `threads.spawn` and `threads.list` are unchanged. Stabilization requires deciding whether keys should be first-class on `threads.spawn` upstream.

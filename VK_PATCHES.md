@@ -320,3 +320,40 @@ New files: `packages/db/src/data/vk-thread-keys.ts`, `apps/server/src/services/p
 `packages/plugin-sdk/src/vk-thread-keys.ts`, tests `packages/db/test/data/vk-thread-keys.test.ts` and
 `apps/server/test/threads/vk-thread-keys.test.ts`.
 
+## Schedule options (`schedule-options`)
+
+`sweepDueSchedules` ran the due schedules of every plugin one after another and awaited each, so one long
+schedule held the others back (a 50-minute Lane Pilot run blocked its own self-repair and other plugins'
+schedules). A schedule marked `isolated` is now started without awaiting it. At most one run per
+(plugin, schedule); a due tick while the previous run still goes is skipped (`next_run_at` moves on, `last_run_at` and
+`last_status` stay those of the running one); at most 8 isolated runs at once, a tick beyond that is skipped
+the same way and logged; a run is aborted after `timeoutMs` (default 15 min, at most 6 h, larger values are clamped
+with a warning) and recorded as `last_status = "error"`, `last_error = "timeout after <N>ms"` (the status enum in
+`plugin-state-snapshot.ts` and the server contract stays `running | ok | error`, so `bb plugin list` and the UI need no
+change). The slot is held until the function really settles, so a function that ignores its signal is not started a
+second time on top of itself. Disposing, reloading or disabling the plugin aborts its runs
+(`last_error = "aborted: plugin stopped or reloaded"`) and frees their slots. Schedules without the option keep the
+stock sequential, awaited run.
+
+Plugin API: `bb.background.experimental_vkSchedule(name, cron, fn, { isolated, timeoutMs?, overlap? })`, `fn` gets
+`{ signal }`; feature-test `typeof bb.background.experimental_vkSchedule === "function"`. Or, without code, the
+package.json top-level `vk.schedules.<name>: { isolated?, timeoutMs?, overlap?: "skip" }` for a schedule registered
+with plain `bb.background.schedule(name, ...)` (the function then also receives `{ signal }`). API options win over the
+manifest, field by field. The manifest is read leniently: an invalid or unknown value is ignored with a logged warning
+at load, never an error. Only `vk.schedules` is read from the `vk` key.
+
+Consumer: Lane Pilot (long schedules: stage sweeps, self-repair). No schema, no migration, no host-daemon change.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/plugin-sdk/src/backend-contract.ts`, `index.ts` | `PluginBackground.experimental_vkSchedule?`, type export |
+| `apps/server/src/services/plugins/plugin-api.ts` | `experimental_vkSchedule` on `background`, `vkOptions?` on the schedule record |
+| `apps/server/src/services/plugins/manifest.ts` | `vkSchedules?` on `PluginManifest`, one spread line in `readPluginManifest` |
+| `apps/server/src/services/plugins/plugin-runtime.ts` | create the runner beside `invokeWrapped`, log manifest warnings at load, `abortPlugin` in `disposePluginInstance`, return it |
+| `apps/server/src/services/plugins/plugin-service.ts` | `sweepDueSchedules`: isolated schedules go to the runner and the loop continues |
+| `plugins/bb-guide/skills/bb-plugin-authoring/references/backend-api-index.md`, `plugins/plugin-api-docs/src/surfaces.ts`, `docs/api_to_audit.md` | docs |
+
+New files: `apps/server/src/services/plugins/vk-schedule-options.ts`,
+`packages/plugin-sdk/src/vk-schedule-options.ts`, `apps/server/test/services/plugins/plugin-vk-schedule-options.test.ts`.

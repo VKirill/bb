@@ -8,6 +8,10 @@ import {
   pluginPackageJsonSchema,
   type UiCodeThemeDeclaration,
 } from "@bb/domain";
+import {
+  vkScheduleManifestField,
+  type VkScheduleManifest,
+} from "./vk-schedule-options.js";
 import { resolvePluginCodeThemePath } from "../system/code-themes.js";
 import {
   readPluginPackageJsonFile,
@@ -50,6 +54,8 @@ export interface PluginManifest {
   skillsRootPaths: string[];
   skillNames: string[];
   rootDir: string;
+  /** VK EXPERIMENTAL: package.json top-level `vk.schedules`. */
+  vkSchedules?: VkScheduleManifest;
 }
 
 async function readSkillNames(rootPaths: string[]): Promise<string[]> {
@@ -246,5 +252,6 @@ export async function readPluginManifest(
     skillsRootPaths,
     skillNames: await readSkillNames(skillsRootPaths),
     rootDir,
+    ...vkScheduleManifestField(parsed.data), // VK EXPERIMENTAL
   };
 }

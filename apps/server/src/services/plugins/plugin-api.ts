@@ -1,4 +1,6 @@
 import { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
+import type { ExperimentalVkScheduleOptions } from "@get-bb/plugin-sdk";
+import { vkNormalizeScheduleOptions } from "./vk-schedule-options.js";
 import {
   environmentCompositionSchema,
   validateServerAccessProviderDeclaration,
@@ -236,6 +238,8 @@ interface PluginScheduleRecord {
   name: string;
   cron: string;
   fn: () => void | Promise<void>;
+  /** VK EXPERIMENTAL: options given to `bb.background.experimental_vkSchedule`. */
+  vkOptions?: ExperimentalVkScheduleOptions;
 }
 
 interface PluginCliRegistrationRecord {
@@ -885,6 +889,27 @@ export function createPluginApi(options: {
           },
         ),
       );
+    },
+    // VK EXPERIMENTAL: schedule with isolation options.
+    experimental_vkSchedule(name, cron, fn, options) {
+      assertLive();
+      const record = validateScheduleRegistration(
+        name,
+        cron,
+        fn as () => void | Promise<void>,
+        schedules,
+        (expression) => {
+          CronExpressionParser.parse(expression);
+        },
+      );
+      const warnings: string[] = [];
+      const vkOptions = vkNormalizeScheduleOptions(
+        options,
+        `schedule ${name} options`,
+        warnings,
+      );
+      for (const warning of warnings) emitLog("warn", warning);
+      schedules.push({ ...record, vkOptions });
     },
   };
 

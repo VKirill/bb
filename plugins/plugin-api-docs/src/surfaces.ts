@@ -1220,6 +1220,25 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         ],
       },
       {
+        id: "vk-schedule-options",
+        title: "VK isolated schedules",
+        summary:
+          "Starts a cron run without holding the other schedules of the sweep. With this, a plugin can:",
+        bullets: [
+          "Register with bb.background.experimental_vkSchedule(name, cron, fn, { isolated: true }), or set package.json vk.schedules.<name> for a plain bb.background.schedule; API options win",
+          "The function receives { signal }, aborted on timeout (default 15 minutes, at most 6 hours) and when the plugin is disposed, reloaded or disabled",
+          "One run per schedule: a due tick while the previous run still goes is skipped; at most 8 isolated runs at once",
+          "A timeout is recorded as an error with the text timeout after <N>ms",
+          "Feature-test with typeof bb.background.experimental_vkSchedule === \"function\"; schedules without the option run one after another as in upstream",
+        ],
+        apiSymbols: [
+          "ExperimentalVkScheduleContext",
+          "ExperimentalVkScheduleHandler",
+          "ExperimentalVkScheduleOptions",
+          "PluginBackground.experimental_vkSchedule",
+        ],
+      },
+      {
         id: "bb-sdk",
         tagline: "Create threads and projects from plugin code",
         title: "The bb SDK",

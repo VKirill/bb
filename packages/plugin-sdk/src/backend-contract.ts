@@ -1,3 +1,8 @@
+// VK EXPERIMENTAL: options and context of isolated plugin schedules.
+import type {
+  ExperimentalVkScheduleHandler,
+  ExperimentalVkScheduleOptions,
+} from "./vk-schedule-options.js";
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type { MachineBootstrapApi } from "./machine-bootstrap.js";
 import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
@@ -922,6 +927,19 @@ export interface PluginBackground {
    * `bb plugin list`.
    */
   schedule(name: string, cron: string, fn: () => void | Promise<void>): void;
+  /**
+   * VK EXPERIMENTAL — present only in VK builds of bb, absent upstream.
+   * Feature-test it: `typeof bb.background.experimental_vkSchedule === "function"`.
+   * Like `schedule`, with options. `options` win over the package.json
+   * `vk.schedules.<name>` entry; `isolated: true` starts the run without
+   * holding the other schedules of the sweep.
+   */
+  experimental_vkSchedule?(
+    name: string,
+    cron: string,
+    fn: ExperimentalVkScheduleHandler,
+    options?: ExperimentalVkScheduleOptions,
+  ): void;
 }
 
 // ---------------------------------------------------------------------------
