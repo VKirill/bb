@@ -57,6 +57,8 @@ export interface LoadedPlugin {
   stopping: AbortController;
   released: AbortController;
   invocations: Set<Promise<void>>;
+  /** VK EXPERIMENTAL: the loaded server module, kept only for a plugin that declares `vk.lifecycle.drain`. */
+  vkModule?: unknown;
 }
 
 export interface PluginHostArtifactSnapshot {
