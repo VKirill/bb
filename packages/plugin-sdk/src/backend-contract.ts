@@ -1,4 +1,5 @@
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
+import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
 import type {
   EnvironmentRemoval,
   Environment,
@@ -2240,24 +2241,23 @@ export interface PluginStatusApi {
 export type PluginBbSdk = Omit<BbSdk, "threads"> & {
   threads: Omit<
     BbSdk["threads"],
-    | "getPluginMetadata"
-    | "updatePluginMetadata"
-    | "experimental_listPluginMetadata"
-  > & {
-    getPluginMetadata(
-      args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
-    ): Promise<ThreadPluginMetadataResult>;
-    experimental_listPluginMetadata(
-      args: Omit<PluginThreadMetadataListArgs, "pluginId"> & {
-        pluginId?: string;
-      },
-    ): Promise<PluginThreadMetadataListResult>;
-    updatePluginMetadata(
-      args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
-        pluginId?: string;
-      },
-    ): Promise<ThreadPluginMetadataResult>;
-  };
+    "getPluginMetadata" | "updatePluginMetadata" | "experimental_listPluginMetadata"
+  > &
+    ExperimentalVkThreadKeys & {
+      getPluginMetadata(
+        args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
+      ): Promise<ThreadPluginMetadataResult>;
+      experimental_listPluginMetadata(
+        args: Omit<PluginThreadMetadataListArgs, "pluginId"> & {
+          pluginId?: string;
+        },
+      ): Promise<PluginThreadMetadataListResult>;
+      updatePluginMetadata(
+        args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
+          pluginId?: string;
+        },
+      ): Promise<ThreadPluginMetadataResult>;
+    };
 };
 
 /**

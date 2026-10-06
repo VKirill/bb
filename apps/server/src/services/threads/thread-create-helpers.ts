@@ -6,6 +6,7 @@ import {
   getProject,
   getThread,
   isSqliteForeignKeyConstraint,
+  VkThreadKeyConflictError,
 } from "@bb/db";
 import { parseVkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
 import type { DbNotifier } from "@bb/db";
@@ -120,6 +121,15 @@ export function createThreadRecord(
       parentNotifications: args.request.parentNotifications,
       vkRequiredSessionPolicy:
         args.request.experimental_vkRequiredSessionPolicy,
+      ...(args.request.experimental_vkKey !== undefined &&
+      args.request.originPluginId !== undefined
+        ? {
+            vkKey: {
+              pluginId: args.request.originPluginId,
+              key: args.request.experimental_vkKey,
+            },
+          }
+        : {}),
       ...(args.request.experimental_vkCompiledMainAgent !== undefined
         ? {
             vkCompiledMainAgent: (() => {
@@ -150,6 +160,12 @@ export function createThreadRecord(
   } catch (error) {
     if (error instanceof InvalidLifecycleOwnerError) {
       throw new ApiError(400, "invalid_request", error.message);
+    }
+    // VK EXPERIMENTAL: the key is held by a live thread of the same plugin.
+    if (error instanceof VkThreadKeyConflictError) {
+      throw new ApiError(409, "vk_thread_key_conflict", error.message, {
+        details: { threadId: error.threadId },
+      });
     }
     if (
       sectionId !== null &&
