@@ -686,6 +686,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     loadOne,
     runLifecycle,
     lifecyclePluginIds,
+    vkScheduleRunner,
     brandingAssets,
     safeModeActivationRefusal,
     setDevBuildProblem,
@@ -2837,6 +2838,23 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
               error instanceof Error ? error.message : String(error)
             }`,
           );
+          continue;
+        }
+        // VK EXPERIMENTAL: an isolated schedule runs without holding the sweep.
+        const vkOptions = vkScheduleRunner.resolve(
+          loaded.get(row.pluginId)?.manifest,
+          schedule,
+        );
+        if (vkOptions !== null) {
+          vkScheduleRunner.dispatch({
+            pluginId: row.pluginId,
+            name: row.name,
+            run: schedule.fn as (context: { signal: AbortSignal }) => void,
+            options: vkOptions,
+            expectedNextRunAt: row.nextRunAt,
+            newNextRunAt,
+            now,
+          });
           continue;
         }
         const claimed = claimPluginScheduledRun(deps.db, {
