@@ -140,6 +140,7 @@ import type { ServerLogger } from "../../types.js";
 import type { PluginInteractionResult } from "../interactions/pending-interactions.js";
 import { appendPluginLogLine } from "./plugin-log.js";
 import type { TunnelIngressLease } from "../connect-next/tunnel-ingress.js";
+import { createVkHookPolicyApi } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import {
   readPluginSettingsValues,
   writePluginSettingsUpdate,
@@ -1521,8 +1522,13 @@ export function createPluginApi(options: {
     server,
     hosts,
     experimental_aiServices,
-    // VK EXPERIMENTAL: lifecycle facts for a plugin that drains on reload.
+    // VK EXPERIMENTAL: `bb.vk`, built from one spread per VK function.
     vk: {
+      ...createVkHookPolicyApi({
+        pluginId,
+        assertLive,
+        onDispose: (hook) => disposeHooks.push(hook),
+      }),
       startReason: options.vk?.startReason ?? "boot",
       get afterDrain(): boolean {
         return vkAfterDrain;
