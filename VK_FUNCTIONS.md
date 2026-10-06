@@ -30,6 +30,7 @@ date: 2026-09-24
 | 8 | `useComposer().experimental_vkSetDispatchData` | API плагина (композер) | Скрытые данные на обычный Send без тега в черновике |
 | 9 | Избранные модели | `ModelReasoningPicker` | Звезда в пикере; список в `localStorage`, без API плагина |
 | 10 | `vkInstallCursorBridgeMcp` | мост ACP Cursor | Native tools плагинов BB в Cursor Grok через `bb-bridge` в `mcp.json` |
+| 11 | `vk.hookPolicy` и `bb.vk.experimental_vkOnHookTimeout(cb)` | `package.json` плагина и API плагина (сервер) | Свой лимит времени для хуков плагина и видимый таймаут вместо тихой потери env |
 | 12 | `experimental_vkLifecycle` с действиями `reload` и `shutdown`, `bb.vk.startReason`, `bb.vk.afterDrain` | экспорт плагина, `vk.lifecycle.drain` в package.json | Плагин успевает остановить приём работы и сохранить состояние до перезагрузки и остановки сервера |
 | 11 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
 | 11 | `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata` | API плагина (SDK) | Идемпотентный spawn по ключу и поиск своих тредов по метаданным без перебора списка |
@@ -254,6 +255,58 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 `bb.agents.experimental_vkRequiredSessionPolicy()` возвращает, что ядро умеет: группы правил для каждого провайдера, переключатели инструкций и обязательные ресурсы (`bb-bridge`, папка проекта). Плагин передаёт снимок правил при создании треда: `threads.spawn({ experimental_vkRequiredSessionPolicy: { version: 1, policy } })`. В отличие от `experimental_vkSessionPolicy`, этот снимок записывается вместе с тредом и действует на каждый ход. Расширить его нельзя. Дочерний тред, форк и тред-владелец наследуют его как потолок.
 
 `bb.agents.experimental_vkCompiledMainAgent()` и `threads.spawn({ experimental_vkCompiledMainAgent: profile })` задают тред Claude Code собранный профиль главного агента (`id`, `prompt`, `sourceHash`).
+
+---
+
+## 9. Лимиты хуков и видимые таймауты: `vk.hookPolicy`
+
+**Проблема.** У хуков ядра жёсткие лимиты: `message.dispatch` решает за 10 с, env провайдера (`bb.providers.experimental_contributeEnv`) собирается за 5 с, `resolve` упоминания за 10 с. Если env-резолвер не успел, ядро молча пропускает вклад плагина, и тред стартует без его переменных (у Lane Pilot это его env). Никто этого не видит.
+
+**Манифест.** Ключ `vk` верхнего уровня `package.json` плагина, рядом с `bb` (внутрь `bb` не класть: он строгий):
+
+```json
+{
+  "bb": { "...": "..." },
+  "vk": {
+    "hookPolicy": {
+      "messageDispatch": { "timeoutMs": 20000 },
+      "contributeEnv": { "timeoutMs": 12000, "required": true },
+      "mentionResolve": { "timeoutMs": 20000 }
+    }
+  }
+}
+```
+
+| Поле | Максимум | Стандарт ядра | Что заменяет |
+| --- | --- | --- | --- |
+| `messageDispatch.timeoutMs` | 30000 | 10000 | время на решение хука `message.dispatch` этого плагина |
+| `contributeEnv.timeoutMs` | 15000 | 5000 | время env-резолвера этого плагина |
+| `contributeEnv.required` | | `false` | `true`: если резолвер не успел или упал, ход не стартует |
+| `mentionResolve.timeoutMs` | 30000 | 10000 | время `resolve` упоминания этого плагина |
+
+Минимум 1000 мс. Значения вне диапазона обрезаются, неверные записи игнорируются, в лог идёт предупреждение. Загрузку плагина это не ломает. Остальные ключи `vk` эта функция не читает.
+
+**API.** `bb.vk.experimental_vkOnHookTimeout(callback)` возвращает `{ dispose() }`. Колбэк получает `{ hook: "messageDispatch" | "contributeEnv" | "mentionResolve", pluginId, timeoutMs, threadId?, projectId?, required }`. Он вызывается **только при таймауте** хука, для которого плагин объявил политику. Ошибки колбэка проглатываются и логируются. У упоминания `threadId` нет: резолв идёт до отправки.
+
+**Что делает ядро при таймауте** (только для объявившего политику плагина):
+
+1. В ленту треда (если `threadId` известен) добавляется служебная строка `system/error` с кодом `vk_hook_timeout`: `plugin <id> did not answer in <N> ms: env not applied` (для диспетчера `dispatch hook not applied`, для упоминания `mention not resolved`, для `required` `env required, turn not started`).
+2. Вызываются все колбэки плагина.
+3. Для `contributeEnv.required: true` любой сбой резолвера (таймаут или ошибка) бросает `ApiError` 503 `vk_required_env_unavailable` (`retryable`), сообщение называет плагин и просит повторить. Ход не стартует. Новый тред получает `system/error` «Provisioning thread failed» с этим текстом и обычную кнопку Retry. Отправка в живой тред возвращает ошибку 503 в композер, сообщение не принимается. Сообщение из очереди остаётся в очереди с причиной сбоя и повторяется. Если правила сессии исключают плагин из треда, `required` к нему не применяется.
+
+**Без функции.** Плагин без `vk.hookPolicy` работает по стандартным лимитам ядра и по стандартному молчаливому поведению (таймаут env: вклад пропущен без следа; диспетчер и упоминание: ошибка, как раньше). `bb.vk` существует всегда, но колбэки для такого плагина не вызываются.
+
+**Пример (Lane Pilot).**
+
+```ts
+if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
+  bb.vk.experimental_vkOnHookTimeout((event) => {
+    if (event.hook === "contributeEnv") bb.log.warn(`env timed out after ${event.timeoutMs} ms`);
+  });
+}
+```
+
+**Проверка наличия.** `typeof bb.vk?.experimental_vkOnHookTimeout === "function"`. Типы: `ExperimentalVkHookPolicy`, `ExperimentalVkHookTimeoutEvent`, `PluginVkApi` в `@get-bb/plugin-sdk` (в опубликованном пакете их нет, объявляйте локально). Миграций и изменений протокола нет.
 
 ## 10. Drain при reload и shutdown: `experimental_vkLifecycle` с `reload` и `shutdown`
 
