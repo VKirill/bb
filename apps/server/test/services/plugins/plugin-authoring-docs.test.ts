@@ -182,6 +182,7 @@ const BB_PLUGIN_API_KEYS = [
   "server",
   "hosts",
   "experimental_aiServices",
+  "vk",
   "experimental_hooks",
   "experimental_environments",
   "experimental_machines",
@@ -189,7 +190,6 @@ const BB_PLUGIN_API_KEYS = [
   "sdk",
   "onDispose",
   "onInstall",
-  "vk",
 ] as const satisfies readonly (keyof BbPluginApi)[];
 
 type MissingApiKey = Exclude<
