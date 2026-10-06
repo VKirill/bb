@@ -162,6 +162,11 @@ import {
   type RegisterInstalledArgs,
 } from "./managed-plugin-artifacts.js";
 import {
+  handleVkEnvFailure,
+  noteVkHookFailure,
+  vkHookTimeoutMs,
+} from "./vk-hook-policy.js"; // VK EXPERIMENTAL
+import {
   DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
   type PluginHookInvocation,
   type PluginHookProvider,
@@ -440,6 +445,8 @@ export interface PluginService {
   resolveProviderEnv(args: {
     providerId: string;
     context: ExperimentalPluginProviderEnvContext;
+    /** VK EXPERIMENTAL: plugins the session policy drops are not held to `required`. */
+    vkPluginAllowed?: (pluginId: string) => boolean;
   }): Promise<PluginResolvedProviderEnv>;
   resolveProviderEnvHealth(args: {
     providerId: string;
@@ -1438,6 +1445,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       listHooks: listPluginHooks,
       invokeHook: invokeIsolated,
       decisionTimeoutMs: DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
+      vkHookPolicy: (pluginId) => loaded.get(pluginId)?.manifest.vk?.hookPolicy, // VK EXPERIMENTAL
     },
 
     environmentProviders: {
@@ -2457,7 +2465,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         : null;
     },
 
-    async resolveProviderEnv({ providerId, context }) {
+    async resolveProviderEnv({ providerId, context, vkPluginAllowed }) {
       const entries: PluginResolvedProviderEnv["entries"] = [];
       const ownerByName = new Map<string, string>();
       for (const [pluginId, snapshot] of loaded) {
@@ -2469,6 +2477,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         }
         const resolve = plugin.handle.providerEnvResolvers.get(providerId);
         if (resolve === undefined) continue;
+        // VK EXPERIMENTAL: the plugin's own limit, when it declared one.
+        const vkPolicy = plugin.manifest.vk?.hookPolicy;
+        const envTimeoutMs = vkHookTimeoutMs(
+          vkPolicy,
+          "contributeEnv",
+          providerEnvResolveTimeoutMs,
+        );
         const outcome = await invokeWrapped(
           pluginId,
           `provider environment for ${providerId}`,
@@ -2477,11 +2492,24 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
               Promise.resolve(resolve(context)).then((value) =>
                 validatePluginProviderEnvEntries(value),
               ),
-              providerEnvResolveTimeoutMs,
-              `timed out after ${providerEnvResolveTimeoutMs}ms`,
+              envTimeoutMs,
+              `timed out after ${envTimeoutMs}ms`,
             ),
         );
-        if (!outcome.ok) continue;
+        if (!outcome.ok) {
+          // VK EXPERIMENTAL: visible timeout; `required` stops the turn.
+          if (vkPluginAllowed?.(pluginId) ?? true) {
+            handleVkEnvFailure({
+              pluginId,
+              policy: vkPolicy,
+              timeoutMs: envTimeoutMs,
+              error: outcome.error,
+              threadId: context.threadId,
+              projectId: context.projectId,
+            });
+          }
+          continue;
+        }
         for (const entry of outcome.value) {
           const earlierPluginId = ownerByName.get(entry.name);
           if (earlierPluginId !== undefined) {
@@ -2697,6 +2725,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         };
       }
       const provider = lookup.value;
+      // VK EXPERIMENTAL: the plugin's own limit, when it declared one.
+      const vkPolicy = loaded.get(pluginId)?.manifest.vk?.hookPolicy;
+      const resolveTimeoutMs = vkHookTimeoutMs(
+        vkPolicy,
+        "mentionResolve",
+        mentionResolveTimeoutMs,
+      );
       const outcome = await invokeWrapped(
         pluginId,
         `mention resolve ${providerId}`,
@@ -2706,8 +2741,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           resolvePromise.catch(() => {});
           const result: unknown = await raceTimeout(
             resolvePromise,
-            mentionResolveTimeoutMs,
-            `timed out after ${mentionResolveTimeoutMs}ms`,
+            resolveTimeoutMs,
+            `timed out after ${resolveTimeoutMs}ms`,
           );
           const record = result as {
             context?: unknown;
@@ -2765,6 +2800,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         },
       );
       if (outcome.ok) return { ok: true, ...outcome.value };
+      noteVkHookFailure({
+        hook: "mentionResolve",
+        pluginId,
+        policy: vkPolicy,
+        timeoutMs: resolveTimeoutMs,
+        error: outcome.error,
+      }); // VK EXPERIMENTAL
       return { ok: false, error: outcome.error };
     },
 
