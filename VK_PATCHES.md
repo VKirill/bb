@@ -430,3 +430,56 @@ Consumer: plugin `lane-pilot` (its provider env variables no longer vanish silen
 
 New files: `apps/server/src/services/plugins/vk-hook-policy.ts`, `packages/plugin-sdk/src/vk-hook-policy.ts`,
 `apps/server/test/services/plugins/vk-hook-policy.test.ts`, `apps/server/test/threads/vk-hook-policy-dispatch.test.ts`.
+
+## Image editor (`image-editor`)
+
+A plugin supplies an image editor that opens inside BB's image preview. Plugin API:
+`app.slots.experimental_vkImageEditor({ id, title, component })`; the component gets
+`PluginVkImageEditorProps` (`src`, `name`, `target: "draft" | "message"`, `done(file)`, `cancel()`).
+Feature-test `typeof app.slots.experimental_vkImageEditor === "function"`. The first enabled
+registration wins (plugins sorted by id). Core shows an Edit button (aria-label = `title`) next to
+Close in `ImageLightbox` when the preview passes `vkEdit` and an editor is registered, and the
+image is same-origin (`blob:` or the BB origin). Clicking it swaps the preview for the plugin
+component, rendered through `PluginSlotMount` (CSS scope, error boundary, portal scope); a crash
+falls back to the preview and hides the button. While the editor is open the lightbox's Escape,
+arrows, backdrop/image click and navigation are off.
+
+- `target: "draft"`: `done(file)` uploads like a paste (`sdk.projects.attachments.upload` +
+  `registerLocalAttachmentPreview`), swaps the new attachment in at the old one's index in the
+  composer draft (`host.setDraft`), drops the old local preview, then closes the preview.
+- `target: "message"`: `done(file)` goes to the main message box of the thread whose timeline shows
+  the image (a mounted thread-scope composer that is not the sent-message editor) through the
+  composer's own attach path (`onAttachFiles`: pending thumbnail, errors), then focuses it.
+- Failure: `done` rejects with a user-safe `Error`; the editor stays open.
+
+Also `useComposer().experimental_vkAttachFiles(files: File[]): Promise<void>`: upload files and add
+them to this composer's draft as attachments, focus the composer. Thread scope: the thread draft;
+new-thread scope: the new-thread draft; queued-message scope, or a composer not on screen:
+rejects with a clear message. Feature-test `typeof composer.experimental_vkAttachFiles === "function"`.
+Both are one mechanism: `ComposerEditorBridge.vkAttachFiles`, published by `PromptBoxInternal`.
+
+No schema, no migration, no protocol change.
+
+Consumer: plugin `office-viewer` (image editor; "To chat" button).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/plugin-sdk/src/app-contract.ts` | `PluginVkImageEditorProps`, `PluginVkImageEditorRegistration`, `PluginAppSlots.experimental_vkImageEditor`, `PluginComposerApi.experimental_vkAttachFiles` |
+| `packages/plugin-sdk/src/internal/plugin-app-collector.ts` | `vkImageEditors` collection and `experimental_vkImageEditor` slot method |
+| `packages/plugin-sdk/src/internal/composer-handle.ts` | `ComposerHandleTarget.vkAttachFiles`, handle method `experimental_vkAttachFiles` |
+| `packages/plugin-sdk/src/testing/app.tsx` | harness: `vkImageEditors` capture, composer `vkAttachFiles` recorded in `composer.attachedFiles` |
+| `apps/app/src/lib/plugin-slots.ts` | `vkImageEditors` slot kind (registration set, snapshot, sorted by plugin id) |
+| `apps/app/src/lib/composer-editor-registry.ts` | optional `vkAttachFiles` on `ComposerEditorBridge` |
+| `apps/app/src/lib/plugin-composer-handle.ts` | `vkAttachFiles` on the handle target |
+| `apps/app/src/components/promptbox/PromptBoxInternal.tsx` | `vkAttachFiles: createVkAttachFiles(...)` in the published bridge |
+| `apps/app/src/components/ui/image-lightbox.tsx` | `vkEdit` prop, Edit button, editor view, key/Escape/click guards |
+| `apps/app/src/components/promptbox/AttachmentPreview.tsx` | `vkEdit` from `useVkDraftImageEdit` (draft) |
+| `apps/app/src/components/thread/timeline/ConversationAttachments.tsx`, `TimelineImageGallery.tsx` | `vkEdit` from `useVkMessageImageEdit` (message) |
+| `apps/app/src/components/thread/timeline/ThreadTimelineRows.tsx` | `VkMessageImageThreadProvider` around the gallery |
+| `plugins/plugin-api-docs/src/surfaces.ts`, `plugins/bb-guide/.../frontend-api-index.md`, `frontend-core-slots.md`, `apps/server/test/services/plugins/plugin-authoring-docs.test.ts` | docs; `experimental_vkImageEditor` added to the slot lists |
+
+New files: `apps/app/src/lib/vk-image-editor.ts`, `apps/app/src/components/ui/vk-image-editor.tsx`, tests
+`apps/app/src/lib/vk-image-editor.test.ts`, `apps/app/src/components/ui/vk-image-editor.test.tsx`,
+`packages/plugin-sdk/src/internal/vk-image-editor.test.ts`.

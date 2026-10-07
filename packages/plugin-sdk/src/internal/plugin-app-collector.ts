@@ -15,6 +15,7 @@ import type {
   PluginEnvironmentProviderInputsRegistration,
   PluginMachineProviderInputsRegistration,
   PluginFileOpenerRegistration,
+  PluginVkImageEditorRegistration,
   PluginHomepageSectionRegistration,
   PluginCommandRegistration,
   ExperimentalComposerCommandRegistration,
@@ -360,6 +361,8 @@ export interface CollectedPluginAppRegistrations {
   threadActions: PluginThreadActionRegistration<unknown>[];
   browserToolbarActions: ExperimentalPluginBrowserToolbarActionRegistration[];
   fileOpeners: PluginFileOpenerRegistration[];
+  /** VK EXPERIMENTAL */
+  vkImageEditors: PluginVkImageEditorRegistration[];
   sourceCodeRenderers: PluginSourceCodeRendererRegistration[];
   diffRenderers: PluginDiffRendererRegistration[];
   messageDirectives: PluginMessageDirectiveRegistration[];
@@ -486,6 +489,7 @@ export function collectPluginAppRegistrations(
     threadActions: [],
     browserToolbarActions: [],
     fileOpeners: [],
+    vkImageEditors: [],
     sourceCodeRenderers: [],
     diffRenderers: [],
     messageDirectives: [],
@@ -516,6 +520,7 @@ export function collectPluginAppRegistrations(
     threadAction: new Set<string>(),
     browserToolbarAction: new Set<string>(),
     fileOpener: new Set<string>(),
+    vkImageEditor: new Set<string>(),
     sourceCodeRenderer: new Set<string>(),
     diffRenderer: new Set<string>(),
     messageDirective: new Set<string>(),
@@ -864,6 +869,16 @@ export function collectPluginAppRegistrations(
           extensions,
           component: requireComponent(kind, registration.component),
         });
+      },
+      // VK EXPERIMENTAL: image editor inside BB's image preview.
+      experimental_vkImageEditor(registration) {
+        collected.vkImageEditors.push(
+          collectTitledComponent(
+            "slots.experimental_vkImageEditor",
+            seenIds.vkImageEditor,
+            registration,
+          ),
+        );
       },
       experimental_sourceCodeRenderer(registration) {
         collected.sourceCodeRenderers.push(

@@ -131,6 +131,7 @@ import {
   withAttachmentMentionSuggestions,
   type AttachmentMentionSuggestion,
 } from "@/hooks/promptMentionCandidates";
+import { createVkAttachFiles } from "@/lib/vk-image-editor"; // VK EXPERIMENTAL
 import { VoiceRecordingBar } from "./VoiceRecordingBar";
 import {
   ComposerPlusMenuSlot,
@@ -3267,6 +3268,11 @@ export function PromptBoxInternal({
             insertAtCursor: insertAtCursorForPlugin,
             openPopup: openPopupForPlugin,
             closePopup: closePopupForPlugin,
+            // VK EXPERIMENTAL: plugins attach files to this draft.
+            vkAttachFiles: createVkAttachFiles(
+              pluginComposerHost,
+              () => onAttachFilesRef.current,
+            ),
             isPopupOpen: () => {
               const current = composerMenuRef.current;
               return (

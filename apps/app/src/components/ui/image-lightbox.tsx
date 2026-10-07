@@ -4,6 +4,7 @@ import {
   useId,
   useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
@@ -12,6 +13,9 @@ import { usePersistentOverlayFocus } from "@bb/shared-ui/responsive-overlay";
 import { usePortalScopeProps } from "@bb/shared-ui/lib/portal-scope";
 import { useBrowserDimmingOverlay } from "@/hooks/useBrowserDimmingModal";
 import { Icon } from "@bb/shared-ui/icon";
+// VK EXPERIMENTAL: plugin image editor.
+import type { VkImageEdit } from "@/lib/vk-image-editor";
+import { VkImageEditorHost, useVkImageEditor } from "./vk-image-editor";
 
 type ImageLightboxKeyAction = "close" | "next" | "previous";
 
@@ -52,6 +56,8 @@ interface ImageLightboxProps {
   onNext?: () => void;
   onPrevious?: () => void;
   title: string;
+  /** VK EXPERIMENTAL: offer the plugin image editor for the shown image. */
+  vkEdit?: VkImageEdit;
 }
 
 export function getImageLightboxKeyAction({
@@ -112,8 +118,24 @@ export function ImageLightbox({
   onNext,
   onPrevious,
   title,
+  vkEdit,
 }: ImageLightboxProps) {
   const isVisible = isOpen ?? imageSrc !== null;
+  // VK EXPERIMENTAL: plugin image editor state.
+  const vkEditor = useVkImageEditor();
+  const [vkEditing, setVkEditing] = useState(false);
+  const [vkEditorCrashed, setVkEditorCrashed] = useState(false);
+  const vkEditingRef = useRef(false);
+  vkEditingRef.current = vkEditing && vkEdit !== undefined;
+  useEffect(() => {
+    if (!isVisible) setVkEditing(false);
+  }, [isVisible, imageSrc]);
+  const vkActive =
+    vkEditing &&
+    vkEdit !== undefined &&
+    vkEditor !== null &&
+    imageSrc !== null &&
+    !vkEditorCrashed;
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useLayoutEffect(() => {
@@ -127,12 +149,16 @@ export function ImageLightbox({
     open: isVisible,
     panelRef,
     requestClose,
+    // VK EXPERIMENTAL: the editor owns Escape while it is open.
+    onEscapeKeyDown: (event) => {
+      if (vkEditingRef.current) event.preventDefault();
+    },
   });
   const hasNavigation =
     hasMultipleImages && onPrevious !== undefined && onNext !== undefined;
 
   useEffect(() => {
-    if (!isVisible) {
+    if (!isVisible || vkActive) {
       return;
     }
 
@@ -177,6 +203,7 @@ export function ImageLightbox({
     onPrevious,
     nextDisabled,
     previousDisabled,
+    vkActive,
   ]);
 
   if (!isVisible) {
@@ -193,6 +220,7 @@ export function ImageLightbox({
       tabIndex={-1}
       className="fixed inset-0 z-50 flex h-dvh w-full cursor-zoom-out items-center justify-center bg-black/70 p-4 outline-none animate-in fade-in-0 duration-150 motion-reduce:animate-none"
       onClick={(event) => {
+        if (vkActive) return;
         if (
           event.target === event.currentTarget ||
           event.target instanceof HTMLImageElement
@@ -204,7 +232,25 @@ export function ImageLightbox({
       <h2 id={titleId} className="sr-only">
         {title}
       </h2>
-      {imageSrc ? (
+      {vkActive ? (
+        // VK EXPERIMENTAL: plugin editor fills the preview.
+        <div
+          className="absolute inset-0 flex min-h-0 min-w-0 cursor-default flex-col"
+          data-vk-image-editor=""
+        >
+          <VkImageEditorHost
+            editor={vkEditor}
+            src={imageSrc}
+            edit={vkEdit}
+            onCancel={() => setVkEditing(false)}
+            onDone={onClose}
+            onCrash={() => {
+              setVkEditorCrashed(true);
+              setVkEditing(false);
+            }}
+          />
+        </div>
+      ) : imageSrc ? (
         <img
           src={imageSrc}
           alt={imageAlt}
@@ -222,7 +268,7 @@ export function ImageLightbox({
         </div>
       )}
 
-      {hasNavigation ? (
+      {hasNavigation && !vkActive ? (
         <>
           <Button
             type="button"
@@ -249,7 +295,7 @@ export function ImageLightbox({
         </>
       ) : null}
 
-      {navigationStatus ? (
+      {navigationStatus && !vkActive ? (
         <p
           role="status"
           className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] max-w-full px-4 text-center text-sm text-white"
@@ -258,16 +304,36 @@ export function ImageLightbox({
         </p>
       ) : null}
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-[max(0.5rem,env(safe-area-inset-top))] size-11 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white"
-        onClick={onClose}
-        aria-label="Close image preview"
-      >
-        <Icon name="X" className="size-5" />
-      </Button>
+      {vkActive ? null : (
+        <>
+          {vkEdit !== undefined &&
+          vkEditor !== null &&
+          imageSrc !== null &&
+          !vkEditorCrashed ? (
+            // VK EXPERIMENTAL: open the plugin image editor.
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-[calc(max(0.5rem,env(safe-area-inset-right))_+_3rem)] top-[max(0.5rem,env(safe-area-inset-top))] size-11 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white"
+              onClick={() => setVkEditing(true)}
+              aria-label={vkEditor.title}
+            >
+              <Icon name="Edit" className="size-5" />
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-[max(0.5rem,env(safe-area-inset-top))] size-11 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white"
+            onClick={onClose}
+            aria-label="Close image preview"
+          >
+            <Icon name="X" className="size-5" />
+          </Button>
+        </>
+      )}
     </div>,
     document.body,
   );
