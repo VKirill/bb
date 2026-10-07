@@ -59,6 +59,7 @@ import {
   type PluginComposerTextEffect,
   type PluginComposerThreadRowStatus,
   type PluginFileOpenerRegistration,
+  type PluginVkImageEditorRegistration,
   type PluginHomepageSectionRegistration,
   type PluginMessageActionRegistration,
   type PluginMessageDirectiveRegistration,
@@ -304,6 +305,11 @@ export interface ComposerLog {
    * Null means cleared. The harness has no Send pipeline, so it only records.
    */
   dispatchData: JsonValue | null;
+  /**
+   * Files passed to `experimental_vkAttachFiles` on this harness composer, in
+   * order. The harness has no upload pipeline, so it only records them.
+   */
+  attachedFiles: File[];
 }
 
 interface TestComposerStore {
@@ -1906,6 +1912,7 @@ export interface CapturedPluginApp {
   threadActions: PluginThreadActionRegistration<unknown>[];
   browserToolbarActions: ExperimentalPluginBrowserToolbarActionRegistration[];
   fileOpeners: PluginFileOpenerRegistration[];
+  vkImageEditors: PluginVkImageEditorRegistration[];
   sourceCodeRenderers: PluginSourceCodeRendererRegistration[];
   diffRenderers: PluginDiffRendererRegistration[];
   composers: ExperimentalComposerRegistration[];
@@ -2874,6 +2881,7 @@ export function renderSlot<
     submits: [],
     selections: [],
     dispatchData: null,
+    attachedFiles: [],
   };
   const composerOwnership = { active: true };
   const composerIsAvailable = () =>
@@ -2947,6 +2955,13 @@ export function renderSlot<
     // VK EXPERIMENTAL: the harness has no Send pipeline; it only records.
     vkSetDispatchData(_pluginId, data) {
       composerLog.dispatchData = data;
+    },
+    // VK EXPERIMENTAL: the harness has no upload pipeline; it only records.
+    async vkAttachFiles(_pluginId, files) {
+      if (composerScope.kind === "queued-message") {
+        throw new Error("A queued message can't take new attachments.");
+      }
+      composerLog.attachedFiles.push(...files);
     },
     async setSelection(selection) {
       if (composerScope.kind === "queued-message") {

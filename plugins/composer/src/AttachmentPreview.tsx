@@ -153,6 +153,12 @@ export function AttachmentPreview({
       ? (attachmentImageItems[expandedImageIndex] ?? null)
       : null;
 
+  // VK EXPERIMENTAL: a plugin image editor in bb's preview replaces this attachment.
+  const vkDraftAttachment =
+    expandedImageIndex !== null
+      ? imageAttachments[expandedImageIndex]
+      : undefined;
+
   useEffect(() => {
     if (expandedImageIndex === null) return;
     if (expandedImageIndex < imageAttachments.length) return;
@@ -283,6 +289,15 @@ export function AttachmentPreview({
         title="Attached media preview"
         mediaType={currentAttachmentImage?.mediaType}
         hasMultipleImages={hasMultipleAttachmentImages}
+        experimental_vkDraftAttachment={
+          vkDraftAttachment === undefined
+            ? undefined
+            : {
+                path: vkDraftAttachment.path,
+                name: vkDraftAttachment.name,
+                projectId: attachmentProjectId,
+              }
+        }
         onPrevious={() => {
           onExpandedImageIndexChange(
             expandedImageIndex === null || attachmentImageItems.length <= 1

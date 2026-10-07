@@ -124,6 +124,7 @@ import { ComposerSearchProvider } from "./composer-search";
 import type { CommandSuggestionSource } from "@/hooks/useCommandSuggestions";
 import type { PromptMentionSource } from "@/hooks/usePromptMentions";
 import { ComposerMaxHeightContext } from "./composer-max-height";
+import { createVkAttachFiles } from "@/lib/vk-image-editor"; // VK EXPERIMENTAL
 import {
   modifierSubmitShortcutAria,
   modifierSubmitShortcutLabel,
@@ -514,6 +515,9 @@ function useComposerRendererHostApi({
     });
   });
   useEffect(() => () => draftObserverRunner.dispose(), [draftObserverRunner]);
+  // VK EXPERIMENTAL: plugins attach files to this draft (experimental_vkAttachFiles).
+  const vkAttachFilesRef = useRef(attachments?.onAttachFiles);
+  vkAttachFilesRef.current = attachments?.onAttachFiles;
   const registerEditor: ComposerRootHost["registerEditor"] = (editor) => {
     if (editor.state.layout !== layout) handleLayoutChange(editor.state.layout);
     const bridge = {
@@ -521,6 +525,18 @@ function useComposerRendererHostApi({
       pluginCustomizable: host !== null && !suppress,
       ...editor,
       submit: submitForPlugin(editor.state),
+      ...(host === null
+        ? {}
+        : {
+            vkAttachFiles: createVkAttachFiles(host, () => {
+              const attach = vkAttachFilesRef.current;
+              return attach === undefined
+                ? undefined
+                : async (files: File[]) => {
+                    await attach(files);
+                  };
+            }),
+          }),
     };
     publishComposerEditorBridge(key, bridge);
     return () => clearComposerEditorBridge(key, bridge);

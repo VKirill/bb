@@ -151,6 +151,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `ExperimentalPluginBrowserPageWorld`
 - `PluginFileOpenerSource`
 - `PluginFileOpenerProps`
+- `PluginVkImageEditorProps` — VK builds only; `{ src, name, target, done(file), cancel() }` for the image editor slot
 - `CodeOverflowMode`
 - `DiffViewMode`
 - `SourceCodeLineRange`
@@ -250,6 +251,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `ExperimentalSidebarNavigationRegistration`
 - `ExperimentalSidebarHeaderProps`
 - `PluginFileOpenerRegistration`
+- `PluginVkImageEditorRegistration` — VK builds only; `app.slots.experimental_vkImageEditor({ id, title, component })`, the "Edit" button of the image preview
 - `PluginSourceCodeRendererRegistration`
 - `PluginDiffRendererRegistration`
 - `PluginMessageDirectiveRegistration`
@@ -359,7 +361,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `PluginComposerTextEffect`
 - `PluginComposerThreadRowStatus`
 - `PluginComposerMention`
-- `PluginComposerApi`
+- `PluginComposerApi` — VK builds only: `experimental_vkAttachFiles(files)` uploads files and attaches them to the draft (feature-test `typeof composer.experimental_vkAttachFiles === "function"`)
 - `ThreadChatMessageAction`
 - `ThreadChatProps`
 - `ExperimentalProviderModelPickerValue`

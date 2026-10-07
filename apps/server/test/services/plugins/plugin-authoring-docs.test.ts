@@ -14,6 +14,7 @@ import {
   type PluginDiffRendererProps,
   type ExperimentalComposerProps,
   type PluginFileOpenerProps,
+  type PluginVkImageEditorProps,
   type PluginHomepageSectionProps,
   type PluginHttpAuthMode,
   type PluginCommandContext,
@@ -288,6 +289,7 @@ type SlotPropsByName = {
   experimental_threadAction: PluginThreadActionItemInput<unknown>;
   experimental_browserToolbarAction: ExperimentalPluginBrowserToolbarActionProps;
   fileOpener: PluginFileOpenerProps;
+  experimental_vkImageEditor: PluginVkImageEditorProps;
   experimental_sourceCodeRenderer: PluginSourceCodeRendererProps;
   experimental_diffRenderer: PluginDiffRendererProps;
   experimental_composer: ExperimentalComposerProps;
@@ -395,6 +397,7 @@ const FRONTEND_SLOT_PROP_FIELDS = {
     "isCompactViewport",
   ],
   fileOpener: ["path", "source", "experimental_lineRange", "Original"],
+  experimental_vkImageEditor: ["src", "name", "target", "done", "cancel"],
   experimental_sourceCodeRenderer: [
     "content",
     "path",
