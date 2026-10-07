@@ -16,6 +16,8 @@ export interface ComposerEditorBridge {
   closePopup(pluginId: string): boolean;
   isPopupOpen(): boolean;
   submit(submission: ComposerEditorSubmission): Promise<void>;
+  /** VK EXPERIMENTAL: upload files and attach them to this composer's draft. */
+  vkAttachFiles?(files: File[]): Promise<void>;
 }
 
 const bridgesByKey = new Map<string, ComposerEditorBridge>();
