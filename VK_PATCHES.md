@@ -374,7 +374,9 @@ its declared `timeoutMs` plus 30 s for the swap (a `message.dispatch` hold is ta
 dispatch lock, so it neither eats the 10 s box nor blocks other chats; a hold that runs out fails the dispatch and, for
 a plugin with `vk.hookPolicy.messageDispatch`, fires the hook-timeout event)
 and run in it, and due schedules are skipped by the sweep and stay due. The new instance gets
-`bb.vk.startReason` (`boot` | `enable` | `reload`) and `bb.vk.afterDrain` (previous drain finished in time), and
+`bb.vk.startReason` (`boot` | `enable` | `reload`), `bb.vk.afterDrain` (previous drain finished in time) and
+`bb.vk.instanceId` (unique per instance; the drain handler of the instance being replaced gets the same value as
+`ctx.instanceId`, which is how a plugin tells the old instance from the new one when the module is shared), and
 its factory gets a clear error if it calls the host (a drain plugin must call the host from a background service
 or handler). In-memory only; no migrations, no host-daemon wire changes. Consumer: Lane Pilot (`deploy-drain`).
 
@@ -385,7 +387,7 @@ or handler). In-memory only; no migrations, no host-daemon wire changes. Consume
 | `apps/server/src/services/plugins/plugin-runtime.ts` | `vkDrainGate`, `vkRunDrain`; `loadOne(row, options?)` runs the drain before `disposePluginInstance`, keeps `vkModule`, opens the gate after activation; `listPluginHooks` late-binds the handler of a drain plugin; schedules held by a drain stay due; `disposeAll` runs the shutdown drains of all declaring plugins in parallel (`vkDrainAllForShutdown`, cap = longest declared timeout + 5 s, at most 600 s) |
 | `apps/server/src/services/plugins/plugin-service.ts`, `plugin-hook-registry.ts`, `threads/dispatch-hooks.ts`, `vk-hook-policy.ts` | gate checks in `sweepDueSchedules`, `resolveProviderEnv`, `resolveMention`, `invokeAgentTool` (`gate.waitForEnd`); `hooks.vkAwaitDrain` and its call before the dispatch lock; `noteVkHookFailure` reports an expired hold; `setEnabled` passes `startReason: "enable"` |
 | `apps/server/src/services/plugins/vk-plugin-lifecycle.ts` | `deadline` and a drain timeout for `runVkPluginLifecycle` / `runLifecycle`; a missing export is a no-op for `reload`/`shutdown` |
-| `apps/server/src/services/plugins/plugin-api.ts` | `bb.vk` (`startReason`, `afterDrain`), clearer host-call error, `vkSetAfterDrain` on the handle |
+| `apps/server/src/services/plugins/plugin-api.ts` | `bb.vk` (`startReason`, `afterDrain`, `instanceId`), clearer host-call error, `vkSetAfterDrain` and `vkInstanceId` on the handle |
 | `apps/server/src/services/plugins/manifest.ts`, `plugin-service-internal.ts` | `vkLifecycleDrain` on the manifest, `vkModule` on `LoadedPlugin` |
 | `packages/plugin-sdk/src/vk-plugin-lifecycle.ts`, `backend-contract.ts` | actions, `deadline`, `ExperimentalVkLifecycleInfo`, `BbPluginApi.vk` |
 | `plugins/bb-guide/.../backend-api-index.md`, `docs/api_to_audit.md`, `docs/vk-experimental.md` | docs; the two `plugin-authoring-docs` / `public-types` key lists gain `vk` |
