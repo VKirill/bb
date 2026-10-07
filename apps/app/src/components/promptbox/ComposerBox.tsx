@@ -96,6 +96,7 @@ import {
 } from "@/lib/plugin-frontend-boot-state";
 import { schedulePluginFrontendReconcile } from "@/lib/plugin-frontend-lazy";
 import { useComposerInputLock } from "@/lib/plugin-sdk-hooks";
+import { createVkAttachFiles } from "@/lib/vk-image-editor"; // VK EXPERIMENTAL
 import { sdk } from "@/lib/sdk";
 import {
   parseThreadLink,
@@ -431,6 +432,9 @@ function useComposerRendererHostApi({
   );
   const subscribeDraft = useComposerHostDraftNotifier(draft);
   const previousAttachmentPathsRef = useRef<ReadonlySet<string>>(new Set());
+  // VK EXPERIMENTAL: the latest attach handler for experimental_vkAttachFiles.
+  const vkAttachFilesRef = useRef(attachments?.onAttachFiles);
+  vkAttachFilesRef.current = attachments?.onAttachFiles;
   useEffect(() => {
     const paths = new Set(draftAttachments.map((item) => item.path));
     for (const path of previousAttachmentPathsRef.current) {
@@ -521,6 +525,15 @@ function useComposerRendererHostApi({
       pluginCustomizable: host !== null && !suppress,
       ...editor,
       submit: submitForPlugin(editor.state),
+      // VK EXPERIMENTAL: experimental_vkAttachFiles through the box's own upload.
+      ...(host !== null
+        ? {
+            vkAttachFiles: createVkAttachFiles(
+              host,
+              () => vkAttachFilesRef.current,
+            ),
+          }
+        : {}),
     };
     publishComposerEditorBridge(key, bridge);
     return () => clearComposerEditorBridge(key, bridge);

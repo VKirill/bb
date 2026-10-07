@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { useVkMessageImageEdit } from "@/components/ui/vk-image-editor"; // VK EXPERIMENTAL
 import { InlineImageGalleryContext } from "@/components/ui/inline-image-gallery-context";
 
 interface GalleryImage {
@@ -176,6 +177,8 @@ export function TimelineImageGallery({ children }: { children: ReactNode }) {
     });
   };
   const selected = gallery?.images[gallery.index];
+  // VK EXPERIMENTAL: plugin image editor for a timeline image.
+  const vkEdit = useVkMessageImageEdit(selected?.alt ?? "", selected?.src ?? null);
   return (
     <InlineImageGalleryContext.Provider value={openImage}>
       <div ref={timelineRef} className="contents">
@@ -185,6 +188,7 @@ export function TimelineImageGallery({ children }: { children: ReactNode }) {
         imageSrc={selected?.src ?? null}
         imageAlt={selected?.alt ?? "Image"}
         title="Timeline image preview"
+        vkEdit={vkEdit}
         hasMultipleImages={gallery !== null && gallery.images.length > 1}
         previousDisabled={gallery?.index === 0}
         nextDisabled={
