@@ -16,6 +16,7 @@ import {
 
 interface Trace {
   events: Array<Record<string, unknown>>;
+  ids?: Record<string, string | undefined>;
   hold?: Promise<void>;
   drainStarted?: () => void;
 }
@@ -29,6 +30,7 @@ ${
   withHandler
     ? `export async function experimental_vkLifecycle(ctx: any) {
   t.events.push({ v: "${version}", action: ctx.action, deadline: typeof ctx.deadline, hasSignal: ctx.signal instanceof AbortSignal });
+  if (ctx.action === "reload" || ctx.action === "shutdown") t.events.push({ v: "${version}", drainInstance: ctx.instanceId });
   if (ctx.action === "reload" || ctx.action === "shutdown") {
     t.drainStarted?.();
     if (t.hold) {
@@ -40,6 +42,8 @@ ${
     : ""
 }
 export default function plugin(bb: any) {
+  t.ids ??= {};
+  t.ids["${version}"] = bb.vk?.instanceId;
   t.events.push({ v: "${version}", factory: true, startReason: bb.vk?.startReason, afterDrain: bb.vk?.afterDrain });
   bb.experimental_hooks.on("message.dispatch", async () => {
     t.events.push({ v: "${version}", hook: true });
@@ -156,6 +160,11 @@ describe("VK drain on reload and shutdown", () => {
       { v: "v2", tool: true },
     ]);
     expect(events()).toContainEqual({ v: "v1", action: "reload", deadline: "number", hasSignal: true });
+    // The old instance's drain is told which instance it drains, and it is not the one that started after it.
+    const ids = trace().ids ?? {};
+    expect(typeof ids.v1).toBe("string");
+    expect(ids.v2).not.toBe(ids.v1);
+    expect(events().filter((event) => event.drainInstance !== undefined)).toEqual([{ v: "v1", drainInstance: ids.v1 }]);
     expect(events().filter((event) => event.service && event.v === "v2")).toEqual([
       { v: "v2", service: true, startReason: "reload", afterDrain: true },
     ]);
@@ -362,9 +371,10 @@ describe("VK drain hold in the running plugin", () => {
   it("message.dispatch of a draining plugin waits longer than the 10 s hook box instead of failing", async () => {
     const source = (tag: string) => `
 const g = globalThis as any;
-g.__vkHold ??= { log: [] };
+g.__vkHold ??= { log: [], started: false };
 export async function experimental_vkLifecycle(ctx: any) {
-  if (ctx.action === "reload") await new Promise((resolve) => setTimeout(resolve, 10_800));
+  if (ctx.action === "reload") g.__vkHold.started = true;
+  if (ctx.action === "reload") await new Promise((resolve) => setTimeout(resolve, 12_000));
 }
 export default function plugin(bb: any) {
   bb.experimental_hooks.on("message.dispatch", async () => { g.__vkHold.log.push("${tag}"); return { action: "proceed" }; });
@@ -375,9 +385,9 @@ export default function plugin(bb: any) {
       join(harness.config.dataDir, "fixtures", "bb-plugin-holder", "server.ts"),
       source("v2"),
     );
-    const hold = (globalThis as unknown as { __vkHold: { log: string[] } }).__vkHold;
+    const hold = (globalThis as unknown as { __vkHold: { log: string[]; started: boolean } }).__vkHold;
     const reloading = harness.pluginService.reload("holder");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    while (!hold.started) await new Promise((resolve) => setTimeout(resolve, 20)); // the gate is closed from here
     const registration = harness.pluginService.hooks
       .listHooks("message.dispatch")
       .find((entry) => entry.pluginId === "holder");
