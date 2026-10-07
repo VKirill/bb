@@ -34,6 +34,7 @@ date: 2026-09-24
 | 12 | `experimental_vkLifecycle` с действиями `reload` и `shutdown`, `bb.vk.startReason`, `bb.vk.afterDrain` | экспорт плагина, `vk.lifecycle.drain` в package.json | Плагин успевает остановить приём работы и сохранить состояние до перезагрузки и остановки сервера |
 | 13 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
 | 14 | `vk.hookPolicy` и `bb.vk.experimental_vkOnHookTimeout(cb)` | `package.json` плагина и API плагина (сервер) | Свой лимит времени для хуков плагина и видимый таймаут вместо тихой потери env |
+| 15 | `app.slots.experimental_vkImageEditor` и `useComposer().experimental_vkAttachFiles` | API плагина (интерфейс) | Редактор картинок плагина внутри просмотра картинки BB; добавление файлов в черновик композера |
 
 ```mermaid
 flowchart TD
@@ -459,6 +460,16 @@ if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
 **Проверка наличия.** `typeof bb.vk?.experimental_vkOnHookTimeout === "function"`. Типы: `ExperimentalVkHookPolicy`, `ExperimentalVkHookTimeoutEvent`, `PluginVkApi` в `@get-bb/plugin-sdk` (в опубликованном пакете их нет, объявляйте локально). Миграций и изменений протокола нет.
 
 ---
+
+## 13. Редактор картинок: `experimental_vkImageEditor` и `experimental_vkAttachFiles`
+
+`app.slots.experimental_vkImageEditor({ id, title, component })` (проверка: `typeof app.slots.experimental_vkImageEditor === "function"`). В просмотре картинки (вложение черновика композера, картинка отправленного сообщения) рядом с «Закрыть» появляется кнопка с `title`; она заменяет просмотр компонентом плагина. Побеждает первая регистрация среди включённых плагинов (по id). Props: `src` (тот же origin), `name`, `target` (`"draft"` или `"message"`), `done(file)`, `cancel()`.
+
+- `draft`: `done(file)` загружает файл как вставку из буфера и заменяет вложение на том же месте черновика.
+- `message`: `done(file)` добавляет файл в черновик композера треда, где показано сообщение, и фокусирует его.
+- Ошибка: `done` отклоняется с понятным `Error`, редактор остаётся открытым. Escape и стрелки внутри редактора обрабатывает плагин. Сбой компонента возвращает в обычный просмотр.
+
+`useComposer().experimental_vkAttachFiles(files)` загружает файлы и добавляет их вложениями в черновик этого композера (тред, либо новый тред), затем фокусирует. В редакторе сообщения из очереди и в композере, которого нет на экране, отклоняется с понятным текстом. Проверка: `typeof composer.experimental_vkAttachFiles === "function"`.
 
 ## Как внедрить в Агентство
 

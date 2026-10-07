@@ -29,6 +29,7 @@ import {
 import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import { serializedTextForPromptMentionResource } from "@/components/promptbox/mentions/prompt-mention-clipboard";
 import { subscribeComposerSubmitted } from "./composer-submissions";
+import { attachVkFilesToComposer } from "./vk-image-editor"; // VK EXPERIMENTAL
 import {
   getComposerEditorBridge,
   subscribeComposerEditorBridge,
@@ -238,6 +239,13 @@ function composerHandleTarget(source: ComposerSource): ComposerHandleTarget {
       return true;
     },
     ...(source.submit !== undefined ? { submit: source.submit } : {}),
+    // VK EXPERIMENTAL: attach files to the draft.
+    vkAttachFiles: (_pluginId, files) =>
+      attachVkFilesToComposer(
+        source.scope.kind,
+        getComposerEditorBridge(key),
+        files,
+      ),
     // VK EXPERIMENTAL: composer dispatch data.
     ...(source.vkSetDispatchData !== undefined
       ? { vkSetDispatchData: source.vkSetDispatchData }
