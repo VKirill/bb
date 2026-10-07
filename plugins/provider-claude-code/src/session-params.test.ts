@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimePermissionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
+import { createClaudeDeltaTranslator } from "./delta-translation.js";
 import {
   buildClaudeSessionParams,
   buildClaudeTurnParams,
@@ -389,5 +390,94 @@ describe("buildClaudeTurnParams", () => {
       },
     });
     expect(params).not.toHaveProperty("claudeCodePermissionMode");
+  });
+});
+
+describe("buildClaudeSessionParams dynamic tool presentation", () => {
+  const schema = { type: "object" };
+  const registered = {
+    label: {
+      pending: "Sending a task to a writer",
+      completed: "Sent a task to a writer",
+    },
+    icon: { glyph: "Send" },
+  };
+
+  function buildTools() {
+    const params = buildClaudeSessionParams({
+      threadId: "thread-1",
+      cwd: "/tmp/worktree",
+      instructionMode: "append",
+      dynamicTools: [
+        {
+          name: "plugin_with_label",
+          description: "d",
+          inputSchema: schema,
+          presentation: registered,
+        },
+        { name: "plugin_plain", description: "d", inputSchema: schema },
+      ],
+      options: toCanonicalWireOptions(EXECUTION_CONTEXT),
+    });
+    return params.dynamicTools as Array<Record<string, unknown>>;
+  }
+
+  it("keeps the presentation a plugin registered for its tool", () => {
+    expect(buildTools()[0]).toEqual({
+      name: "plugin_with_label",
+      description: "d",
+      inputSchema: schema,
+      presentation: registered,
+    });
+  });
+
+  it("leaves a tool without a registered presentation exactly as before", () => {
+    expect(buildTools()[1]).toEqual({
+      name: "plugin_plain",
+      description: "d",
+      inputSchema: schema,
+    });
+    expect(buildTools()[1]).not.toHaveProperty("presentation");
+  });
+
+  it("makes the bridge row read the registered label, and the generic one for a tool without it", () => {
+    const translator = createClaudeDeltaTranslator({ sandboxEnabled: false });
+    translator.configureInjectedTools(
+      buildTools().map((tool) => ({
+        name: tool.name as string,
+        ...(tool.presentation === undefined
+          ? {}
+          : { presentation: tool.presentation as typeof registered }),
+      })),
+    );
+    const deltas = translator.translate(
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: ["plugin_with_label", "plugin_plain"].map((tool, index) => ({
+            type: "tool_use",
+            id: `bb-${index}`,
+            name: `mcp__bb-bridge__${tool}`,
+            input: {},
+          })),
+        },
+        session_id: "sess-1",
+      } as never,
+      { threadId: "t" },
+    );
+    const presentations = deltas
+      .filter((delta) => delta.kind === "item.open")
+      .map((delta) => (delta as { presentation: unknown }).presentation);
+    expect(presentations).toEqual([
+      registered,
+      {
+        label: {
+          pending: "Running plugin_plain",
+          completed: "Ran plugin_plain",
+        },
+        icon: { glyph: "Toolbox" },
+      },
+    ]);
   });
 });

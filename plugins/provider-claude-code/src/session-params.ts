@@ -112,6 +112,9 @@ function buildInternalSessionParams(
     name: t.name,
     description: t.description,
     inputSchema: jsonValueSchema.parse(t.inputSchema),
+    // VK EXPERIMENTAL (claude-bridge-tool-presentation): the bridge classifies bb-bridge tool calls
+    // with the presentation a plugin registered; dropping it here made every plugin tool read "Ran <name>".
+    ...(t.presentation === undefined ? {} : { presentation: t.presentation }),
   }));
   const permissionPolicy = args.options;
   const additionalWorkspaceWriteRootsParams =

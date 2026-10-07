@@ -483,3 +483,25 @@ Consumer: plugin `office-viewer` (image editor; "To chat" button).
 New files: `apps/app/src/lib/vk-image-editor.ts`, `apps/app/src/components/ui/vk-image-editor.tsx`, tests
 `apps/app/src/lib/vk-image-editor.test.ts`, `apps/app/src/components/ui/vk-image-editor.test.tsx`,
 `packages/plugin-sdk/src/internal/vk-image-editor.test.ts`.
+
+## Claude bridge tool presentation (`claude-bridge-tool-presentation`)
+
+A plugin registers `presentation` (label, glyph, `suppress`) with `bb.agents.registerTool`. The server resolves it
+(`resolveAgentToolPresentation`) and sends it in `dynamicTools`; the Codex and ACP bridges read it from there. The
+Claude Code provider rebuilt the tool list for its bridge process as `{name, description, inputSchema}` and dropped
+`presentation`, so every `mcp__bb-bridge__<plugin tool>` call read "Running <name>" with the generic Toolbox glyph.
+The rebuilt list now keeps `presentation` when the tool has one. A tool without a registered presentation produces the
+same object as before. Upstream bug fix, not a new function: no SDK symbol, so no `vk-requires.json` entry. If
+upstream fixes it, drop this patch.
+
+No schema, no migration, no protocol change (`dynamicToolSchema` already carries `presentation`).
+
+Consumer: plugin `lane-pilot` (H7 labels of its `lane_pilot_*` tools).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `plugins/provider-claude-code/src/session-params.ts` | `buildInternalSessionParams` keeps `presentation` on each dynamic tool |
+
+Tests: `plugins/provider-claude-code/src/session-params.test.ts` ("dynamic tool presentation": kept, absent when not registered, bridge row label).
