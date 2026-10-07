@@ -54,6 +54,8 @@ export interface ComposerHandleTarget {
   setSelection?(selection: ComposerSelection): Promise<ComposerSelection>;
   /** VK EXPERIMENTAL: attach plugin-owned JSON to the next ordinary Send. */
   vkSetDispatchData?(pluginId: string, data: JsonValue | null): void;
+  /** VK EXPERIMENTAL: upload files and attach them to the draft. */
+  vkAttachFiles?(pluginId: string, files: File[]): Promise<void>;
 }
 
 export interface ComposerHandleController {
@@ -347,6 +349,16 @@ export function createComposerHandleBinding(
     }
     hostSet(controller.pluginId, data);
   };
+  // VK EXPERIMENTAL: see PluginComposerApi.experimental_vkAttachFiles.
+  const vkAttachFiles = async (files: File[]) => {
+    requireAvailable();
+    const hostAttach = target().vkAttachFiles;
+    if (hostAttach === undefined) {
+      throw new Error("This composer cannot take attachments from plugins.");
+    }
+    if (files.length === 0) return;
+    await hostAttach(controller.pluginId, files);
+  };
   const submittedListeners = new Set<() => void>();
   let submittedSubscription: {
     scope: string;
@@ -476,6 +488,7 @@ export function createComposerHandleBinding(
       return setSelection(selection);
     },
     experimental_vkSetDispatchData: vkSetDispatchData,
+    experimental_vkAttachFiles: vkAttachFiles,
   };
   Object.defineProperties(handle, {
     run: {

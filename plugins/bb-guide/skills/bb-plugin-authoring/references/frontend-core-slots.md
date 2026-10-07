@@ -245,6 +245,18 @@ target? })`. Inside the fixed-tab component,
   one under Settings → Appearance → Header, and the default is bb's controls
   only. Content is clipped to the row. Experimental: see
   `docs/api_to_audit.md`.
+- `experimental_vkImageEditor` → `{ src, name, target, done(file), cancel() }` —
+  VK builds only (feature-test `typeof app.slots.experimental_vkImageEditor ===
+  "function"`). Registration: `{ id, title, component }`. The image preview of
+  composer draft attachments and of images in sent messages shows an Edit
+  button (labelled `title`) that swaps the preview for your component, filling
+  the preview. `src` is a same-origin URL (`fetch()` with credentials works),
+  `name` the file name, `target` is `"draft"` (`done` replaces that attachment
+  in the draft) or `"message"` (`done` attaches the result to the thread's
+  composer draft). `done(file)` uploads, applies, closes editor and preview, and
+  rejects with a user-safe `Error` (the editor stays open). `cancel()` goes back
+  to the preview. Escape and arrow keys are yours while the editor is open. The
+  first enabled registration (plugins sorted by id) wins.
 - `fileOpener` → `{ path: string, source, experimental_lineRange?, Original }` — register as a viewer/editor
   for file extensions: `{ id, title, extensions: ["md"], component }`.
   Matching files use the first applicable opener in deterministic slot order

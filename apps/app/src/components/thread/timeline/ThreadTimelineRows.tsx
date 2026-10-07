@@ -12,6 +12,7 @@ import {
 import type { CSSProperties, ReactNode } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { TimelineImageGallery } from "./TimelineImageGallery";
+import { VkMessageImageThreadProvider } from "@/components/ui/vk-image-editor"; // VK EXPERIMENTAL
 import type {
   PromptInput,
   ThreadOriginKind,
@@ -1907,9 +1908,12 @@ function TimelineRowsList({
 function ThreadTimelineRowsComponent(props: ThreadTimelineRowsProps) {
   const ownerKey = props.threadId ?? props.timelineRows[0]?.threadId ?? "";
   return (
-    <TimelineImageGallery key={ownerKey}>
-      <ThreadTimelineRowsForTimelineView {...props} />
-    </TimelineImageGallery>
+    // VK EXPERIMENTAL: edited images of sent messages go to this thread's composer.
+    <VkMessageImageThreadProvider threadId={ownerKey}>
+      <TimelineImageGallery key={ownerKey}>
+        <ThreadTimelineRowsForTimelineView {...props} />
+      </TimelineImageGallery>
+    </VkMessageImageThreadProvider>
   );
 }
 

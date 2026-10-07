@@ -115,6 +115,7 @@ import {
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS } from "./banner/PromptStackCard";
 import { AttachmentPreview } from "./AttachmentPreview";
+import { createVkAttachFiles } from "@/lib/vk-image-editor"; // VK EXPERIMENTAL
 import { VoiceRecordingBar } from "./VoiceRecordingBar";
 import {
   ComposerPlusMenuSlot,
@@ -2767,6 +2768,11 @@ export function PromptBoxInternal({
             insertAtCursor: insertAtCursorForPlugin,
             openPopup: openPopupForPlugin,
             closePopup: closePopupForPlugin,
+            // VK EXPERIMENTAL: plugins attach files to this draft.
+            vkAttachFiles: createVkAttachFiles(
+              pluginComposerHost,
+              () => onAttachFilesRef.current,
+            ),
             isPopupOpen: () => {
               const current = composerMenuRef.current;
               return (

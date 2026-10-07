@@ -1660,6 +1660,33 @@ export interface PluginFileOpenerRegistration {
   component: ComponentType<PluginFileOpenerProps>;
 }
 
+/** VK EXPERIMENTAL: props of a plugin image editor shown inside BB's image preview. */
+export interface PluginVkImageEditorProps {
+  /** Same-origin URL of the image (blob: or a BB attachment URL); fetch() with credentials works. */
+  src: string;
+  /** File name of the image, e.g. "image-1791390626472.png". */
+  name: string;
+  /** "draft": a composer draft attachment, done() replaces it. "message": an image of a sent message, done() attaches the result to the thread's composer draft. */
+  target: "draft" | "message";
+  /** Hand the edited image back. Core uploads it and replaces/attaches, then closes the editor and the preview. Rejects with a user-safe Error message on failure (the editor stays open). */
+  done(file: File): Promise<void>;
+  /** Leave the editor without changes (back to the preview). */
+  cancel(): void;
+}
+
+/**
+ * VK EXPERIMENTAL: an image editor opened by the "Edit" button of BB's image
+ * preview (composer draft attachments and images of sent messages). The first
+ * enabled registration (plugins sorted by id) wins.
+ */
+export interface PluginVkImageEditorRegistration {
+  /** Unique within the plugin; letters, digits, `-`, `_`. */
+  id: string;
+  /** Button tooltip/label, e.g. "Edit". */
+  title: string;
+  component: ComponentType<PluginVkImageEditorProps>;
+}
+
 /**
  * Replace BB's source-code renderer everywhere it renders supplied source
  * text — the native file preview and every plugin that calls
@@ -2114,6 +2141,14 @@ export interface PluginAppSlots {
     registration: ExperimentalPluginBrowserToolbarActionRegistration,
   ): void;
   fileOpener(registration: PluginFileOpenerRegistration): void;
+  /**
+   * VK EXPERIMENTAL: register the image editor behind the "Edit" button of
+   * BB's image preview (see {@link PluginVkImageEditorRegistration}). Feature-test
+   * with `typeof app.slots.experimental_vkImageEditor === "function"`.
+   */
+  experimental_vkImageEditor(
+    registration: PluginVkImageEditorRegistration,
+  ): void;
   /**
    * Replace BB's source-code renderer (see
    * {@link PluginSourceCodeRendererRegistration}). Experimental: see
@@ -2863,6 +2898,14 @@ export interface PluginComposerApi {
    * failed sends retain it.
    */
   experimental_vkSetDispatchData(data: JsonValue | null): void;
+  /**
+   * VK EXPERIMENTAL: upload files and add them to this composer's draft as
+   * attachments (images show as thumbnails, exactly like a paste or drop),
+   * then focus the composer. Resolves when they are attached; rejects with a
+   * user-safe Error message (a queued-message editor, a composer that is not
+   * on screen, an upload failure).
+   */
+  experimental_vkAttachFiles(files: File[]): Promise<void>;
 }
 
 /**

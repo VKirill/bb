@@ -379,6 +379,7 @@ let capturedComposerVisualSetters: Pick<
   PluginComposerApi,
   "setTextEffect" | "setInputLock"
 > | null = null;
+let capturedComposer: PluginComposerApi | null = null;
 let capturedComposerSetSelection: PluginComposerApi["setSelection"] | null =
   null;
 
@@ -405,6 +406,7 @@ function ComposerProbe() {
     setInputLock: composer.setInputLock,
   };
   capturedComposerSetSelection = composer.setSelection;
+  capturedComposer = composer;
   return (
     <div>
       <span data-testid="composer-scope">{composer.scope.kind}</span>
@@ -1934,6 +1936,35 @@ describe("renderSlot", () => {
       { provider: "notes", id: "ideas", label: "Ideas" },
     ]);
     expect(slot.composer.focusCount).toBe(3);
+  });
+
+  it("VK EXPERIMENTAL: records experimental_vkAttachFiles and rejects in a queued-message editor", async () => {
+    const file = new File(["x"], "edit.png", { type: "image/png" });
+    const threadSlot = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      { context: { projectId: "proj_1", threadId: "thr_1" } },
+    );
+    await capturedComposer!.experimental_vkAttachFiles([file]);
+    expect(threadSlot.composer.attachedFiles).toEqual([file]);
+
+    const queuedSlot = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        composer: {
+          scope: {
+            kind: "queued-message",
+            threadId: "thr_1",
+            queuedMessageId: "q_1",
+          },
+        },
+      },
+    );
+    await expect(
+      capturedComposer!.experimental_vkAttachFiles([file]),
+    ).rejects.toThrow("queued message");
+    expect(queuedSlot.composer.attachedFiles).toEqual([]);
   });
 
   it("merges picker changes into reactive selection snapshots for both composer hooks", async () => {

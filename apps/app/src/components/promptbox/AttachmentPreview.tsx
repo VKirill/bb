@@ -5,6 +5,7 @@ import {
   ImageLightbox,
 } from "@/components/ui/image-lightbox.js";
 import { Icon } from "@bb/shared-ui/icon";
+import { useVkDraftImageEdit } from "@/components/ui/vk-image-editor"; // VK EXPERIMENTAL
 import type { PromptDraftAttachment } from "@bb/client-core";
 import { toUserAttachmentImageSrc } from "@/lib/user-attachment-images";
 import {
@@ -99,6 +100,15 @@ export function AttachmentPreview({
     expandedImageIndex !== null
       ? (attachmentImageItems[expandedImageIndex] ?? null)
       : null;
+
+  // VK EXPERIMENTAL: plugin image editor replaces the previewed attachment.
+  const vkEdit = useVkDraftImageEdit(
+    expandedImageIndex !== null
+      ? (imageAttachments[expandedImageIndex] ?? null)
+      : null,
+    currentAttachmentImage?.src ?? null,
+    attachmentProjectId,
+  );
 
   useEffect(() => {
     if (expandedImageIndex === null) return;
@@ -211,6 +221,7 @@ export function AttachmentPreview({
         imageAlt={currentAttachmentImage?.alt ?? "Attached image"}
         title="Attached image preview"
         hasMultipleImages={hasMultipleAttachmentImages}
+        vkEdit={vkEdit}
         onPrevious={() => {
           onExpandedImageIndexChange(
             expandedImageIndex === null || attachmentImageItems.length <= 1
