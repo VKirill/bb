@@ -417,6 +417,23 @@ export async function runMessageDispatchHookPass(
     path: vkIntentPath(request.environmentIntent),
   });
 
+  // VK EXPERIMENTAL: a plugin that is draining holds its dispatch until the new instance is live (bounded by
+  // its declared drain timeout), before the lock and before any decision box starts. No-op otherwise.
+  const drainHolds = new Map<string, number>();
+  if (provider.vkAwaitDrain !== undefined) {
+    const awaitDrain = provider.vkAwaitDrain.bind(provider);
+    await Promise.all(
+      [...new Set(hooks.map((hook) => hook.pluginId))]
+        .filter((pluginId) => !excluded.has(pluginId))
+        .map(async (pluginId) => {
+          const held = await awaitDrain(pluginId);
+          if (held !== undefined && !held.ready) {
+            drainHolds.set(pluginId, held.timeoutMs);
+          }
+        }),
+    );
+  }
+
   return withEvaluationLock(async () => {
     const context = buildHookContext(deps, request);
     if (
@@ -457,6 +474,7 @@ export async function runMessageDispatchHookPass(
           error: invocation.value.error,
           threadId: request.thread.id,
           projectId: request.project.id,
+          drainHoldMs: drainHolds.get(hook.pluginId),
         }); // VK EXPERIMENTAL
         throw messageDispatchHookFailure(hook.pluginId, invocation.value.error);
       }
