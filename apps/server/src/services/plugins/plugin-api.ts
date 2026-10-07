@@ -14,6 +14,7 @@ import type { MachineEnrollments } from "../machines/enrollments.js";
 import { listServerAccessProviders } from "./plugin-server-access-registry.js";
 import { detachActivePluginToolCallForUserInput } from "./plugin-tool-calls.js";
 import { fillPluginPresentation } from "./plugin-presentation.js";
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -303,6 +304,8 @@ export interface PluginApiHandle {
   mentionProviders: PluginMentionProviderRecord[];
   /** VK EXPERIMENTAL: the previous instance finished its reload drain; read by `bb.vk.afterDrain`. */
   vkSetAfterDrain(value: boolean): void;
+  /** VK EXPERIMENTAL: unique per plugin instance; `bb.vk.instanceId`, and `ctx.instanceId` of that instance's drain. */
+  readonly vkInstanceId: string;
   activate(): void;
   closeWebSockets(): void;
   invalidate(): void;
@@ -600,6 +603,7 @@ export function createPluginApi(options: {
   let invalidated = false;
   let activated = false;
   let vkAfterDrain = false;
+  const vkInstanceId = randomUUID(); // VK EXPERIMENTAL
   let wrappedSdk: PluginBbSdk | undefined;
   let pendingNeedsConfiguration: string | null = null;
   const pendingAgentToolProblems: string[] = [];
@@ -1430,6 +1434,7 @@ export function createPluginApi(options: {
         onDispose: (hook) => disposeHooks.push(hook),
       }),
       startReason: options.vk?.startReason ?? "boot",
+      instanceId: vkInstanceId,
       get afterDrain(): boolean {
         return vkAfterDrain;
       },
@@ -1505,6 +1510,7 @@ export function createPluginApi(options: {
     vkSetAfterDrain(value) {
       vkAfterDrain = value;
     },
+    vkInstanceId,
     activate() {
       if (activated) return;
       assertLive();

@@ -25,6 +25,8 @@ export async function runVkPluginLifecycle(input: {
   timeoutMs?: number;
   /** reload/shutdown drain: epoch ms exposed to the handler as `ctx.deadline`. */
   deadline?: number;
+  /** reload/shutdown drain: the instance being drained, exposed as `ctx.instanceId` (`bb.vk.instanceId` of it). */
+  instanceId?: string;
 }): Promise<boolean> {
   const handler =
     input.module !== null && typeof input.module === "object"
@@ -62,6 +64,7 @@ export async function runVkPluginLifecycle(input: {
     pluginId: input.pluginId,
     action: input.action,
     ...(input.deadline === undefined ? {} : { deadline: input.deadline }),
+    ...(input.instanceId === undefined ? {} : { instanceId: input.instanceId }),
     signal: controller.signal,
     kv: {
       async get(key) {
@@ -162,7 +165,7 @@ export function createVkPluginLifecycleRunner(input: {
     row: InstalledPluginRow,
     action: ExperimentalVkPluginLifecycleAction,
     imported?: unknown,
-    drain?: { timeoutMs: number; deadline: number },
+    drain?: { timeoutMs: number; deadline: number; instanceId?: string },
   ): Promise<boolean> {
     let manifest: PluginManifest;
     let mod: unknown;
