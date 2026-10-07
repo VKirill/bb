@@ -8,6 +8,7 @@ import type {
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 import { appendSystemErrorEvent } from "../threads/thread-events.js";
+import { vkDrainNotReadyMessage } from "./vk-plugin-drain.js";
 
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
@@ -275,13 +276,24 @@ export function noteVkHookFailure(args: {
   error: string;
   threadId?: string;
   projectId?: string;
+  /** The drain hold ran out (the plugin was still draining): its declared drain timeout, in ms. */
+  drainHoldMs?: number | undefined;
 }): void {
   if (args.policy?.[args.hook] === undefined) return;
-  if (!vkIsHookTimeout(args.hook, args.error, args.timeoutMs)) return;
+  const drainHoldExpired =
+    args.drainHoldMs !== undefined &&
+    args.error === vkDrainNotReadyMessage(args.pluginId);
+  if (
+    !drainHoldExpired &&
+    !vkIsHookTimeout(args.hook, args.error, args.timeoutMs)
+  )
+    return;
   void reportVkHookTimeout({
     hook: args.hook,
     pluginId: args.pluginId,
-    timeoutMs: args.timeoutMs,
+    timeoutMs: drainHoldExpired
+      ? (args.drainHoldMs ?? args.timeoutMs)
+      : args.timeoutMs,
     ...(args.threadId === undefined ? {} : { threadId: args.threadId }),
     ...(args.projectId === undefined ? {} : { projectId: args.projectId }),
     required: false,
