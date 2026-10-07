@@ -73,6 +73,11 @@ export interface PluginHookProvider {
   readonly decisionTimeoutMs: number;
   /** VK EXPERIMENTAL: the `vk.hookPolicy` a plugin declared, if any. */
   vkHookPolicy?(pluginId: string): ExperimentalVkHookPolicy | undefined;
+  /**
+   * VK EXPERIMENTAL: holds until a draining plugin's new instance is live (bounded by its declared drain
+   * timeout, reported back as `timeoutMs`). Undefined when the plugin is not draining, which is always the case without `vk.lifecycle.drain`.
+   */
+  vkAwaitDrain?(pluginId: string): Promise<{ ready: boolean; timeoutMs: number } | undefined>;
 }
 
 /**
