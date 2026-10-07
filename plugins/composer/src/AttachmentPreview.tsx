@@ -153,6 +153,12 @@ export function AttachmentPreview({
       ? (attachmentImageItems[expandedImageIndex] ?? null)
       : null;
 
+  // VK EXPERIMENTAL: a plugin image editor may replace the previewed attachment.
+  const vkExpandedAttachment =
+    expandedImageIndex !== null
+      ? (imageAttachments[expandedImageIndex] ?? null)
+      : null;
+
   useEffect(() => {
     if (expandedImageIndex === null) return;
     if (expandedImageIndex < imageAttachments.length) return;
@@ -283,6 +289,16 @@ export function AttachmentPreview({
         title="Attached media preview"
         mediaType={currentAttachmentImage?.mediaType}
         hasMultipleImages={hasMultipleAttachmentImages}
+        // VK EXPERIMENTAL: lets a plugin image editor replace this draft attachment.
+        experimental_vkDraftAttachment={
+          vkExpandedAttachment === null
+            ? undefined
+            : {
+                path: vkExpandedAttachment.path,
+                name: vkExpandedAttachment.name,
+                projectId: attachmentProjectId,
+              }
+        }
         onPrevious={() => {
           onExpandedImageIndexChange(
             expandedImageIndex === null || attachmentImageItems.length <= 1

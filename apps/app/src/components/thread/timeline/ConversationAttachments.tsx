@@ -6,6 +6,7 @@ import { fileNameFromPath } from "@bb/thread-view";
 import { ImageLightbox } from "../../ui/image-lightbox.js";
 import { getWrappedImageIndex } from "@bb/shared-ui/lib/image-preview";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { useVkMessageImageEdit } from "../../ui/vk-image-editor.js"; // VK EXPERIMENTAL
 import {
   buildProjectAttachmentContentUrl,
   isAbsoluteLocalPath,
@@ -125,6 +126,11 @@ export function ConversationAttachments({
     expandedImageIndex === null
       ? null
       : (imageItems[expandedImageIndex] ?? null);
+  // VK EXPERIMENTAL: plugin image editor for a sent image.
+  const vkEdit = useVkMessageImageEdit(
+    currentImageItem?.alt ?? "",
+    currentImageItem?.src ?? null,
+  );
   const hasMultipleImages = imageItems.length > 1;
   const justifyClassName = align === "end" ? "justify-end" : "justify-start";
 
@@ -277,6 +283,7 @@ export function ConversationAttachments({
         imageSrc={currentImageItem?.src ?? null}
         imageAlt={currentImageItem?.alt ?? "Attached image"}
         hasMultipleImages={hasMultipleImages}
+        vkEdit={vkEdit}
         onPrevious={() => {
           setExpandedImageIndex(
             expandedImageIndex === null || imageItems.length <= 1

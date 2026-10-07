@@ -12,6 +12,7 @@ import type {
   PluginMachineProviderInputsRegistration,
   PluginPendingInteractionRegistration,
   PluginFileOpenerRegistration,
+  PluginVkImageEditorRegistration,
   PluginHomepageSectionRegistration,
   PluginMessageActionRegistration,
   PluginMessageDirectiveRegistration,
@@ -66,6 +67,8 @@ export interface PluginRegistrationSet {
   threadActions?: readonly PluginThreadActionRegistration<unknown>[];
   browserToolbarActions?: readonly ExperimentalPluginBrowserToolbarActionRegistration[];
   fileOpeners: readonly PluginFileOpenerRegistration[];
+  /** VK EXPERIMENTAL */
+  vkImageEditors?: readonly PluginVkImageEditorRegistration[];
   sourceCodeRenderers?: readonly PluginSourceCodeRendererRegistration[];
   diffRenderers?: readonly PluginDiffRendererRegistration[];
   composers?: readonly ExperimentalComposerRegistration[];
@@ -143,6 +146,9 @@ export interface PluginBrowserToolbarActionSlot
   extends ExperimentalPluginBrowserToolbarActionRegistration, PluginSlotBase {}
 export interface PluginFileOpenerSlot
   extends PluginFileOpenerRegistration, PluginSlotBase {}
+/** VK EXPERIMENTAL */
+export interface PluginVkImageEditorSlot
+  extends PluginVkImageEditorRegistration, PluginSlotBase {}
 export interface PluginSourceCodeRendererSlot
   extends PluginSourceCodeRendererRegistration, PluginSlotBase {}
 export interface PluginDiffRendererSlot
@@ -188,6 +194,7 @@ export interface PluginSlotSnapshot {
   threadActions: readonly PluginThreadActionSlot[];
   browserToolbarActions: readonly PluginBrowserToolbarActionSlot[];
   fileOpeners: readonly PluginFileOpenerSlot[];
+  vkImageEditors: readonly PluginVkImageEditorSlot[];
   sourceCodeRenderers: readonly PluginSourceCodeRendererSlot[];
   diffRenderers: readonly PluginDiffRendererSlot[];
   composers: readonly PluginComposerSlot[];
@@ -223,6 +230,7 @@ export const EMPTY_PLUGIN_SLOT_SNAPSHOT: PluginSlotSnapshot = {
   threadActions: [],
   browserToolbarActions: [],
   fileOpeners: [],
+  vkImageEditors: [],
   sourceCodeRenderers: [],
   diffRenderers: [],
   composers: [],
@@ -265,6 +273,7 @@ const SLOT_KINDS: readonly SlotKind[] = [
   "threadActions",
   "browserToolbarActions",
   "fileOpeners",
+  "vkImageEditors",
   "sourceCodeRenderers",
   "diffRenderers",
   "composers",
@@ -355,6 +364,7 @@ function flattenRegistrations(
     threadActions: stamp(set.threadActions),
     browserToolbarActions: stamp(set.browserToolbarActions),
     fileOpeners: stamp(set.fileOpeners),
+    vkImageEditors: stamp(set.vkImageEditors),
     sourceCodeRenderers: stamp(set.sourceCodeRenderers),
     diffRenderers: stamp(set.diffRenderers),
     composers: stamp(set.composers),
