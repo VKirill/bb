@@ -34,6 +34,12 @@ export interface ExperimentalVkLifecycleInfo {
   readonly startReason: ExperimentalVkLifecycleStartReason;
   /** True when this instance replaced one whose `reload` drain handler finished before its deadline. */
   readonly afterDrain: boolean;
+  /**
+   * Unique per plugin instance. The `reload` and `shutdown` drain handler receives the id of the instance it
+   * drains as `context.instanceId`; key per-instance state by it, because a reload with the same build runs the
+   * new factory (same module) before the old instance drains.
+   */
+  readonly instanceId: string;
 }
 
 /** Available to the named experimental_vkLifecycle server export, including while disabled. */
@@ -42,6 +48,8 @@ export interface ExperimentalVkPluginLifecycleContext {
   readonly action: ExperimentalVkPluginLifecycleAction;
   /** Epoch ms after which a `reload` or `shutdown` drain is aborted (`signal`). Absent for the other actions. */
   readonly deadline?: number;
+  /** For `reload` and `shutdown`: `bb.vk.instanceId` of the instance being drained. */
+  readonly instanceId?: string;
   readonly signal: AbortSignal;
   readonly kv: PluginKvStorage;
   /** Uses the existing authenticated host RPC transport and contract validation. */

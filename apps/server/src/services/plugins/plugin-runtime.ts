@@ -1807,6 +1807,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       const ran = await runLifecycle(row, action, previous.vkModule, {
         timeoutMs: declared.timeoutMs,
         deadline: Date.now() + declared.timeoutMs,
+        instanceId: previous.handle.vkInstanceId,
       });
       if (!ran) {
         logger.warn(
