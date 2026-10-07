@@ -8,6 +8,7 @@ import {
   type PluginHookRegistration,
 } from "../../src/services/plugins/plugin-hook-registry.js";
 import { createVkHookPolicyApi } from "../../src/services/plugins/vk-hook-policy.js";
+import { vkDrainNotReadyMessage } from "../../src/services/plugins/vk-plugin-drain.js";
 import { acceptThreadSendRequest } from "../../src/services/threads/thread-send-request.js";
 import { textInput } from "../helpers/prompt-input.js";
 import {
@@ -27,8 +28,12 @@ function installHooks(
   handlers: PluginHookRegistration<"message.dispatch">[],
   policies: Record<string, ExperimentalVkHookPolicy>,
   decisionTimeoutMs: number,
+  vkAwaitDrain?: (
+    pluginId: string,
+  ) => Promise<{ ready: boolean; timeoutMs: number } | undefined>,
 ): void {
   setPluginHookProvider({
+    ...(vkAwaitDrain === undefined ? {} : { vkAwaitDrain }),
     listHooks: () => handlers as never,
     invokeHook: (_pluginId, _label, run) => invokePluginInline(run),
     decisionTimeoutMs,
@@ -179,6 +184,141 @@ describe("vk.hookPolicy.messageDispatch", () => {
       );
       const error = await failureOf(() => send(harness, thread));
       expect(error.body.message).toContain("handler exploded");
+      expect(timeoutRows(harness, thread.id)).toEqual([]);
+    });
+  });
+});
+
+// VK EXPERIMENTAL: dispatch holds for a draining plugin before the decision box starts.
+describe("vk.lifecycle.drain hold in message.dispatch", () => {
+  it("the hold does not count against the decision box and the hook then decides in the new instance", async () => {
+    await withTestHarness(async (harness) => {
+      let drained = false;
+      const calls: string[] = [];
+      installHooks(
+        [
+          {
+            pluginId: "drainer",
+            handler: async () => {
+              calls.push(drained ? "new" : "old");
+              return { action: "proceed" } as const;
+            },
+          },
+        ],
+        {},
+        30, // the box is far shorter than the hold below
+        async () => {
+          await sleep(250);
+          drained = true;
+          return { ready: true, timeoutMs: 300_000 };
+        },
+      );
+      await send(harness, seedIdleThread(harness, "host-vk-hold"));
+      expect(calls).toEqual(["new"]);
+    });
+  });
+
+  it("without vkAwaitDrain a slow hook still hits the stock box (witness)", async () => {
+    await withTestHarness(async (harness) => {
+      installHooks(
+        [
+          {
+            pluginId: "stock",
+            handler: async () => {
+              await sleep(250);
+              return { action: "proceed" } as const;
+            },
+          },
+        ],
+        {},
+        30,
+      );
+      const error = await failureOf(() =>
+        send(harness, seedIdleThread(harness, "host-vk-hold-stock")),
+      );
+      expect(error.body.message).toContain("did not decide within 30ms");
+    });
+  });
+
+  it("a plugin that is not draining is not held and a draining one does not hold the others", async () => {
+    await withTestHarness(async (harness) => {
+      const asked: string[] = [];
+      installHooks(
+        [
+          { pluginId: "idle", handler: async () => ({ action: "proceed" }) as const },
+        ],
+        {},
+        1_000,
+        async (pluginId) => {
+          asked.push(pluginId);
+          return undefined;
+        },
+      );
+      await send(harness, seedIdleThread(harness, "host-vk-hold-idle"));
+      expect(asked).toEqual(["idle"]);
+    });
+  });
+
+  it("when the hold runs out the dispatch fails and a declared hook reports the timeout", async () => {
+    await withTestHarness(async (harness) => {
+      const thread = seedIdleThread(harness, "host-vk-hold-expired");
+      const calls: unknown[] = [];
+      createVkHookPolicyApi({
+        pluginId: "drainer",
+        assertLive: () => {},
+        onDispose: () => {},
+      }).experimental_vkOnHookTimeout((event) => {
+        calls.push(event);
+      });
+      installHooks(
+        [
+          {
+            pluginId: "drainer",
+            handler: () => {
+              throw new Error(vkDrainNotReadyMessage("drainer"));
+            },
+          },
+        ],
+        { drainer: { messageDispatch: { timeoutMs: 5_000 } } },
+        10_000,
+        async () => ({ ready: false, timeoutMs: 300_000 }),
+      );
+      const error = await failureOf(() => send(harness, thread));
+      expect(error.status).toBe(502);
+      expect(error.body.message).toContain("is draining and its new instance is not ready");
+      await sleep(10);
+      expect(calls).toEqual([
+        {
+          hook: "messageDispatch",
+          pluginId: "drainer",
+          timeoutMs: 300_000,
+          threadId: thread.id,
+          projectId: thread.projectId,
+          required: false,
+        },
+      ]);
+      expect(timeoutRows(harness, thread.id)).toHaveLength(1);
+    });
+  });
+
+  it("without a declared policy the expired hold fails the dispatch silently (as stock timeouts do)", async () => {
+    await withTestHarness(async (harness) => {
+      const thread = seedIdleThread(harness, "host-vk-hold-nopolicy");
+      installHooks(
+        [
+          {
+            pluginId: "drainer",
+            handler: () => {
+              throw new Error(vkDrainNotReadyMessage("drainer"));
+            },
+          },
+        ],
+        {},
+        10_000,
+        async () => ({ ready: false, timeoutMs: 300_000 }),
+      );
+      const error = await failureOf(() => send(harness, thread));
+      expect(error.status).toBe(502);
       expect(timeoutRows(harness, thread.id)).toEqual([]);
     });
   });

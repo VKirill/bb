@@ -19,7 +19,11 @@ import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createVkPluginLifecycleRunner } from "./vk-plugin-lifecycle.js";
 import { createVkScheduleRunner } from "./vk-schedule-options.js";
-import { createVkDrainGate } from "./vk-plugin-drain.js";
+import {
+  VK_DRAIN_MAX_TIMEOUT_MS,
+  createVkDrainGate,
+  vkDrainNotReadyMessage,
+} from "./vk-plugin-drain.js";
 import semver from "semver";
 import { HOST_ARTIFACT_MAX_BYTES } from "@bb/host-daemon-contract/protocol";
 import {
@@ -75,10 +79,7 @@ import type {
   PluginHookName,
   PluginSettingDescriptors,
 } from "@get-bb/plugin-sdk";
-import {
-  DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
-  type PluginHookRegistration,
-} from "./plugin-hook-registry.js";
+import type { PluginHookRegistration } from "./plugin-hook-registry.js";
 import type { PluginEnvironmentProviderRecord } from "./plugin-environment-provider-registry.js";
 import type { PluginMachineProviderRecord } from "./plugin-machine-provider-registry.js";
 import {
@@ -724,15 +725,9 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           plugin.manifest.vkLifecycleDrain === undefined
             ? handler
             : ((async (...args: Parameters<PluginHookHandler<K>>) => {
-                if (
-                  !(await vkDrainGate.waitUpTo(
-                    id,
-                    DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
-                  ))
-                ) {
-                  throw new Error(
-                    `plugin "${id}" is draining and its new instance is not ready`,
-                  );
+                // Held until the drain ends, bounded by the declared drain timeout (not the 10 s hook box).
+                if (!(await vkDrainGate.waitForEnd(id))) {
+                  throw new Error(vkDrainNotReadyMessage(id));
                 }
                 const live = loaded.get(id)?.handle.hooks[hook] ?? handler;
                 return live(...args);
@@ -1593,6 +1588,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
 
   // VK EXPERIMENTAL: reload/shutdown drain (vk-plugin-drain.ts); idle for plugins without `vk.lifecycle.drain`.
   const vkDrainGate = createVkDrainGate();
+  const VK_SHUTDOWN_DRAIN_CAP_MARGIN_MS = 5_000;
 
   /** Runs the replaced instance's `experimental_vkLifecycle` for reload or shutdown. True when it finished in time. */
   async function vkRunDrain(
@@ -2118,22 +2114,67 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     deps.sharedPorts?.clearDeclarationsForOwner(id);
   }
 
+  /**
+   * VK EXPERIMENTAL: the shutdown drains of every plugin that declared one, in parallel, so stopping the
+   * server takes the longest declared timeout and not their sum. Each drain is bounded by its own timeout;
+   * the overall cap (longest declared timeout plus a margin, at most `VK_DRAIN_MAX_TIMEOUT_MS`) is a guard
+   * for a drain stuck behind a lifecycle lock. Gates stay closed until `disposeAll` disposes each plugin.
+   */
+  async function vkDrainAllForShutdown(pluginIds: Iterable<string>): Promise<void> {
+    const drains: Promise<unknown>[] = [];
+    let capMs = 0;
+    for (const id of pluginIds) {
+      const timeoutMs = loaded.get(id)?.manifest.vkLifecycleDrain?.timeoutMs;
+      if (timeoutMs === undefined) continue;
+      capMs = Math.max(capMs, timeoutMs);
+      drains.push(
+        withLifecycleLock(id, async () => {
+          // Re-read inside the lock: a reload that held it may have replaced the instance.
+          const running = loaded.get(id);
+          const row = getInstalledPlugin(deps.db, id);
+          if (
+            running?.manifest.vkLifecycleDrain !== undefined &&
+            row !== undefined
+          ) {
+            await vkRunDrain(row, running, "shutdown");
+          }
+        }).catch((error: unknown) => {
+          logger.warn(
+            `plugin ${id} shutdown drain failed (${error instanceof Error ? error.message : String(error)}); shutdown goes on`,
+          );
+        }),
+      );
+    }
+    if (drains.length === 0) return;
+    const overallCapMs = Math.min(
+      VK_DRAIN_MAX_TIMEOUT_MS,
+      capMs + VK_SHUTDOWN_DRAIN_CAP_MARGIN_MS,
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const capped = new Promise<"capped">((resolve) => {
+      timer = setTimeout(() => resolve("capped"), overallCapMs);
+      timer.unref?.();
+    });
+    try {
+      if ((await Promise.race([Promise.all(drains), capped])) === "capped") {
+        logger.warn(
+          `shutdown drain of plugins exceeded ${overallCapMs}ms; stopping the server anyway`,
+        );
+      }
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
   async function disposeAll(): Promise<void> {
     const pluginIds = new Set([
       ...loaded.keys(),
       ...unavailableProviderRegistrations.keys(),
     ]);
+    // VK EXPERIMENTAL: plugins that declared a drain quiesce first, all at once; without one this is a no-op.
+    await vkDrainAllForShutdown(pluginIds);
     for (const id of pluginIds) {
       await withLifecycleLock(id, async () => {
-        // VK EXPERIMENTAL: a plugin that declared a drain gets to quiesce before the server stops it.
-        const running = loaded.get(id);
-        const row = getInstalledPlugin(deps.db, id);
-        if (
-          running?.manifest.vkLifecycleDrain !== undefined &&
-          row !== undefined
-        ) {
-          await vkRunDrain(row, running, "shutdown");
-        }
         try {
           await disposeOne(id);
         } finally {

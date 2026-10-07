@@ -1421,6 +1421,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       invokeHook: invokeIsolated,
       decisionTimeoutMs: DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
       vkHookPolicy: (pluginId) => loaded.get(pluginId)?.manifest.vk?.hookPolicy, // VK EXPERIMENTAL
+      // VK EXPERIMENTAL: dispatch waits here, before its decision box starts, while the plugin drains.
+      vkAwaitDrain: async (pluginId) => {
+        if (!vkDrainGate.isDraining(pluginId)) return undefined;
+        const timeoutMs =
+          loaded.get(pluginId)?.manifest.vkLifecycleDrain?.timeoutMs ?? 0;
+        return { ready: await vkDrainGate.waitForEnd(pluginId), timeoutMs };
+      },
     },
 
     environmentProviders: {
@@ -2363,7 +2370,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         // VK EXPERIMENTAL: while a plugin drains, wait for its new instance and use that one.
         let plugin = snapshot;
         if (vkDrainGate.isDraining(pluginId)) {
-          await vkDrainGate.waitUpTo(pluginId, providerEnvResolveTimeoutMs);
+          await vkDrainGate.waitForEnd(pluginId);
           plugin = loaded.get(pluginId) ?? snapshot;
         }
         const resolve = plugin.handle.providerEnvResolvers.get(providerId);
@@ -2472,10 +2479,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       // VK EXPERIMENTAL: a draining plugin's tool call waits for the new instance and runs its tool of that name.
       let record = requestedRecord;
       if (vkDrainGate.isDraining(pluginId)) {
-        await vkDrainGate.waitUpTo(
-          pluginId,
-          loaded.get(pluginId)?.manifest.vkLifecycleDrain?.timeoutMs ?? 0,
-        );
+        await vkDrainGate.waitForEnd(pluginId);
         record =
           loaded
             .get(pluginId)
@@ -2581,7 +2585,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     async resolveMention({ pluginId, itemId }) {
       // VK EXPERIMENTAL: a draining plugin's mention is resolved by its new instance.
       if (vkDrainGate.isDraining(pluginId)) {
-        await vkDrainGate.waitUpTo(pluginId, mentionResolveTimeoutMs);
+        await vkDrainGate.waitForEnd(pluginId);
       }
       const separatorIndex = itemId.indexOf(":");
       const providerId =

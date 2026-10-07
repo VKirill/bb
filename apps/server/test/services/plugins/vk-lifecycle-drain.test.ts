@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { upsertPluginSchedule } from "@bb/db";
 import {
   createTestAppHarness,
@@ -9,6 +9,7 @@ import {
 import {
   VK_DRAIN_DEFAULT_TIMEOUT_MS,
   VK_DRAIN_MAX_TIMEOUT_MS,
+  VK_DRAIN_HOLD_MARGIN_MS,
   createVkDrainGate,
   parseVkLifecycleDrain,
 } from "../../../src/services/plugins/vk-plugin-drain.js";
@@ -281,4 +282,139 @@ describe("drain gate", () => {
     expect(await waiting).toBe(true);
     expect(gate.isDraining("p")).toBe(false);
   });
+});
+
+describe("drain gate hold", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("holds until the drain deadline plus the margin, far past the 10 s hook box, and ends with the gate", async () => {
+    vi.useFakeTimers();
+    const gate = createVkDrainGate();
+    expect(gate.holdMs("p")).toBe(0);
+    expect(await gate.waitForEnd("p")).toBe(true);
+    gate.begin("p", 300_000);
+    expect(gate.holdMs("p")).toBe(300_000 + VK_DRAIN_HOLD_MARGIN_MS);
+    let settled: boolean | undefined;
+    void gate.waitForEnd("p").then((value) => {
+      settled = value;
+    });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(settled).toBeUndefined(); // still held after two minutes
+    expect(gate.holdMs("p")).toBe(180_000 + VK_DRAIN_HOLD_MARGIN_MS);
+    gate.end("p");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(true);
+  });
+
+  it("gives up at the bound when the new instance never arrives", async () => {
+    vi.useFakeTimers();
+    const gate = createVkDrainGate();
+    gate.begin("p", 20_000);
+    let settled: boolean | undefined;
+    void gate.waitForEnd("p").then((value) => {
+      settled = value;
+    });
+    await vi.advanceTimersByTimeAsync(20_000 + VK_DRAIN_HOLD_MARGIN_MS - 1);
+    expect(settled).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(2);
+    expect(settled).toBe(false);
+  });
+});
+
+describe("VK drain hold in the running plugin", () => {
+  let harness: TestAppHarness;
+  beforeEach(async () => {
+    harness = await createTestAppHarness();
+  });
+  afterEach(async () => {
+    await harness.cleanup();
+  });
+
+  async function installPlugin(
+    name: string,
+    drainTimeoutMs: number | undefined,
+    source: string,
+  ): Promise<void> {
+    const rootDir = join(harness.config.dataDir, "fixtures", `bb-plugin-${name}`);
+    await mkdir(rootDir, { recursive: true });
+    await writeFile(
+      join(rootDir, "package.json"),
+      JSON.stringify({
+        name: `bb-plugin-${name}`,
+        version: "0.1.0",
+        ...(drainTimeoutMs === undefined
+          ? {}
+          : { vk: { lifecycle: { drain: { timeoutMs: drainTimeoutMs } } } }),
+        bb: {
+          name,
+          description: "VK drain fixture.",
+          branding: { icon: "Zap" },
+          server: "./server.ts",
+        },
+      }),
+    );
+    await writeFile(join(rootDir, "server.ts"), source);
+    expect((await harness.pluginService.installPath(rootDir)).status).toBe("running");
+  }
+
+  it("message.dispatch of a draining plugin waits longer than the 10 s hook box instead of failing", async () => {
+    const source = (tag: string) => `
+const g = globalThis as any;
+g.__vkHold ??= { log: [] };
+export async function experimental_vkLifecycle(ctx: any) {
+  if (ctx.action === "reload") await new Promise((resolve) => setTimeout(resolve, 10_800));
+}
+export default function plugin(bb: any) {
+  bb.experimental_hooks.on("message.dispatch", async () => { g.__vkHold.log.push("${tag}"); return { action: "proceed" }; });
+}
+`;
+    await installPlugin("holder", 15_000, source("v1"));
+    await writeFile(
+      join(harness.config.dataDir, "fixtures", "bb-plugin-holder", "server.ts"),
+      source("v2"),
+    );
+    const hold = (globalThis as unknown as { __vkHold: { log: string[] } }).__vkHold;
+    const reloading = harness.pluginService.reload("holder");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const registration = harness.pluginService.hooks
+      .listHooks("message.dispatch")
+      .find((entry) => entry.pluginId === "holder");
+    if (registration === undefined) throw new Error("hook is not registered");
+    const startedAt = Date.now();
+    const decision = await (
+      registration.handler as unknown as (context: unknown) => Promise<unknown>
+    )({});
+    expect(Date.now() - startedAt).toBeGreaterThan(10_000); // the stock hook box is 10 s
+    expect(decision).toEqual({ action: "proceed" });
+    expect(hold.log).toEqual(["v2"]);
+    expect((await reloading).ok).toBe(true);
+    delete (globalThis as { __vkHold?: unknown }).__vkHold;
+  }, 40_000);
+
+  it("a server stop drains all declaring plugins in parallel", async () => {
+    const source = (tag: string) => `
+const g = globalThis as any;
+g.__vkStop ??= [];
+export async function experimental_vkLifecycle(ctx: any) {
+  if (ctx.action === "shutdown") {
+    g.__vkStop.push({ tag: "${tag}", at: Date.now() });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+}
+export default function plugin(bb: any) {}
+`;
+    await installPlugin("stopa", 5_000, source("a"));
+    await installPlugin("stopb", 5_000, source("b"));
+    await installPlugin("stopc", undefined, source("c")); // no drain declared: untouched
+    const startedAt = Date.now();
+    await harness.pluginService.stop();
+    const elapsed = Date.now() - startedAt;
+    const stops = (globalThis as unknown as { __vkStop: Array<{ tag: string; at: number }> }).__vkStop;
+    expect(stops.map((entry) => entry.tag).sort()).toEqual(["a", "b"]);
+    expect(Math.abs(stops[0]!.at - stops[1]!.at)).toBeLessThan(500); // started together
+    expect(elapsed).toBeLessThan(2_900); // sequential would be at least 3000
+    delete (globalThis as { __vkStop?: unknown }).__vkStop;
+  }, 20_000);
 });
