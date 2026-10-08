@@ -35,6 +35,7 @@ import {
 } from "./plugin-install-jobs.js";
 import type { PluginCliContext } from "@get-bb/plugin-sdk"; // VK EXPERIMENTAL
 import { classifyVkRpcCaller } from "../services/plugins/vk-rpc-caller.js"; // VK EXPERIMENTAL
+import { vkOwnerAuthFor } from "../services/plugins/vk-owner-auth.js"; // VK EXPERIMENTAL
 import {
   createAppAssetCompressionCache,
   type AppAssetCompressionCache,
@@ -528,6 +529,7 @@ export function registerPluginRoutes(
         authProblem.status,
       );
     }
+    const vkOwnerAuth = await vkOwnerAuthFor(context); // VK EXPERIMENTAL: before the body is read
     const body = (await context.req.json().catch(() => null)) as {
       argv?: unknown;
       cwd?: unknown;
@@ -551,6 +553,7 @@ export function registerPluginRoutes(
       header: (name) => context.req.header(name),
       pluginCaller: { kind: "client" },
       browserGuardPassed: true,
+      ownerAuth: vkOwnerAuth,
     });
     return pluginCliResponse(
       plugins.runCliCommand(context.req.param("id"), argv, ctx),
@@ -970,6 +973,7 @@ export function registerPluginRoutes(
         403,
       );
     }
+    const vkOwnerAuth = await vkOwnerAuthFor(context); // VK EXPERIMENTAL: before the body is read
     const rawBody = await context.req.text();
     let input: unknown;
     if (rawBody.length > 0) {
@@ -1021,6 +1025,7 @@ export function registerPluginRoutes(
         header: (name) => context.req.header(name),
         pluginCaller: callerResolution.caller,
         browserGuardPassed: true,
+        ownerAuth: vkOwnerAuth,
       }),
     );
     if (!outcome.ok) {
