@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { isVkOwnerEnforced } from "@bb/config/vk-owner-auth";
 import type {
   ExperimentalPluginRpcCaller,
   ExperimentalVkRpcCaller,
@@ -30,15 +31,21 @@ import type {
  *   The token grants nothing: it only lowers the caller's standing.
  * - `plugin`: another plugin, verified by the per-load plugin caller token.
  * - `owner-ui`: a browser request (trusted Origin plus Sec-Fetch-Site same-origin /
- *   same-site). Client-asserted.
- * - `owner-cli`: the `bb` CLI outside an agent session (no BB_THREAD_ID, no token).
- *   Client-asserted. The CLI inside a session without a usable token says
- *   `cli-in-thread` and is marked `agent-thread` without a thread id.
- * - `unknown`: everything else (curl, python, node fetch, a forged token).
+ *   same-site). With owner login not enforced this stays a claim
+ *   (`evidence: "browser-headers"`) so the app keeps working; with it enforced
+ *   (`BB_VK_OWNER_AUTH=1`, vk-owner-auth.ts) only a valid session cookie gives it
+ *   (`evidence: "owner-session"`).
+ * - `owner-cli`: ONLY with owner login enforced and a valid request signature
+ *   (`evidence: "owner-signature"`). The bare `x-bb-vk-client: cli` header never gives it.
+ * - `unverified-owner`: owner login not enforced and the request says it is the `bb`
+ *   CLI (`x-bb-vk-client: cli`, no Origin). Any script can send that header (audit
+ *   round 4: `curl -H 'x-bb-vk-client: cli'` passed as the owner), so it is a distinct
+ *   kind: a plugin may allow harmless calls and must refuse secrets and irreversible
+ *   actions. The CLI inside a session without a usable token says `cli-in-thread`
+ *   and is marked `agent-thread` without a thread id.
+ * - `unknown`: everything else (curl, python, node fetch, a forged token, headers
+ *   alone while owner login is enforced).
  *
- * The two `owner-*` kinds are claims. They stop scripts that carry no marks (the
- * audited bypass); a client that forges the headers on purpose is not stopped.
- * Anything that must resist that needs an owner confirmation outside the call.
  * No schema, no migration, no protocol change: the key is a file in the data dir.
  */
 
@@ -137,6 +144,22 @@ export const VK_UNKNOWN_CALLER: ExperimentalVkRpcCaller = {
   evidence: "none",
 };
 
+/** Signs a short message with the shared key (the owner-session cookie; domain-separated by its label). */
+export function vkSignLabel(dataDir: string, message: string): string {
+  return createHmac("sha256", readOrCreateKey(dataDir))
+    .update(message)
+    .digest("base64url");
+}
+
+export function vkInstalledDataDir(): string | undefined {
+  return installedDataDir;
+}
+
+export type VkOwnerProofKind = {
+  kind: "owner-ui" | "owner-cli";
+  evidence: "owner-session" | "owner-signature";
+};
+
 export interface ClassifyVkRpcCallerArgs {
   header(name: string): string | undefined;
   /** Existing resolution of the plugin caller token (`client` when none). */
@@ -145,6 +168,13 @@ export interface ClassifyVkRpcCallerArgs {
   browserGuardPassed: boolean;
   /** Overrides the installed data dir (tests). */
   dataDir?: string;
+  /**
+   * Owner login: `proof` is what the server verified for this request (signature or
+   * session cookie), `null` when none; `enforced` is true when `BB_VK_OWNER_AUTH` is on
+   * and past its grace (a key was paired), so headers alone prove nothing.
+   * Defaults: enforcement from the data dir, no proof.
+   */
+  ownerAuth?: { enforced: boolean; proof: VkOwnerProofKind | null };
 }
 
 export function classifyVkRpcCaller(
@@ -167,18 +197,36 @@ export function classifyVkRpcCaller(
       ? VK_UNKNOWN_CALLER
       : { kind: "agent-thread", threadId, evidence: "thread-token" };
   }
+  const ownerAuth = args.ownerAuth ?? {
+    enforced: dataDir !== undefined && isVkOwnerEnforced(dataDir),
+    proof: null,
+  };
   const origin = args.header("origin");
+  const client = args.header(VK_CLIENT_HEADER);
+  // A verified owner proof is the only way to owner-*; a token already won above.
+  if (ownerAuth.proof !== null) {
+    return { kind: ownerAuth.proof.kind, evidence: ownerAuth.proof.evidence };
+  }
+  if (ownerAuth.enforced) {
+    if (origin === undefined && client === "cli-in-thread") {
+      return { kind: "agent-thread", evidence: "cli-header" };
+    }
+    // Headers alone are claims: with login on they prove nothing.
+    return VK_UNKNOWN_CALLER;
+  }
   const fetchSite = args.header("sec-fetch-site");
   if (
     origin !== undefined &&
     args.browserGuardPassed &&
     (fetchSite === "same-origin" || fetchSite === "same-site")
   ) {
+    // Owner login not enforced: the app keeps working. Still a claim (evidence says so).
     return { kind: "owner-ui", evidence: "browser-headers" };
   }
   if (origin === undefined) {
-    const client = args.header(VK_CLIENT_HEADER);
-    if (client === "cli") return { kind: "owner-cli", evidence: "cli-header" };
+    if (client === "cli") {
+      return { kind: "unverified-owner", evidence: "cli-header" };
+    }
     // The CLI saw BB_THREAD_ID but no usable token (a session that started before
     // the token existed): still an agent's call, just not verified.
     if (client === "cli-in-thread") {

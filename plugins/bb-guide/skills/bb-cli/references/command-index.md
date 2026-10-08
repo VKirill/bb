@@ -327,6 +327,17 @@ This index lists every command path that the core CLI registers, including alias
 - `bb diagnostics`
 - `bb diagnostics cli-errors`
 
+## owner
+
+- `bb owner`
+- `bb owner init`
+- `bb owner login`
+- `bb owner pair`
+- `bb owner pairing-code`
+- `bb owner remove-key`
+- `bb owner revoke`
+- `bb owner status`
+
 ## voice
 
 - `bb voice`
