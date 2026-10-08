@@ -372,6 +372,15 @@ function wrapSdkForPlugin(
 ): PluginBbSdk {
   return {
     ...sdk,
+    // VK EXPERIMENTAL: owner-only core routes (vk-owner-auth.ts) let a loaded plugin through
+    // by its caller token, so these calls from docs, monaco-editor, secrets, tasks keep working.
+    files: {
+      ...sdk.files,
+      write: (args) => rpcCallerSdk.files.write(args),
+      mkdir: (args) => rpcCallerSdk.files.mkdir(args),
+      move: (args) => rpcCallerSdk.files.move(args),
+      remove: (args) => rpcCallerSdk.files.remove(args),
+    },
     plugins: {
       ...sdk.plugins,
       callRpc(args) {

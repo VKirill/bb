@@ -152,6 +152,11 @@
       "source": "./src/desktop-app-update.ts",
       "types": "./src/desktop-app-update.ts",
       "default": "./src/desktop-app-update.ts"
+    },
+    "./vk-owner-auth": {
+      "source": "./src/vk-owner-auth.ts",
+      "types": "./src/vk-owner-auth.ts",
+      "default": "./src/vk-owner-auth.ts"
     }
   },
   "scripts": {
