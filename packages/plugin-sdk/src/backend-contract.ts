@@ -7,6 +7,7 @@ import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-sessio
 import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
 import type { ExperimentalVkLifecycleInfo } from "./vk-plugin-lifecycle.js";
 import type { PluginVkApi } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
+import type { ExperimentalVkRpcCaller } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
 import type {
   EnvironmentRemoval,
   Environment,
@@ -996,6 +997,8 @@ export interface PluginCliContext {
    * instance is reloaded, disabled or removed.
    */
   signal?: AbortSignal;
+  /** VK EXPERIMENTAL: set only for a plugin that declares `vk.rpcCallerPolicy`. */
+  experimental_vkCaller?: ExperimentalVkRpcCaller;
 }
 
 export type PluginInteractionCancelReason =

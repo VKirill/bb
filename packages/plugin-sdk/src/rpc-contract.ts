@@ -1,4 +1,5 @@
 import type { ContractTagDeclarations } from "./internal/rpc-tags.js";
+import type { ExperimentalVkRpcCaller } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
 
 /** A JSON-safe path segment reported by a Standard Schema validation issue. */
 export type PluginRpcIssuePathSegment = string | number;
@@ -294,6 +295,8 @@ export interface ExperimentalPluginRpcHandlerContext {
    * released with an error, so work finished after that reaches nobody.
    */
   readonly experimental_signal: AbortSignal;
+  /** VK EXPERIMENTAL: set only for a plugin that declares `vk.rpcCallerPolicy`. */
+  readonly experimental_vkCaller?: ExperimentalVkRpcCaller;
 }
 
 export type PluginRpcHandlers<Contract extends PluginRpcContract> = {
