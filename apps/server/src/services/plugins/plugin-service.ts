@@ -36,6 +36,7 @@ import {
   type ExperimentalPluginProviderEnvHealthContext,
   type PluginRpcError,
   type ExperimentalPluginRpcCaller,
+  type ExperimentalVkRpcCaller, // VK EXPERIMENTAL
 } from "@get-bb/plugin-sdk";
 import {
   enforcePluginCliOutputLimit,
@@ -156,6 +157,7 @@ import {
   noteVkHookFailure,
   vkHookTimeoutMs,
 } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
+import { VK_UNKNOWN_CALLER } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
 import {
   DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
   type PluginHookInvocation,
@@ -404,6 +406,8 @@ export interface PluginService {
     handler: PluginRpcHandler,
     input: unknown,
     caller: ExperimentalPluginRpcCaller,
+    /** VK EXPERIMENTAL: handed to the handler only when the plugin declares `vk.rpcCallerPolicy`. */
+    vkCaller?: ExperimentalVkRpcCaller,
   ): Promise<
     { ok: true; result: JsonValue } | { ok: false; error: PluginRpcError }
   >;
@@ -2079,7 +2083,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       await invokeWrapped(id, `websocket ${route.path} ${event}`, run);
     },
 
-    async invokeRpcHandler(id, method, handler, input, caller) {
+    async invokeRpcHandler(id, method, handler, input, caller, vkCaller) {
       const outcome = await invokeWrapped(id, `rpc ${method}`, async () => {
         const parsedInput = await validateRpcValue(
           handler.inputSchema,
@@ -2089,6 +2093,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         );
         const result = await handler.handler(parsedInput, {
           experimental_caller: caller,
+          // VK EXPERIMENTAL: only a plugin that declared the policy sees the mark.
+          ...(loaded.get(id)?.manifest.vkRpcCallerPolicy
+            ? { experimental_vkCaller: vkCaller ?? VK_UNKNOWN_CALLER }
+            : {}),
         });
         const parsedOutput = await validateRpcValue(
           handler.outputSchema,
@@ -2149,7 +2157,17 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         id,
         `cli ${registration.name}`,
         async () => {
-          const result = await registration.run(argv, ctx);
+          // VK EXPERIMENTAL: only a plugin that declared the policy sees the mark.
+          const { experimental_vkCaller, ...stockCtx } = ctx;
+          const result = await registration.run(
+            argv,
+            plugin.manifest.vkRpcCallerPolicy
+              ? {
+                  ...stockCtx,
+                  experimental_vkCaller: experimental_vkCaller ?? VK_UNKNOWN_CALLER,
+                }
+              : stockCtx,
+          );
           if (typeof result?.exitCode !== "number") {
             throw new Error(
               "cli run() must return { exitCode: number, stdout?, stderr? }",

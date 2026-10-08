@@ -1242,6 +1242,23 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         ],
       },
       {
+        id: "vk-rpc-caller",
+        title: "VK rpc caller identity",
+        summary:
+          "Tells a plugin whether an rpc or CLI call comes from the owner's app, the owner's CLI, an agent session or an anonymous script. With this, a plugin can:",
+        bullets: [
+          "Declare vk.rpcCallerPolicy: true in package.json (top-level vk key beside bb); only then do rpc handlers (second argument) and CLI run(argv, ctx) receive experimental_vkCaller",
+          "Refuse sensitive methods unless kind is owner-ui or owner-cli; agent-thread is proven by a per-thread token core puts in the agent's env (BB_VK_THREAD_TOKEN), unknown is a call with no marks",
+          "owner-ui and owner-cli are client-asserted marks: they stop scripts that carry none, not a client that forges them on purpose; keep an owner confirmation for anything that must resist that",
+          "A plugin that declares nothing, or a stock core, sees no experimental_vkCaller; feature-test with ctx.experimental_vkCaller === undefined",
+        ],
+        apiSymbols: [
+          "ExperimentalVkRpcCaller",
+          "ExperimentalVkRpcCallerKind",
+          "ExperimentalVkRpcCallerEvidence",
+        ],
+      },
+      {
         id: "vk-schedule-options",
         title: "VK isolated schedules",
         summary:

@@ -471,6 +471,18 @@ if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
 
 `useComposer().experimental_vkAttachFiles(files)` загружает файлы и добавляет их вложениями в черновик этого композера (тред, либо новый тред), затем фокусирует. В редакторе сообщения из очереди и в композере, которого нет на экране, отклоняется с понятным текстом. Проверка: `typeof composer.experimental_vkAttachFiles === "function"`.
 
+## 14. Кто вызывает RPC: `vk.rpcCallerPolicy` и `experimental_vkCaller`
+
+HTTP API BB не требует входа: любой процесс, который видит `$BB_SERVER_URL`, может вызвать `/api/v1/plugins/<id>/rpc/<метод>`, и плагин не отличает приложение владельца от `curl` агента. Плагин, у которого в `package.json` (рядом с `bb`) стоит `"vk": { "rpcCallerPolicy": true }`, получает `experimental_vkCaller` вторым аргументом rpc-обработчика (рядом с `experimental_caller`) и в `ctx` CLI-команды: `{ kind, threadId?, pluginId?, evidence }`.
+
+- `agent-thread`: запрос несёт токен треда. Ядро кладёт в окружение каждого треда `BB_VK_THREAD_TOKEN` (HMAC от id треда, ключ в `<dataDir>/vk-rpc-caller.key`), CLI `bb` отправляет его заголовком. Токен проверяет сервер. CLI внутри сессии без токена (сессия начата до выкладки) помечается `agent-thread` без `threadId`.
+- `plugin`: другой плагин (проверенный токен вызывающего плагина).
+- `owner-ui`: браузерный запрос (`Origin` проходит проверку + `Sec-Fetch-Site: same-origin|same-site`). Признак заявлен клиентом.
+- `owner-cli`: `bb` вне агентской сессии. Признак заявлен клиентом.
+- `unknown`: всё остальное (`curl`, `python`, `node fetch`, поддельный токен).
+
+Предел: у BB нет учётных данных владельца, поэтому `owner-*` останавливают скрипты без пометок, но не клиента, который намеренно подделывает заголовки. Для операций, которые должны выдержать и это, нужно подтверждение владельца вне вызова (форма Lane Pilot). Плагин без ключа видит прежний контекст; на ядре без функции поле `experimental_vkCaller` отсутствует (`=== undefined`): плагин решает, что делать (Env Catalog и Lane Pilot отказывают только тем, кого могут опознать).
+
 ## Как внедрить в Агентство
 
 > [!WARNING]
@@ -511,7 +523,8 @@ if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
   - `packages/db/test/data/vk-thread-keys.test.ts`, `apps/server/test/threads/vk-thread-keys.test.ts`;
   - `apps/server/test/services/plugins/vk-lifecycle-drain.test.ts`;
   - `apps/server/test/services/plugins/plugin-vk-schedule-options.test.ts`;
-  - `apps/server/test/services/plugins/vk-hook-policy.test.ts`, `apps/server/test/threads/vk-hook-policy-dispatch.test.ts`.
+  - `apps/server/test/services/plugins/vk-hook-policy.test.ts`, `apps/server/test/threads/vk-hook-policy-dispatch.test.ts`;
+  - `apps/server/test/services/plugins/vk-rpc-caller.test.ts`, `apps/server/test/threads/vk-rpc-caller-env.test.ts`, `apps/cli/src/__tests__/vk-cli-caller-headers.test.ts`.
 - **Живые проверки на хабе** (runtime `0.43.3-vk.9`) через настоящие треды:
   - навыки, MCP и плагины CLI в Claude Code, Codex и OpenCode;
   - сторона BB и MCP в Cursor;

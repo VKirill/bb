@@ -7,6 +7,7 @@ import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-sessio
 import type { MachineBootstrapApi } from "./machine-bootstrap.js";
 import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
 import type { PluginVkApi } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
+import type { ExperimentalVkRpcCaller } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
@@ -960,6 +961,8 @@ export interface PluginCliContext {
   projectId?: string;
   /** Aborted when the invoking CLI HTTP request disconnects. */
   signal?: AbortSignal;
+  /** VK EXPERIMENTAL: set only for a plugin that declares `vk.rpcCallerPolicy`. */
+  experimental_vkCaller?: ExperimentalVkRpcCaller;
 }
 
 export type PluginInteractionCancelReason =

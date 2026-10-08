@@ -45,6 +45,7 @@ import { setPluginAgentContributions } from "./services/plugins/plugin-agent-con
 import { setPluginThreadEventEmitter } from "./services/plugins/plugin-thread-events.js";
 import { setPluginHookProvider } from "./services/plugins/plugin-hook-registry.js";
 import { installVkHookPolicy } from "./services/plugins/vk-hook-policy.js"; // VK EXPERIMENTAL
+import { installVkRpcCaller } from "./services/plugins/vk-rpc-caller.js"; // VK EXPERIMENTAL
 import {
   setEnvironmentProviderRecheckHandler,
   setEnvironmentProvisioningRecheckHandler,
@@ -793,6 +794,8 @@ export function createApp(
   setPluginHookProvider(pluginService.hooks);
   // VK EXPERIMENTAL: hook timeouts show on the thread timeline.
   installVkHookPolicy(deps);
+  // VK EXPERIMENTAL: where the key for per-thread caller tokens lives.
+  installVkRpcCaller(deps);
   setPluginEnvironmentProviderBridge(pluginService.environmentProviders);
   setEnvironmentProvisioningRecheckHandler((threadId) =>
     recheckEnvironmentProvisioning(deps, threadId),

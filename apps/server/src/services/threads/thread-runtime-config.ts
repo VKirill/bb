@@ -40,6 +40,10 @@ import {
 import type { VkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
 import { type VkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
 import {
+  VK_THREAD_TOKEN_ENV,
+  vkThreadTokenEnvEntry,
+} from "../plugins/vk-rpc-caller.js"; // VK EXPERIMENTAL
+import {
   buildVkRuntimeSessionPolicy,
   vkEnvPluginId,
   vkPluginAllowed,
@@ -246,7 +250,7 @@ export async function resolveThreadRuntimeCommandConfig(
     : (vkResolved?.policy ?? null);
   if (requiredPolicy && vkPolicy)
     assertVkRequiredPolicyProvider(args.thread.providerId, vkPolicy);
-  const contributedEnv = mergeHostAndProviderEnvironment(
+  const stockContributedEnv = mergeHostAndProviderEnvironment(
     await resolveHostEnvironment(deps, {
       hostId: host.id,
       projectId: project.id,
@@ -264,6 +268,11 @@ export async function resolveThreadRuntimeCommandConfig(
       })
     ).filter((entry) => vkPluginAllowed(vkPolicy, vkEnvPluginId(entry))),
   );
+  // VK EXPERIMENTAL: the agent's shell carries a per-thread token that marks its API calls.
+  const contributedEnv = [
+    ...stockContributedEnv.filter((entry) => entry.name !== VK_THREAD_TOKEN_ENV),
+    vkThreadTokenEnvEntry(deps.config.dataDir, args.thread.id),
+  ];
   const skillCatalog = resolveSkillCatalog(deps, {
     projectSkillSources,
     sharedSkillSources: sharedSkills.runtimeSources,

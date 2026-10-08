@@ -27,6 +27,8 @@ import type {
 } from "../services/plugins/plugin-api.js";
 import { PluginSettingsValidationError } from "../services/plugins/plugin-settings.js";
 import { PLUGIN_RPC_CALLER_HEADER } from "../services/plugins/plugin-rpc-caller.js";
+import type { PluginCliContext } from "@get-bb/plugin-sdk"; // VK EXPERIMENTAL
+import { classifyVkRpcCaller } from "../services/plugins/vk-rpc-caller.js"; // VK EXPERIMENTAL
 import {
   createAppAssetCompressionCache,
   type AppAssetCompressionCache,
@@ -530,16 +532,17 @@ export function registerPluginRoutes(
         400,
       );
     }
-    const ctx: {
-      cwd?: string;
-      threadId?: string;
-      projectId?: string;
-      signal?: AbortSignal;
-    } = {};
+    const ctx: PluginCliContext = {};
     if (typeof body?.cwd === "string") ctx.cwd = body.cwd;
     if (typeof body?.threadId === "string") ctx.threadId = body.threadId;
     if (typeof body?.projectId === "string") ctx.projectId = body.projectId;
     ctx.signal = context.req.raw.signal;
+    // VK EXPERIMENTAL: who is behind this CLI call (handed on only to plugins that opt in).
+    ctx.experimental_vkCaller = classifyVkRpcCaller({
+      header: (name) => context.req.header(name),
+      pluginCaller: { kind: "client" },
+      browserGuardPassed: true,
+    });
     return pluginCliResponse(
       plugins.runCliCommand(context.req.param("id"), argv, ctx),
       PLUGIN_CLI_KEEPALIVE_MS,
@@ -987,6 +990,12 @@ export function registerPluginRoutes(
       lookup.value,
       input,
       callerResolution.caller,
+      // VK EXPERIMENTAL: handed to the handler only when the plugin opts in.
+      classifyVkRpcCaller({
+        header: (name) => context.req.header(name),
+        pluginCaller: callerResolution.caller,
+        browserGuardPassed: true,
+      }),
     );
     if (!outcome.ok) {
       return context.json(
