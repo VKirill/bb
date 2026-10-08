@@ -505,3 +505,50 @@ Consumer: plugin `lane-pilot` (H7 labels of its `lane_pilot_*` tools).
 | `plugins/provider-claude-code/src/session-params.ts` | `buildInternalSessionParams` keeps `presentation` on each dynamic tool |
 
 Tests: `plugins/provider-claude-code/src/session-params.test.ts` ("dynamic tool presentation": kept, absent when not registered, bridge row label).
+
+## RPC caller identity (`rpc-caller`)
+
+BB's HTTP API has no login: anything that reaches `$BB_SERVER_URL` can post to `/api/v1/plugins/<id>/rpc/<method>`
+(and `/plugins/<id>/cli`), so a plugin cannot tell the owner's app from an agent's `curl`. A plugin that declares the
+top-level `vk.rpcCallerPolicy: true` key of its package.json (beside `bb`) gets `experimental_vkCaller` in the second
+argument of its rpc handlers (next to the stock `experimental_caller`) and in the `ctx` of its CLI `run(argv, ctx)`:
+`{ kind, threadId?, pluginId?, evidence }`. A plugin without the key sees exactly the stock context (witness test
+`vk-rpc-caller.test.ts`). On a core without the function the field is simply absent (`=== undefined`).
+
+| kind | how the server decides | strength |
+| --- | --- | --- |
+| `agent-thread` | header `x-bb-vk-thread-token` = `vkt1.<threadId>.<HMAC>`; core adds the token to every thread's env as `BB_VK_THREAD_TOKEN` (a masked `machine-environment` contributed-env entry) and the `bb` CLI sends it. Also: CLI header `x-bb-vk-client: cli-in-thread` (CLI saw `BB_THREAD_ID` but no token, e.g. a session started before the deploy), then no `threadId` | token verified by the server; the token only lowers standing and is checked before any browser mark |
+| `plugin` | existing per-load plugin caller token | verified |
+| `owner-ui` | `Origin` accepted by the existing browser guard plus `Sec-Fetch-Site: same-origin` or `same-site` | client-asserted |
+| `owner-cli` | no `Origin`, `x-bb-vk-client: cli` (sent by `bb` when `BB_THREAD_ID` and the token are unset) | client-asserted |
+| `unknown` | everything else: curl, python, node fetch, a forged token | n/a |
+
+> [!WARNING]
+> There is no owner credential in BB, so `owner-ui` and `owner-cli` are claims. They stop scripts that carry no marks
+> (the audited bypass) and CLI use inside an agent session, but not a client that forges `Origin` + `Sec-Fetch-Site`
+> or strips `BB_VK_THREAD_TOKEN` and `BB_THREAD_ID` on purpose. The signing key (`<dataDir>/vk-rpc-caller.key`, 0600)
+> is readable by processes of the same OS user, which is fine because the token only ever lowers standing. A plugin
+> that must resist a deliberate agent needs an owner confirmation outside the call (Lane Pilot's owner form).
+
+Data: `<dataDir>/vk-rpc-caller.key` (random, created on first use). No schema, no migration, no host-daemon protocol
+change (the token rides the existing contributed-env entries).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/manifest.ts` | `vkRpcCallerPolicy` on `PluginManifest` and one spread line (`readVkRpcCallerManifest`) |
+| `apps/server/src/services/plugins/plugin-service.ts` | `invokeRpcHandler` takes `vkCaller` and passes `experimental_vkCaller` only to a declared plugin; `runCliCommand` strips/forwards it the same way |
+| `apps/server/src/routes/plugins.ts` | `classifyVkRpcCaller` in the rpc route and in `POST /plugins/:id/cli` |
+| `apps/server/src/services/threads/thread-runtime-config.ts` | `BB_VK_THREAD_TOKEN` appended to `contributedEnv` |
+| `apps/server/src/server.ts` | `installVkRpcCaller(deps)` (data dir of the key) |
+| `apps/cli/src/client.ts` | `cliFetch` adds `x-bb-vk-thread-token` / `x-bb-vk-client` |
+| `packages/plugin-sdk/src/rpc-contract.ts`, `backend-contract.ts`, `index.ts` | optional `experimental_vkCaller` on the rpc context and `PluginCliContext`, type export |
+| `plugins/plugin-api-docs/src/surfaces.ts`, `docs/api_to_audit.md`, `plugins/bb-guide/.../backend-api-index.md` | docs |
+
+New files: `apps/server/src/services/plugins/vk-rpc-caller.ts`, `packages/plugin-sdk/src/vk-rpc-caller.ts`,
+`apps/server/test/services/plugins/vk-rpc-caller.test.ts`, `apps/server/test/threads/vk-rpc-caller-env.test.ts`,
+`apps/cli/src/__tests__/vk-cli-caller-headers.test.ts`.
+
+Consumers: plugins `env-catalog` (secret methods owner-only) and `lane-pilot` (mutating methods owner-only or the owner form).
+
