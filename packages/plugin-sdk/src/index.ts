@@ -15,6 +15,7 @@ export type * from "./json-value.js";
 export * from "./rpc-contract.js";
 export { experimental_THREAD_ACTION_GROUPS } from "./thread-action-groups.js";
 export type * from "./vk-hook-policy.js";
+export type * from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
 export type * from "./vk-plugin-lifecycle.js";
 export type * from "./vk-thread-keys.js";
 export type * from "./vk-schedule-options.js";

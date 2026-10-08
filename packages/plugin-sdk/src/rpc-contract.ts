@@ -1,3 +1,5 @@
+import type { ExperimentalVkRpcCaller } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
+
 /** A JSON-safe path segment reported by a Standard Schema validation issue. */
 export type PluginRpcIssuePathSegment = string | number;
 
@@ -98,6 +100,8 @@ export type ExperimentalPluginRpcCaller =
 /** Second argument of every rpc handler. */
 export interface ExperimentalPluginRpcHandlerContext {
   readonly experimental_caller: ExperimentalPluginRpcCaller;
+  /** VK EXPERIMENTAL: set only for a plugin that declares `vk.rpcCallerPolicy`. */
+  readonly experimental_vkCaller?: ExperimentalVkRpcCaller;
 }
 
 export type PluginRpcHandlers<Contract extends PluginRpcContract> = {
