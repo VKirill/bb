@@ -9,10 +9,26 @@
  * Feature test on an older core: `ctx.experimental_vkCaller === undefined`.
  */
 export type ExperimentalVkRpcCallerKind =
-  /** The BB web or desktop app (browser fetch metadata; client-asserted). */
+  /**
+   * The BB web app. With owner login enforced (`BB_VK_OWNER_AUTH=1`) it is proven by the
+   * owner session cookie (`evidence: "owner-session"`); otherwise it is the browser's
+   * Origin + Sec-Fetch-Site marks (`evidence: "browser-headers"`), a claim a script on a
+   * machine that reaches the hub directly can forge. Check `evidence` for secrets.
+   */
   | "owner-ui"
-  /** The `bb` CLI outside an agent session (CLI header; client-asserted). */
+  /**
+   * The owner's `bb` CLI, proven by an ed25519 signature of the request with a key
+   * paired on the hub (`evidence: "owner-signature"`). Only produced when owner login is
+   * enforced; the bare `x-bb-vk-client: cli` header never gives it.
+   */
   | "owner-cli"
+  /**
+   * Owner login is not enforced and the request says it is the `bb` CLI outside an agent
+   * session (`x-bb-vk-client: cli`, `evidence: "cli-header"`). Any script can send that:
+   * a plugin may allow low-risk calls and must not treat it as the owner for secrets or
+   * irreversible actions.
+   */
+  | "unverified-owner"
   /** A request carrying the per-thread token core puts in the agent's env. */
   | "agent-thread"
   /** Another loaded plugin, verified by the per-load plugin caller token. */
@@ -25,6 +41,8 @@ export type ExperimentalVkRpcCallerEvidence =
   | "plugin-token"
   | "browser-headers"
   | "cli-header"
+  | "owner-session"
+  | "owner-signature"
   | "none";
 
 export interface ExperimentalVkRpcCaller {
@@ -34,9 +52,10 @@ export interface ExperimentalVkRpcCaller {
   /** Set for `plugin`. */
   readonly pluginId?: string;
   /**
-   * `thread-token` and `plugin-token` are verified by the server. The others are
-   * what the client claimed: they stop curl/python/node scripts that carry no
-   * marks, not a client that forges the headers on purpose.
+   * `thread-token`, `plugin-token`, `owner-session` and `owner-signature` are
+   * verified by the server. `browser-headers` and `cli-header` are what the client
+   * claimed (kind `unverified-owner`): they stop scripts that carry no marks, not a
+   * client that forges the headers on purpose.
    */
   readonly evidence: ExperimentalVkRpcCallerEvidence;
 }

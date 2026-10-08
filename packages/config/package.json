@@ -157,6 +157,11 @@
       "source": "./src/desktop-runtime-ready.ts",
       "types": "./src/desktop-runtime-ready.ts",
       "default": "./src/desktop-runtime-ready.ts"
+    },
+    "./vk-owner-auth": {
+      "source": "./src/vk-owner-auth.ts",
+      "types": "./src/vk-owner-auth.ts",
+      "default": "./src/vk-owner-auth.ts"
     }
   },
   "scripts": {
