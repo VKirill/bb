@@ -517,7 +517,7 @@ argument of its rpc handlers (next to the stock `experimental_caller`) and in th
 
 | kind | how the server decides | strength |
 | --- | --- | --- |
-| `agent-thread` | header `x-bb-vk-thread-token` = `vkt1.<threadId>.<HMAC>`; core adds the token to every thread's env as `BB_VK_THREAD_TOKEN` (a masked `machine-environment` contributed-env entry) and the `bb` CLI sends it. Also: CLI header `x-bb-vk-client: cli-in-thread` (CLI saw `BB_THREAD_ID` but no token, e.g. a session started before the deploy), then no `threadId` | token verified by the server; the token only lowers standing and is checked before any browser mark |
+| `agent-thread` | header `x-bb-vk-thread-token` = `vkt1.<threadId>.<HMAC>`; while any running plugin declares the policy, core adds the token to every thread's env as `BB_VK_THREAD_TOKEN` (a masked `machine-environment` contributed-env entry; with no declaring plugin the env is the stock one) and the `bb` CLI sends it. Also: CLI header `x-bb-vk-client: cli-in-thread` (CLI saw `BB_THREAD_ID` but no token, e.g. a session started before the deploy), then no `threadId` | token verified by the server; the token only lowers standing and is checked before any browser mark |
 | `plugin` | existing per-load plugin caller token | verified |
 | `owner-ui` | `Origin` accepted by the existing browser guard plus `Sec-Fetch-Site: same-origin` or `same-site` | client-asserted |
 | `owner-cli` | no `Origin`, `x-bb-vk-client: cli` (sent by `bb` when `BB_THREAD_ID` and the token are unset) | client-asserted |
@@ -540,7 +540,8 @@ change (the token rides the existing contributed-env entries).
 | `apps/server/src/services/plugins/manifest.ts` | `vkRpcCallerPolicy` on `PluginManifest` and one spread line (`readVkRpcCallerManifest`) |
 | `apps/server/src/services/plugins/plugin-service.ts` | `invokeRpcHandler` takes `vkCaller` and passes `experimental_vkCaller` only to a declared plugin; `runCliCommand` strips/forwards it the same way |
 | `apps/server/src/routes/plugins.ts` | `classifyVkRpcCaller` in the rpc route and in `POST /plugins/:id/cli` |
-| `apps/server/src/services/threads/thread-runtime-config.ts` | `BB_VK_THREAD_TOKEN` appended to `contributedEnv` |
+| `apps/server/src/services/threads/thread-runtime-config.ts` | `BB_VK_THREAD_TOKEN` appended to `contributedEnv` while `vkRpcCallerPolicyAny()` |
+| `apps/server/src/services/plugins/plugin-hook-registry.ts`, `plugin-service.ts` | optional `vkRpcCallerPolicyAny()` on the hook provider |
 | `apps/server/src/server.ts` | `installVkRpcCaller(deps)` (data dir of the key) |
 | `apps/cli/src/client.ts` | `cliFetch` adds `x-bb-vk-thread-token` / `x-bb-vk-client` |
 | `packages/plugin-sdk/src/rpc-contract.ts`, `backend-contract.ts`, `index.ts` | optional `experimental_vkCaller` on the rpc context and `PluginCliContext`, type export |
