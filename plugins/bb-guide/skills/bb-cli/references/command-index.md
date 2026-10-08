@@ -328,6 +328,17 @@ move and downloads the new server's bb-app package for its service.
 
 `bb diagnostics cli-errors` tallies the failed `bb` invocations recorded in `<data dir>/logs/cli-errors.jsonl` on this machine. It records the command path, the error code, and the unknown command or flag, never argument values. `BB_CLI_ERROR_LOG=0` turns recording off.
 
+## owner
+
+- `bb owner`
+- `bb owner init`
+- `bb owner login`
+- `bb owner pair`
+- `bb owner pairing-code`
+- `bb owner remove-key`
+- `bb owner revoke`
+- `bb owner status`
+
 ## voice
 
 - `bb voice`

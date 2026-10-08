@@ -102,7 +102,7 @@ describe("VK rpc caller: tokens and classification", () => {
     ).toBe("unknown");
     expect(
       classifyVkRpcCaller({ ...base, header: headers({ [VK_CLIENT_HEADER]: "cli" }) }),
-    ).toEqual({ kind: "owner-cli", evidence: "cli-header" });
+    ).toEqual({ kind: "unverified-owner", evidence: "cli-header" });
     // The CLI inside a session without a token is still an agent.
     expect(
       classifyVkRpcCaller({ ...base, header: headers({ [VK_CLIENT_HEADER]: "cli-in-thread" }) }).kind,
@@ -205,14 +205,14 @@ describe("VK rpc caller: handler context over HTTP", () => {
     return ((await response.json()) as { result: { vk: unknown; hasVkKey: boolean } }).result;
   }
 
-  it("marks a plain script unknown, the app owner-ui, the CLI owner-cli and an agent agent-thread", async () => {
+  it("marks a plain script unknown, the app owner-ui (claim), the bare CLI header unverified-owner and an agent agent-thread", async () => {
     const id = "vk-declared";
     expect((await who(id, {})).vk).toEqual({ kind: "unknown", evidence: "none" });
     expect(
       (await who(id, { origin: BASE, "sec-fetch-site": "same-origin" })).vk,
     ).toEqual({ kind: "owner-ui", evidence: "browser-headers" });
     expect((await who(id, { [VK_CLIENT_HEADER]: "cli" })).vk).toEqual({
-      kind: "owner-cli",
+      kind: "unverified-owner",
       evidence: "cli-header",
     });
     const token = createVkThreadToken(harness.config.dataDir, "thr_agent1");
@@ -252,7 +252,7 @@ describe("VK rpc caller: handler context over HTTP", () => {
       };
     };
     const declared = await run("vk-declared", { [VK_CLIENT_HEADER]: "cli" });
-    expect(JSON.parse(declared.stdout).vk).toEqual({ kind: "owner-cli", evidence: "cli-header" });
+    expect(JSON.parse(declared.stdout).vk).toEqual({ kind: "unverified-owner", evidence: "cli-header" });
     const bare = await run("vk-declared", {});
     expect(JSON.parse(bare.stdout).vk.kind).toBe("unknown");
     const stock = await run("vk-stock", { [VK_CLIENT_HEADER]: "cli" });
