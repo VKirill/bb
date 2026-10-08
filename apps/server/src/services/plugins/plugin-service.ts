@@ -1425,6 +1425,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       invokeHook: invokeIsolated,
       decisionTimeoutMs: DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
       vkHookPolicy: (pluginId) => loaded.get(pluginId)?.manifest.vk?.hookPolicy, // VK EXPERIMENTAL
+      vkRpcCallerPolicyAny: () =>
+        [...loaded.values()].some((plugin) => plugin.manifest.vkRpcCallerPolicy), // VK EXPERIMENTAL
       // VK EXPERIMENTAL: dispatch waits here, before its decision box starts, while the plugin drains.
       vkAwaitDrain: async (pluginId) => {
         if (!vkDrainGate.isDraining(pluginId)) return undefined;
