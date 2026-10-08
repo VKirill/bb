@@ -475,7 +475,7 @@ if (typeof bb.vk?.experimental_vkOnHookTimeout === "function") {
 
 HTTP API BB не требует входа: любой процесс, который видит `$BB_SERVER_URL`, может вызвать `/api/v1/plugins/<id>/rpc/<метод>`, и плагин не отличает приложение владельца от `curl` агента. Плагин, у которого в `package.json` (рядом с `bb`) стоит `"vk": { "rpcCallerPolicy": true }`, получает `experimental_vkCaller` вторым аргументом rpc-обработчика (рядом с `experimental_caller`) и в `ctx` CLI-команды: `{ kind, threadId?, pluginId?, evidence }`.
 
-- `agent-thread`: запрос несёт токен треда. Ядро кладёт в окружение каждого треда `BB_VK_THREAD_TOKEN` (HMAC от id треда, ключ в `<dataDir>/vk-rpc-caller.key`), CLI `bb` отправляет его заголовком. Токен проверяет сервер. CLI внутри сессии без токена (сессия начата до выкладки) помечается `agent-thread` без `threadId`.
+- `agent-thread`: запрос несёт токен треда. Пока хотя бы один запущенный плагин объявляет политику, ядро кладёт в окружение каждого треда `BB_VK_THREAD_TOKEN` (HMAC от id треда, ключ в `<dataDir>/vk-rpc-caller.key`), CLI `bb` отправляет его заголовком. Токен проверяет сервер. CLI внутри сессии без токена (сессия начата до выкладки) помечается `agent-thread` без `threadId`.
 - `plugin`: другой плагин (проверенный токен вызывающего плагина).
 - `owner-ui`: браузерный запрос (`Origin` проходит проверку + `Sec-Fetch-Site: same-origin|same-site`). Признак заявлен клиентом.
 - `owner-cli`: `bb` вне агентской сессии. Признак заявлен клиентом.
