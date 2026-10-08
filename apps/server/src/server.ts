@@ -64,6 +64,10 @@ import { setPluginHookProvider } from "./services/plugins/plugin-hook-registry.j
 import { installVkHookPolicy } from "./services/plugins/vk-hook-policy.js"; // VK EXPERIMENTAL
 import { installVkRpcCaller } from "./services/plugins/vk-rpc-caller.js"; // VK EXPERIMENTAL
 import {
+  createVkOwnerGate,
+  registerVkOwnerRoutes,
+} from "./services/plugins/vk-owner-auth.js"; // VK EXPERIMENTAL
+import {
   setEnvironmentProviderRecheckHandler,
   setEnvironmentProvisioningRecheckHandler,
   setPluginEnvironmentProviderBridge,
@@ -912,6 +916,9 @@ export function createApp(
     }
     return next();
   });
+  // VK EXPERIMENTAL: owner-only core routes (install plugin, answer the owner's form, write host files).
+  publicApi.use("*", createVkOwnerGate({ ...deps, plugins: pluginService }));
+  registerVkOwnerRoutes(publicApi, deps);
   const pluginCatalogService = createPluginCatalogService({
     db: deps.db,
     appVersion: deps.config.appVersion,
