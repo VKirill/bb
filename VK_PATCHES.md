@@ -522,16 +522,18 @@ argument of its rpc handlers (next to the stock `experimental_caller`) and in th
 | --- | --- | --- |
 | `agent-thread` | header `x-bb-vk-thread-token` = `vkt1.<threadId>.<HMAC>`; while any running plugin declares the policy, core adds the token to every thread's env as `BB_VK_THREAD_TOKEN` (a masked `machine-environment` contributed-env entry; with no declaring plugin the env is the stock one) and the `bb` CLI sends it. Also: CLI header `x-bb-vk-client: cli-in-thread` (CLI saw `BB_THREAD_ID` but no token, e.g. a session started before the deploy), then no `threadId` | token verified by the server; the token only lowers standing and is checked before any browser mark |
 | `plugin` | existing per-load plugin caller token | verified |
-| `owner-ui` | `Origin` accepted by the existing browser guard plus `Sec-Fetch-Site: same-origin` or `same-site` | client-asserted |
-| `owner-cli` | no `Origin`, `x-bb-vk-client: cli` (sent by `bb` when `BB_THREAD_ID` and the token are unset) | client-asserted |
-| `unknown` | everything else: curl, python, node fetch, a forged token | n/a |
+| `owner-ui` | owner login not enforced: `Origin` accepted by the browser guard plus `Sec-Fetch-Site: same-origin\|same-site` (`evidence: browser-headers`, a claim, so the owner's app keeps working); enforced: only a valid `vk_owner` session cookie (plus the same headers; `evidence: owner-session`) | claim before, verified when enforced |
+| `owner-cli` | only with owner login enforced: a valid `x-bb-vk-owner-sig` (ed25519 over method, path+query, body hash, timestamp, nonce) by a paired owner key (`evidence: owner-signature`). The bare `x-bb-vk-client: cli` header never gives it | verified |
+| `unverified-owner` | owner login not enforced and no `Origin`, `x-bb-vk-client: cli` (`evidence: cli-header`) | client-asserted: any script sends this header (audit round 4); a plugin must not treat it as the owner for secrets or irreversible actions |
+| `unknown` | everything else: curl, python, node fetch, a forged token; with login enforced also every request with browser/CLI marks but no proof | n/a |
 
 > [!WARNING]
-> There is no owner credential in BB, so `owner-ui` and `owner-cli` are claims. They stop scripts that carry no marks
-> (the audited bypass) and CLI use inside an agent session, but not a client that forges `Origin` + `Sec-Fetch-Site`
-> or strips `BB_VK_THREAD_TOKEN` and `BB_THREAD_ID` on purpose. The signing key (`<dataDir>/vk-rpc-caller.key`, 0600)
-> is readable by processes of the same OS user, which is fine because the token only ever lowers standing. A plugin
-> that must resist a deliberate agent needs an owner confirmation outside the call (Lane Pilot's owner form).
+> Without owner login the marks are claims. Until 7728fe846 a forged `x-bb-vk-client: cli` passed as `owner-cli` (live
+> repro, audit round 4); it is now the distinct kind `unverified-owner`. `owner-ui` from browser headers alone remains a
+> claim (`evidence: browser-headers`) that only the host-daemon proxy's refusal of `Origin` keeps off agent machines;
+> plugins that guard secrets should require `evidence: owner-session` once login is on. The thread-token signing key
+> (`<dataDir>/vk-rpc-caller.key`, 0600) is readable by processes of the same OS user, which is fine because the token
+> only ever lowers standing.
 
 Data: `<dataDir>/vk-rpc-caller.key` (random, created on first use). No schema, no migration, no host-daemon protocol
 change (the token rides the existing contributed-env entries).
@@ -556,3 +558,58 @@ New files: `apps/server/src/services/plugins/vk-rpc-caller.ts`, `packages/plugin
 
 Consumers: plugins `env-catalog` (secret methods owner-only) and `lane-pilot` (mutating methods owner-only or the owner form).
 
+
+## Owner login (`owner-auth`, opt-in `BB_VK_OWNER_AUTH=1`, default off)
+
+Why: BB's HTTP API has no login, so "the owner" cannot be told from an agent running as the same OS user. With the flag on,
+the hub trusts an owner only through a secret the agent's environment does not hold.
+
+- **Trust root:** an ed25519 public key paired on the hub, `<dataDir>/vk-owner.json` (0600; keys, `epoch`, `enforceFrom`).
+  The private key exists only on the owner's machines: macOS login Keychain item `bb-vk-owner` created with an empty
+  trusted-application list (`-T ""`, so every read, even by `security`, prompts for the keychain password; headless SSH or
+  launchd agents cannot answer), or on other OS a `0600` file in a `0700` dir (`~/.config/bb-owner/owner.key`). Never an env var.
+- **Pairing:** `bb owner pairing-code` on the hub (hub-local, writes a hash to `<dataDir>/vk-owner-pairing.json`, 10 min,
+  5 tries, single use) then `bb owner pair --code` on the owner's machine (`POST /api/v1/vk/owner/pair`).
+- **Web session:** `bb owner login` signs a one-minute single-use ticket; the browser opens
+  `/api/v1/vk/owner/session?ticket=` and gets the `vk_owner` cookie (HttpOnly, SameSite=Strict, Secure on https, 90 days,
+  HMAC with the existing core key, bound to the paired key id and the `epoch`).
+- **CLI:** `cliFetch` adds `x-bb-vk-owner-sig` to owner-relevant non-GET requests (plugins, plugin-catalog, marketplaces,
+  files, thread interactions) unless it runs inside an agent session (`BB_THREAD_ID` / `BB_VK_THREAD_TOKEN`).
+- **Classifier:** agent thread token wins over everything (an agent never becomes the owner); then a verified proof gives
+  `owner-cli` / `owner-ui`; headers alone give `unknown` once enforced; before that the browser marks stay `owner-ui` (claim) and the bare CLI header is `unverified-owner`.
+- **Enforcement and no lock-out:** the flag is inert until the first key is paired; `enforceFrom` = first pairing + 30 min
+  (set once, kept by `revoke`). Until then everything behaves as with the flag off. `bb owner pair` opens the browser signed
+  in, so the open tab is upgraded at once.
+- **Core routes gated** (`createVkOwnerGate`, one `publicApi.use` line): `POST /plugins/install`, `/plugin-catalog/install`,
+  `/marketplaces` (+ `DELETE /marketplaces/:name`), `POST /plugins/:id/update`, `PUT /plugins/:id/settings`,
+  `POST /plugins/:id/token`, `DELETE /plugins/:id`, `POST /threads/:id/interactions/:iid/respond|resolve|cancel`,
+  `POST /files/write|mkdir|move|remove`. Enforced: owner proof only (403 `vk_owner_required`); a verified parent thread may still answer the interactions of the sub-agents it started (`bb thread interactions`), never its own. Not enforced: callers marked
+  as an agent (token header, even forged, or `x-bb-vk-client: cli-in-thread`) get 403 `vk_agent_caller_refused` and a
+  warn log; unmarked callers pass as before (a speed bump, not a boundary). A verified plugin caller token passes (the plugin sdk now carries it on `files.write|mkdir|move|remove`). Every refusal names what the owner should do.
+  Deliberately NOT gated: `plugins/reload`, `enable`, `disable` (the Lane Pilot deploy script runs them from agent sessions),
+  host add / join codes (`/hosts`), `thread spawn --host`, plugin HTTP routes.
+- **Recovery:** hub shell: `bb owner pairing-code` and pair a new device (needs no owner proof); `bb owner remove-key <id>`
+  for one lost device; `bb owner revoke` for all (enforcement stays); emergency off: remove `BB_VK_OWNER_AUTH` and restart.
+- **Residual risk:** a process of the same OS user on an owner machine can read a `0600` key file (Linux) and, on macOS,
+  must still beat the keychain prompt; the browser cookie lives in the owner's browser profile (an agent with
+  computer-use access to that profile can take it); anyone with a hub shell (the `oracle_bb` ssh key) can mint a pairing
+  code. Pair only machines where no agent runs as the same user, and keep the hub ssh key out of agent reach.
+
+No schema, no migration, no host-daemon protocol change: two files in the data dir.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/server.ts` | `createVkOwnerGate` + `registerVkOwnerRoutes` on `publicApi`, after the browser guard |
+| `apps/server/src/services/plugins/plugin-api.ts` | `wrapSdkForPlugin`: `files.write\|mkdir\|move\|remove` go through the plugin's caller-token sdk |
+| `apps/server/src/routes/plugins.ts` | `vkOwnerAuthFor(context)` before the body is read, passed as `ownerAuth` to `classifyVkRpcCaller` (rpc and cli routes) |
+| `apps/server/src/services/plugins/vk-rpc-caller.ts` | `unverified-owner`, `ownerAuth` argument, `vkSignLabel` |
+| `apps/cli/src/client.ts`, `apps/cli/src/command-groups.ts` | `cliFetch` signs; command group `owner` |
+| `packages/domain/src/plugin-cli.ts`, `plugins/bb-guide/skills/bb-cli/references/command-index.md` | `owner` is a reserved command and listed |
+| `packages/config/package.json` | export `./vk-owner-auth` |
+| `packages/plugin-sdk/src/vk-rpc-caller.ts` | kind `unverified-owner`, evidences `owner-session`, `owner-signature` |
+
+New files: `packages/config/src/vk-owner-auth.ts`, `apps/server/src/services/plugins/vk-owner-auth.ts`,
+`apps/cli/src/vk-owner-key.ts`, `apps/cli/src/commands/owner.ts`, tests `apps/server/test/services/plugins/vk-owner-auth.test.ts`,
+`apps/cli/src/__tests__/vk-owner-key.test.ts`.
