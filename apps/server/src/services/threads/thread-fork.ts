@@ -1,4 +1,8 @@
 import { getEnvironment, getThread } from "@bb/db";
+import {
+  readIsolatedSkillDeliveryPolicy,
+  resolveForkIsolatedSkillDeliveryPolicy,
+} from "./isolated-skill-delivery.js";
 import type { EnvironmentRow } from "@bb/db";
 import type { PromptInput, Thread } from "@bb/domain";
 import type { ForkThreadRequest } from "@bb/server-contract";
@@ -73,6 +77,13 @@ export async function createThreadForkFromRequest(
   const isSeedOnlyIdleFork =
     visibleInput.length === 0 && agentContextSeed.length > 0;
 
+  const forkPolicy = resolveForkIsolatedSkillDeliveryPolicy({
+    sourcePolicy: readIsolatedSkillDeliveryPolicy(deps, sourceThread.id),
+    request: {
+      isolatedSkillDelivery: request.isolatedSkillDelivery,
+      skillIds: request.skillIds,
+    },
+  });
   return createThreadFromRequest(
     deps,
     {
@@ -80,6 +91,18 @@ export async function createThreadForkFromRequest(
         type: "reuse",
         environmentId: sourceEnvironment.id,
       },
+      ...(forkPolicy === null
+        ? {}
+        : {
+            isolatedSkillDelivery: true,
+            skillIds: forkPolicy.skillIds,
+            isolatedSkillHostId: forkPolicy.hostId,
+            dynamicToolNames: forkPolicy.dynamicToolNames,
+            instructionPluginIds: forkPolicy.instructionPluginIds,
+            includeDataDirInstructions: forkPolicy.includeDataDirInstructions,
+            includeWorkspaceInstructions: forkPolicy.includeWorkspaceInstructions,
+            allowBridgeToolProxy: forkPolicy.allowBridgeToolProxy,
+          }),
       input,
       origin: request.origin,
       ...(request.originPluginId === undefined
@@ -88,6 +111,17 @@ export async function createThreadForkFromRequest(
       ...(request.pluginMetadata === undefined
         ? {}
         : { pluginMetadata: request.pluginMetadata }),
+      ...(request.experimental_callerLaunchId === undefined
+        ? {}
+        : { experimental_callerLaunchId: request.experimental_callerLaunchId }),
+      ...(request.experimental_callerAttemptId === undefined
+        ? {}
+        : {
+            experimental_callerAttemptId: request.experimental_callerAttemptId,
+          }),
+      ...(request.experimental_callerJobId === undefined
+        ? {}
+        : { experimental_callerJobId: request.experimental_callerJobId }),
       originKind: "fork",
       permissionMode:
         request.permissionMode ??

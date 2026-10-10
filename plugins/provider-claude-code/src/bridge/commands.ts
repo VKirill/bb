@@ -57,6 +57,9 @@ export const claudeThreadStartParamsSchema = z.object({
   instructionMode: bridgeInstructionModeSchema,
   dynamicTools: z.array(dynamicToolSchema).optional(),
   disallowedTools: z.array(z.string()).optional(),
+  isolatedSkillDelivery: z.boolean().optional(),
+  allowBridgeToolProxy: z.boolean().optional(),
+  skillIds: z.array(z.string().min(1)).max(32).optional(),
 });
 
 export const claudeThreadResumeParamsSchema =

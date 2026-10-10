@@ -1,10 +1,12 @@
 import {
   createThread,
+  getEnvironment,
   getThreadSectionById,
   getProjectSourceByHost,
   getProject,
   getThread,
   isSqliteForeignKeyConstraint,
+  isThreadCallerLaunchKeyConstraint,
 } from "@bb/db";
 import type { DbNotifier } from "@bb/db";
 import type { HostDaemonCommand } from "@bb/host-daemon-contract";
@@ -13,6 +15,18 @@ import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { emitPluginThreadCreated } from "../plugins/plugin-thread-events.js";
 import type { ThreadCreateServiceRequest } from "./thread-create-request.js";
+import {
+  CALLER_LAUNCH_METADATA_PLUGIN_ID,
+  canonicalJson,
+  ISOLATED_SKILL_DELIVERY_METADATA_PLUGIN_ID,
+} from "@bb/server-contract";
+import {
+  buildCallerLaunchReservation,
+  requestCallerLaunchIdentity,
+  resolveCallerLaunchCreate,
+  resolveCallerLaunchUniqueConflict,
+} from "./caller-launch.js";
+import { requestIsolatedSkillDeliveryPolicy } from "./isolated-skill-delivery.js";
 import { sanitizeGeneratedBranchSlug } from "./title-generation.js";
 
 type EnvironmentProvisionCommand = Extract<
@@ -89,6 +103,7 @@ export function buildEnvironmentProvisionCommand(
 export function createThreadRecord(
   deps: Pick<AppDeps, "db"> & { hub: DbNotifier },
   args: {
+    callerLaunchModel: string | null;
     environmentId: string | null;
     request: ThreadCreateServiceRequest;
   },
@@ -98,7 +113,44 @@ export function createThreadRecord(
     throw new ApiError(404, "section_not_found", "Section not found");
   }
 
+  const callerLaunch = requestCallerLaunchIdentity({
+    origin: args.request.origin,
+    originPluginId: args.request.originPluginId,
+    experimental_callerLaunchId: args.request.experimental_callerLaunchId,
+    experimental_callerAttemptId: args.request.experimental_callerAttemptId,
+    experimental_callerJobId: args.request.experimental_callerJobId,
+  });
+  const reservation = buildCallerLaunchReservation({
+    identity: callerLaunch,
+    projectId: args.request.projectId,
+    providerId: args.request.providerId,
+    model: args.callerLaunchModel,
+    environment: JSON.parse(canonicalJson(args.request.environment)),
+    environmentId: args.environmentId,
+    isolatedSkillDelivery: args.request.isolatedSkillDelivery === true,
+    skillIds: args.request.skillIds,
+    input: args.request.input,
+  });
+  const callerLaunchResolution = resolveCallerLaunchCreate(
+    deps.db,
+    reservation,
+  );
+  if ("replayThread" in callerLaunchResolution) {
+    return callerLaunchResolution.replayThread;
+  }
+
   try {
+    const environmentHostId =
+      args.request.isolatedSkillHostId ??
+      (args.environmentId === null
+        ? undefined
+        : (getEnvironment(deps.db, args.environmentId)?.hostId ?? undefined));
+    const isolatedPolicy = requestIsolatedSkillDeliveryPolicy({
+      isolatedSkillDelivery: args.request.isolatedSkillDelivery,
+      skillIds: args.request.skillIds,
+      originPluginId: args.request.originPluginId,
+      hostId: environmentHostId,
+    });
     const thread = createThread(deps.db, deps.hub, {
       projectId: args.request.projectId,
       environmentId: args.environmentId,
@@ -111,6 +163,28 @@ export function createThreadRecord(
       originKind: args.request.originKind,
       originPluginId: args.request.originPluginId ?? null,
       pluginMetadata: args.request.pluginMetadata,
+      isolatedSkillDeliveryPolicy:
+        isolatedPolicy === null
+          ? null
+          : {
+              pluginId: ISOLATED_SKILL_DELIVERY_METADATA_PLUGIN_ID,
+              metadata: isolatedPolicy,
+            },
+      callerLaunchPolicy:
+        callerLaunch === null
+          ? null
+          : {
+              pluginId: CALLER_LAUNCH_METADATA_PLUGIN_ID,
+              metadata: callerLaunch,
+            },
+      callerLaunchReservation:
+        reservation === null
+          ? null
+          : {
+              originPluginId: reservation.originPluginId,
+              callerLaunchId: reservation.callerLaunchId,
+              bindingJson: reservation.bindingJson,
+            },
       visibility: args.request.visibility,
       // Every thread starts `pending`, with no exception to parameterise.
       // Creation is unhooked and provisions nothing; admission happens at the
@@ -122,6 +196,13 @@ export function createThreadRecord(
     emitPluginThreadCreated(thread);
     return thread;
   } catch (error) {
+    if (
+      reservation !== null &&
+      error instanceof Error &&
+      isThreadCallerLaunchKeyConstraint(error)
+    ) {
+      return resolveCallerLaunchUniqueConflict(deps.db, reservation);
+    }
     if (
       sectionId !== null &&
       error instanceof Error &&

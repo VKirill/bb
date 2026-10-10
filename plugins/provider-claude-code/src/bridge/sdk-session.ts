@@ -20,6 +20,10 @@ import {
   missingClaudeCliGuidance,
   translateMissingClaudeCliError,
 } from "./missing-cli-error.js";
+import {
+  projectSdkQueryInstrumentation,
+  recordSdkQueryInstrumentation,
+} from "./sdk-query-instrumentation.js";
 
 export interface SdkSessionOptions {
   cwd: string;
@@ -42,6 +46,7 @@ export interface SdkSessionOptions {
   settings?: Options["settings"];
   extraArgs?: Options["extraArgs"];
   recordThreadId?: () => string;
+  isolatedSkillDelivery?: boolean;
 }
 
 export type ClaudeSdkReasoningEffort =
@@ -247,7 +252,10 @@ export class SdkSession {
           }
         : {}),
       includePartialMessages: true,
-      settingSources: ["user", "project", "local"],
+      settingSources:
+        this.options.isolatedSkillDelivery === true
+          ? []
+          : ["user", "project", "local"],
       persistSession: true,
       env: this.options.env ?? process.env,
       stderr: onStderr,
@@ -284,6 +292,14 @@ export class SdkSession {
       ...(this.options.settings ? { settings: this.options.settings } : {}),
       ...(this.options.extraArgs ? { extraArgs: this.options.extraArgs } : {}),
     };
+
+    recordSdkQueryInstrumentation({
+      projection: projectSdkQueryInstrumentation({
+        options: sdkOptions,
+        isolatedSkillDelivery: this.options.isolatedSkillDelivery === true,
+      }),
+      threadId: recordThreadId?.() ?? null,
+    });
 
     try {
       this.query = query({

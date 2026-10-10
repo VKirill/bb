@@ -142,6 +142,7 @@ describe("createThreadRecord", () => {
 
       try {
         createThreadRecord(deps, {
+          callerLaunchModel: null,
           environmentId: environment.id,
           request: {
             environment: {

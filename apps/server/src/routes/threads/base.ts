@@ -35,6 +35,7 @@ import {
 import type { Hono } from "hono";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
+import { findCallerLaunchThreadId } from "../../services/threads/caller-launch.js";
 import {
   parseInteger,
   parsePaginationQuery,
@@ -273,6 +274,24 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
     if (query.sectionId) {
       requireThreadSection(deps, query.sectionId);
     }
+    if (query.experimental_callerLaunchId !== undefined && !query.originPluginId) {
+      throw new ApiError(
+        400,
+        "invalid_request",
+        "experimental_callerLaunchId list filter requires originPluginId",
+      );
+    }
+    let callerThreadId: string | undefined;
+    if (query.experimental_callerLaunchId !== undefined && query.originPluginId) {
+      const found = findCallerLaunchThreadId(deps.db, {
+        originPluginId: query.originPluginId,
+        callerLaunchId: query.experimental_callerLaunchId,
+      });
+      if (found === null) {
+        return context.json([] satisfies ThreadListEntry[]);
+      }
+      callerThreadId = found.threadId;
+    }
     const threads = listThreadsWithPendingInteractionState(deps.db, {
       ...(query.projectId ? { projectId: query.projectId } : {}),
       ...(query.environmentId ? { environmentId: query.environmentId } : {}),
@@ -282,6 +301,7 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
       ...(query.unsectioned === "true" ? { unsectioned: true } : {}),
       ...(query.originKind ? { originKind: query.originKind } : {}),
       ...(query.originPluginId ? { originPluginId: query.originPluginId } : {}),
+      ...(callerThreadId === undefined ? {} : { threadId: callerThreadId }),
       includeHidden: query.includeHidden === "true",
       archived:
         query.archived === undefined ? undefined : query.archived === "true",

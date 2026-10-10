@@ -643,6 +643,22 @@ export const threadPluginMetadata = sqliteTable(
   (table) => [primaryKey({ columns: [table.threadId, table.pluginId] })],
 );
 
+export const threadCallerLaunches = sqliteTable(
+  "thread_caller_launches",
+  {
+    originPluginId: text("origin_plugin_id").notNull(),
+    callerLaunchId: text("caller_launch_id").notNull(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    bindingJson: text("binding_json").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.originPluginId, table.callerLaunchId] }),
+    uniqueIndex("thread_caller_launches_thread_id_idx").on(table.threadId),
+  ],
+);
+
 export const threadTabs = sqliteTable("thread_tabs", {
   threadId: text("thread_id")
     .primaryKey()

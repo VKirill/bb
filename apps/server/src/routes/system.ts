@@ -27,6 +27,7 @@ import {
   type AppTheme,
 } from "@bb/domain";
 import {
+  buildExperimentalThreadSpawnContract,
   publicApiRoutes,
   typedRoutes,
   type PublicApiSchema,
@@ -599,5 +600,9 @@ export function registerSystemRoutes(
         forceRefresh: query.force === "true",
       }),
     ),
+  );
+
+  get(routes.experimentalThreadSpawnContract, (context) =>
+    context.json(buildExperimentalThreadSpawnContract(deps.config.appVersion)),
   );
 }

@@ -95,6 +95,7 @@ import {
 } from "../path-list-policy.js";
 import { parseFileListLimit } from "../file-list-query.js";
 import { parseSafeRelativeRoutePath } from "../relative-route-path.js";
+import { assertWritablePluginMetadataNamespace } from "../../services/threads/isolated-skill-delivery.js";
 
 function resolveThreadProviderDisplayName(
   deps: Pick<AppDeps, "providerRegistry">,
@@ -348,6 +349,7 @@ export function registerThreadDataRoutes(app: Hono, deps: AppDeps): void {
 
   patch(routes.pluginMetadata.update, (context, payload) => {
     const thread = requirePublicThread(deps.db, context.req.param("id"));
+    assertWritablePluginMetadataNamespace(payload.pluginId);
     const result = patchThreadPluginMetadata(deps.db, {
       threadId: thread.id,
       pluginId: payload.pluginId,

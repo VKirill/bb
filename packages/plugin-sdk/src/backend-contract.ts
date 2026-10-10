@@ -1278,6 +1278,14 @@ export interface PluginProviderOptionsContext {
    * derived into them.
    */
   settings: Readonly<Record<string, PluginSettingValue | undefined>>;
+  /**
+   * Per-thread opt-in. Absent or false keeps the provider's legacy session
+   * context. True means only `skillIds` / `isolatedSkillRoots` are delivered.
+   */
+  isolatedSkillDelivery?: boolean;
+  skillIds?: readonly string[];
+  isolatedSkillRoots?: readonly { id: string; path: string }[];
+  allowBridgeToolProxy?: boolean;
 }
 
 /** See {@link PluginProviderDeclaration.models}. */
@@ -1846,7 +1854,10 @@ export interface PluginStatusApi {
 
 /**
  * The BB SDK bound to one plugin (`bb.sdk`). `threads.getPluginMetadata` and
- * `threads.updatePluginMetadata` default `pluginId` to that plugin's id. An
+ * `threads.updatePluginMetadata` default `pluginId` to that plugin's id.
+ * `threads.list({ experimental_callerLaunchId })` is scoped to this plugin's
+ * `originPluginId` so another plugin cannot look up or spoof the same launch
+ * id. An
  * explicit `pluginId` must be a plugin id (lowercase letters, digits, and
  * dashes) or the request fails with HTTP 400. A `pluginMetadata` seed or a
  * `set` that is over 256 KiB on its own rejects before any request is sent. A

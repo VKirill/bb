@@ -51,6 +51,20 @@ export function getThreadPluginMetadata(
     : { metadata, corrupt: false };
 }
 
+export function listThreadPluginMetadataByPluginId(
+  db: DbQueryConnection,
+  pluginId: string,
+): Array<{ threadId: string; metadataJson: string }> {
+  return db
+    .select({
+      threadId: threadPluginMetadata.threadId,
+      metadataJson: threadPluginMetadata.metadataJson,
+    })
+    .from(threadPluginMetadata)
+    .where(eq(threadPluginMetadata.pluginId, pluginId))
+    .all();
+}
+
 export function listThreadPluginMetadataRows(
   db: DbQueryConnection,
   threadId: string,

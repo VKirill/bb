@@ -53,9 +53,20 @@ export {
 export {
   getThreadPluginMetadata,
   insertThreadPluginMetadata,
+  listThreadPluginMetadataByPluginId,
   listThreadPluginMetadataRows,
   patchThreadPluginMetadata,
 } from "./thread-plugin-metadata.js";
+export {
+  getThreadCallerLaunchByKey,
+  getThreadCallerLaunchByThreadId,
+  insertThreadCallerLaunch,
+  isThreadCallerLaunchKeyConstraint,
+} from "./thread-caller-launches.js";
+export type {
+  InsertThreadCallerLaunchInput,
+  ThreadCallerLaunchRow,
+} from "./thread-caller-launches.js";
 
 export {
   createThread,

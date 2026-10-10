@@ -1,5 +1,13 @@
 import { z } from "zod";
 import {
+  callerLaunchRequestFieldsSchema,
+  refineCallerLaunchRequest,
+} from "./caller-launch.js";
+import {
+  isolatedSkillDeliveryRequestFieldsSchema,
+  refineIsolatedSkillDeliveryRequest,
+} from "./isolated-skill-delivery.js";
+import {
   activeThinkingSchema,
   callerExecutionInputSourceSchema,
   environmentSchema,
@@ -125,8 +133,34 @@ export const createThreadRequestSchema = z
      * created and creation runs exactly as it did before the queue existed.
      */
     sendAt: z.number().int().nonnegative().optional(),
+    isolatedSkillDelivery: isolatedSkillDeliveryRequestFieldsSchema.shape
+      .isolatedSkillDelivery,
+    skillIds: isolatedSkillDeliveryRequestFieldsSchema.shape.skillIds,
+    dynamicToolNames:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.dynamicToolNames,
+    instructionPluginIds:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.instructionPluginIds,
+    includeDataDirInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.includeDataDirInstructions,
+    includeWorkspaceInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape
+        .includeWorkspaceInstructions,
+    allowBridgeToolProxy:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.allowBridgeToolProxy,
+    experimental_callerLaunchId:
+      callerLaunchRequestFieldsSchema.shape.experimental_callerLaunchId,
+    experimental_callerAttemptId:
+      callerLaunchRequestFieldsSchema.shape.experimental_callerAttemptId,
+    experimental_callerJobId:
+      callerLaunchRequestFieldsSchema.shape.experimental_callerJobId,
   })
   .superRefine((value, ctx) => {
+    refineIsolatedSkillDeliveryRequest(value, (message, path) => {
+      ctx.addIssue({ code: "custom", message, path });
+    });
+    refineCallerLaunchRequest(value, (message, path) => {
+      ctx.addIssue({ code: "custom", message, path });
+    });
     if (value.origin === "plugin" && value.originPluginId === undefined) {
       ctx.addIssue({
         code: "custom",
@@ -194,9 +228,35 @@ export const forkThreadRequestSchema = z
     origin: threadCreateOriginSchema.default("sdk"),
     originPluginId: z.string().min(1).optional(),
     pluginMetadata: pluginMetadataSchema.optional(),
+    isolatedSkillDelivery: isolatedSkillDeliveryRequestFieldsSchema.shape
+      .isolatedSkillDelivery,
+    skillIds: isolatedSkillDeliveryRequestFieldsSchema.shape.skillIds,
+    dynamicToolNames:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.dynamicToolNames,
+    instructionPluginIds:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.instructionPluginIds,
+    includeDataDirInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.includeDataDirInstructions,
+    includeWorkspaceInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape
+        .includeWorkspaceInstructions,
+    allowBridgeToolProxy:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.allowBridgeToolProxy,
+    experimental_callerLaunchId:
+      callerLaunchRequestFieldsSchema.shape.experimental_callerLaunchId,
+    experimental_callerAttemptId:
+      callerLaunchRequestFieldsSchema.shape.experimental_callerAttemptId,
+    experimental_callerJobId:
+      callerLaunchRequestFieldsSchema.shape.experimental_callerJobId,
   })
   .strict()
   .superRefine((value, ctx) => {
+    refineIsolatedSkillDeliveryRequest(value, (message, path) => {
+      ctx.addIssue({ code: "custom", message, path });
+    });
+    refineCallerLaunchRequest(value, (message, path) => {
+      ctx.addIssue({ code: "custom", message, path });
+    });
     if (value.origin === "plugin" && value.originPluginId === undefined) {
       ctx.addIssue({
         code: "custom",
@@ -482,6 +542,9 @@ export const threadSearchResponseSchema = z
 export type ThreadSearchResponse = z.infer<typeof threadSearchResponseSchema>;
 
 export const threadResponseSchema = threadWithRuntimeSchema.extend({
+  experimental_callerLaunchId: z.string().uuid().optional(),
+  experimental_callerAttemptId: z.string().min(1).max(80).optional(),
+  experimental_callerJobId: z.string().min(1).max(80).optional(),
   activeBackgroundAgentCount: z.number().int().nonnegative(),
   canSpawnChild: z.boolean(),
   // How many messages are waiting on this thread's queue right now — waiting on
@@ -762,6 +825,7 @@ export const threadListQuerySchema = z.object({
   hasParent: z.enum(["true", "false"]).optional(),
   originKind: threadOriginKindSchema.optional(),
   originPluginId: z.string().min(1).optional(),
+  experimental_callerLaunchId: z.string().uuid().optional(),
   includeHidden: z.enum(["true", "false"]).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
   offset: z.string().regex(/^\d+$/).optional(),
