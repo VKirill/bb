@@ -21,6 +21,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: queryMock,
 }));
 
+import { addSdkQueryInstrumentationSink } from "../sdk-query-instrumentation.js";
 import { SdkSession, type SdkSessionOptions } from "../sdk-session.js";
 
 const defaultOptions: SdkSessionOptions = {
@@ -229,6 +230,67 @@ describe("SdkSession", () => {
       }),
     );
     expect(queryMock.mock.calls[0]?.[0]?.options).not.toHaveProperty("skills");
+  });
+
+  it("records the query projection before calling the SDK query", () => {
+    const seen: Array<{
+      resume: boolean;
+      resumeSessionId: string | null;
+      settingSources: readonly string[];
+    }> = [];
+    const stop = addSdkQueryInstrumentationSink((row) => {
+      seen.push({
+        resume: row.resume,
+        resumeSessionId: row.resumeSessionId,
+        settingSources: row.settingSources,
+      });
+    });
+    const session = new SdkSession(
+      {
+        ...defaultOptions,
+        isolatedSkillDelivery: true,
+        plugins: [{ type: "local", path: "/tmp/agency" }],
+        recordThreadId: () => "thr_query_proof",
+      },
+      vi.fn(),
+      vi.fn(),
+    );
+    session.start();
+    expect(seen).toEqual([
+      { resume: false, resumeSessionId: null, settingSources: [] },
+    ]);
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    session.start("sess_resume");
+    expect(seen).toEqual([
+      { resume: false, resumeSessionId: null, settingSources: [] },
+      {
+        resume: true,
+        resumeSessionId: "sess_resume",
+        settingSources: [],
+      },
+    ]);
+    expect(queryMock).toHaveBeenCalledTimes(2);
+    const payload = JSON.stringify(seen);
+    expect(payload).not.toContain("ANTHROPIC");
+    expect(payload).not.toContain("prompt");
+    stop();
+    session.stop();
+  });
+
+  it("clears settingSources when isolated skill delivery is on", () => {
+    const session = new SdkSession(
+      { ...defaultOptions, isolatedSkillDelivery: true },
+      vi.fn(),
+      vi.fn(),
+    );
+    session.start();
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          settingSources: [],
+        }),
+      }),
+    );
   });
 
   it("mirrors the Claude CLI settings cascade so user, project, and local settings all load", () => {

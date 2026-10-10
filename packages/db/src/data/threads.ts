@@ -41,6 +41,7 @@ import {
 } from "../schema.js";
 import { createThreadId } from "../ids.js";
 import { createOrderKeyBetween } from "./order-keys.js";
+import { insertThreadCallerLaunch } from "./thread-caller-launches.js";
 import { insertThreadPluginMetadata } from "./thread-plugin-metadata.js";
 
 type ThreadWriteConnection = DbConnection | DbTransaction;
@@ -266,6 +267,13 @@ export interface CreateThreadInput {
   originKind?: ThreadOriginKind | null;
   originPluginId?: string | null;
   pluginMetadata?: { pluginId: string; metadata: JsonObject } | null;
+  isolatedSkillDeliveryPolicy?: { pluginId: string; metadata: JsonObject } | null;
+  callerLaunchPolicy?: { pluginId: string; metadata: JsonObject } | null;
+  callerLaunchReservation?: {
+    originPluginId: string;
+    callerLaunchId: string;
+    bindingJson: string;
+  } | null;
   visibility?: ThreadVisibility;
 }
 
@@ -321,6 +329,37 @@ export function createThread(
           threadId: createdThread.id,
           pluginId: input.pluginMetadata.pluginId,
           metadata: input.pluginMetadata.metadata,
+        });
+      }
+      if (
+        input.isolatedSkillDeliveryPolicy !== undefined &&
+        input.isolatedSkillDeliveryPolicy !== null
+      ) {
+        insertThreadPluginMetadata(tx, {
+          threadId: createdThread.id,
+          pluginId: input.isolatedSkillDeliveryPolicy.pluginId,
+          metadata: input.isolatedSkillDeliveryPolicy.metadata,
+        });
+      }
+      if (
+        input.callerLaunchPolicy !== undefined &&
+        input.callerLaunchPolicy !== null
+      ) {
+        insertThreadPluginMetadata(tx, {
+          threadId: createdThread.id,
+          pluginId: input.callerLaunchPolicy.pluginId,
+          metadata: input.callerLaunchPolicy.metadata,
+        });
+      }
+      if (
+        input.callerLaunchReservation !== undefined &&
+        input.callerLaunchReservation !== null
+      ) {
+        insertThreadCallerLaunch(tx, {
+          threadId: createdThread.id,
+          originPluginId: input.callerLaunchReservation.originPluginId,
+          callerLaunchId: input.callerLaunchReservation.callerLaunchId,
+          bindingJson: input.callerLaunchReservation.bindingJson,
         });
       }
       return createdThread;
@@ -382,6 +421,7 @@ export interface ListThreadsOptions {
   sourceThreadId?: string;
   originKind?: ThreadOriginKind;
   originPluginId?: string;
+  threadId?: string;
   limit?: number;
   offset?: number;
   includeHidden?: boolean;
@@ -658,6 +698,7 @@ function buildListThreadsFilters(options: ListThreadsOptions) {
     options.originPluginId
       ? eq(threads.originPluginId, options.originPluginId)
       : undefined,
+    options.threadId ? eq(threads.id, options.threadId) : undefined,
     options.archived === true
       ? isNotNull(threads.archivedAt)
       : options.archived === false

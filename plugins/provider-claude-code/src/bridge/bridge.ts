@@ -87,9 +87,11 @@ import {
   type PermissionEscalationWorkContext,
 } from "./session-options.js";
 import {
-  createClaudeSkillPluginsRoot,
-  ensureClaudeSkillPlugin,
-} from "./skill-plugins.js";
+  assembleSkillPluginsOrThrow,
+  filterSkillsConfigureRootsForIsolation,
+  toClaudeSessionParams as buildToClaudeSessionParams,
+} from "./claude-session-params.js";
+import { createClaudeSkillPluginsRoot } from "./skill-plugins.js";
 import {
   buildBridgeMcpServer,
   getAllowedToolNames,
@@ -337,31 +339,54 @@ function nextInteractiveRequestId(): string {
   return `interaction-${interactiveRequestIdCounter}`;
 }
 let configuredSkillRoots: ClaudeCodeSkillRoot[] | null = null;
+let isolatedConfigureAllowlist: Set<string> | null = null;
 let skillPluginsRoot: string | null = null;
 let bridgeTempDir: string | null = null;
 
 function assembleSkillPlugins(
   roots: readonly { id: string; path: string }[],
 ): ClaudeCodeSkillRoot[] {
-  const takenNames = new Map<string, string>();
-  const assembled: ClaudeCodeSkillRoot[] = [];
-  for (const root of roots) {
-    try {
-      assembled.push({
-        id: root.id,
-        localPluginPath: ensureClaudeSkillPlugin({
-          pluginsRoot: requireSkillPluginsRoot(),
-          root: { id: root.id, path: root.path },
-          takenNames,
-        }),
-      });
-    } catch (error) {
-      process.stderr.write(
-        `claude bridge: skipping injected skill root "${root.id}": could not assemble its plugin: ${error instanceof Error ? error.message : String(error)}\n`,
-      );
-    }
+  return assembleSkillPluginsOrThrow({
+    roots,
+    pluginsRoot: requireSkillPluginsRoot(),
+  });
+}
+
+function rememberIsolatedConfigureAllowlist(params: {
+  isolatedSkillDelivery?: boolean;
+  skillIds?: readonly string[];
+}): void {
+  if (params.isolatedSkillDelivery === true) {
+    isolatedConfigureAllowlist = new Set(params.skillIds ?? []);
+    return;
   }
-  return assembled;
+  isolatedConfigureAllowlist = null;
+}
+
+function attachBridgeToolProxyIfAllowed(
+  params: {
+    isolatedSkillDelivery?: boolean;
+    allowBridgeToolProxy?: boolean;
+    dynamicTools?: ThreadStartParams["dynamicTools"];
+  },
+  sessionOptions: SdkSessionOptions,
+  threadIdRef: { current: string },
+): void {
+  if (
+    params.isolatedSkillDelivery === true &&
+    params.allowBridgeToolProxy !== true
+  ) {
+    return;
+  }
+  if (!params.dynamicTools || params.dynamicTools.length === 0) {
+    return;
+  }
+  const mcpServer = buildBridgeMcpServer(
+    params.dynamicTools,
+    createForwardToolCall(() => threadIdRef.current),
+  );
+  sessionOptions.mcpServers = { [BB_BRIDGE_MCP_SERVER_NAME]: mcpServer };
+  sessionOptions.allowedTools = getAllowedToolNames(params.dynamicTools);
 }
 
 function requireSkillPluginsRoot(): string {
@@ -837,6 +862,7 @@ function toSessionConstructionConfig(
       permissionMode: params.permissionMode,
       permissionScope: params.permissionScope,
       plugins: params.plugins,
+      isolatedSkillDelivery: params.isolatedSkillDelivery === true,
     },
   };
 }
@@ -2036,7 +2062,12 @@ async function handleRequest(request: ClaudeCodeJsonRpcRequest): Promise<void> {
       sendResult(request.id, await closeThreadForStop(request.params.threadId));
       break;
     case "skills/configure":
-      configuredSkillRoots = assembleSkillPlugins(request.params.roots);
+      configuredSkillRoots = assembleSkillPlugins(
+        filterSkillsConfigureRootsForIsolation({
+          roots: request.params.roots,
+          allowedIds: isolatedConfigureAllowlist,
+        }),
+      );
       sendResult(request.id, { ok: true });
       break;
   }
@@ -2055,14 +2086,8 @@ function attachThreadSession(
     sessionOptions.sessionId = providerThreadId;
   }
   sessionOptions.canUseTool = createCanUseTool(threadIdRef);
-  if (params.dynamicTools && params.dynamicTools.length > 0) {
-    const mcpServer = buildBridgeMcpServer(
-      params.dynamicTools,
-      createForwardToolCall(() => threadIdRef.current),
-    );
-    sessionOptions.mcpServers = { [BB_BRIDGE_MCP_SERVER_NAME]: mcpServer };
-    sessionOptions.allowedTools = getAllowedToolNames(params.dynamicTools);
-  }
+  attachBridgeToolProxyIfAllowed(params, sessionOptions, threadIdRef);
+  rememberIsolatedConfigureAllowlist(params);
 
   const attachment = createThreadAttachment({
     liveSettings: toInitialLiveSessionSettings(params),
@@ -2198,14 +2223,9 @@ async function handleThreadFork(
 function toClaudeSessionParams(
   params: z.infer<typeof canonicalThreadStartParamsSchema>,
 ): Record<string, unknown> {
-  return buildClaudeSessionParams({
-    threadId: params.threadId,
-    cwd: params.cwd,
-    options: params.options,
-    instructionMode: params.instructionMode,
-    dynamicTools: params.dynamicTools,
-    disallowedTools: params.disallowedTools,
-    skillRoots: configuredSkillRoots ?? undefined,
+  return buildToClaudeSessionParams(params, {
+    assembleSkillPlugins,
+    configuredSkillRoots,
   });
 }
 

@@ -953,6 +953,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Read recorded context usage with sdk.threads.context({ threadId }); usage is null when unavailable, and its snapshot is present only when the latest measurement includes a breakdown",
           "Reach the same operations the [bb CLI](cli) and the bb UI use",
           "Have the threads it creates attributed back to the plugin",
+          "Pass experimental_callerLaunchId, experimental_callerAttemptId, and optional experimental_callerJobId on threads.spawn or threads.fork; get returns them, and list({ experimental_callerLaunchId }) is scoped to this plugin",
           "Read the server's loopback URL, public app URL, and data directory when it needs server facts",
         ],
         apiSymbols: ["BbPluginApi", "PluginServerApi"],
@@ -978,6 +979,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Stores namespaced plugin JSON for a thread without automatically exposing it to the model. With this, a plugin can:",
         bullets: [
           "Seed its namespace when spawning a thread or explicitly when forking one",
+          "Cannot write reserved namespaces bb-caller-launch or bb-isolated-skill-delivery; those are core-owned",
           "Read and atomically patch any namespace allowed by ordinary thread access",
           "Receive only its own deep-frozen namespace in bb.agents.configure",
           "Keep up to 256 KiB of JSON per namespace; a patch that would exceed it fails and leaves the namespace unchanged",

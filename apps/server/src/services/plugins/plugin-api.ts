@@ -111,6 +111,7 @@ import type {
 import type {
   BbSdk,
   ThreadForkArgs,
+  ThreadListArgs,
   ThreadPluginMetadataArgs,
   ThreadPluginMetadataUpdateArgs,
   ThreadSpawnArgs,
@@ -359,6 +360,15 @@ function wrapSdkForPlugin(sdk: BbSdk, pluginId: string): PluginBbSdk {
       },
       spawn(args: ThreadSpawnArgs) {
         return sdk.threads.spawn(withPluginThreadAttribution(args, pluginId));
+      },
+      list(args?: ThreadListArgs) {
+        if (args?.experimental_callerLaunchId !== undefined) {
+          return sdk.threads.list({
+            ...args,
+            originPluginId: pluginId,
+          });
+        }
+        return sdk.threads.list(args);
       },
     },
   };

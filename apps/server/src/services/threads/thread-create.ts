@@ -355,6 +355,8 @@ async function createPendingThreadAndAttemptFirstDispatch(
   if (environment !== null)
     assertEnvironmentPathAvailable(deps, { ...environment, threadId: null });
   const thread = createThreadRecord(deps, {
+    callerLaunchModel:
+      args.executionDefaults?.model ?? args.request.model ?? null,
     request: args.request,
     environmentId: args.environmentId,
   });
@@ -724,6 +726,9 @@ export async function createThreadFromRequest(
     );
   }
 
+  if (childHostId !== null) {
+    request.isolatedSkillHostId = childHostId;
+  }
   const createArgs = {
     environmentId,
     environmentIntent,

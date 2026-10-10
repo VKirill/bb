@@ -2,6 +2,9 @@ import { join } from "node:path";
 import {
   acpNativeReasoningSchema,
   acpReasoningCliSchema,
+  normalizeProviderNativeRoots,
+  providerNativeRootInputSchema,
+  providerNativeRootsSchema,
   providerNativeSkillRootsSchema,
 } from "@bb/domain";
 import { z } from "zod";
@@ -94,6 +97,29 @@ const customAcpAgentModelCliSchema = z
     modelCli.listArgs.length > 0 ? modelCli : undefined,
   );
 
+/** Same input form as ACP launch spec: string or {path, recursive?, ancestors?}. */
+const customAcpNativeSkillRootsSchema = z
+  .object({
+    user: z.array(providerNativeRootInputSchema).default([]),
+    project: z.array(providerNativeRootInputSchema).default([]),
+  })
+  .strict()
+  .superRefine((roots, context) => {
+    const normalized = providerNativeRootsSchema.safeParse(
+      normalizeProviderNativeRoots(roots),
+    );
+    if (normalized.success) {
+      return;
+    }
+    for (const issue of normalized.error.issues) {
+      context.addIssue({
+        code: "custom",
+        path: issue.path,
+        message: issue.message,
+      });
+    }
+  });
+
 const customAcpAgentSchema = z
   .object({
     id: z.string().regex(CUSTOM_ACP_AGENT_ID_PATTERN),
@@ -113,7 +139,7 @@ const customAcpAgentSchema = z
     modelCli: customAcpAgentModelCliSchema.optional(),
     reasoningCli: acpReasoningCliSchema.optional(),
     nativeReasoning: acpNativeReasoningSchema.optional(),
-    nativeSkillRoots: providerNativeSkillRootsSchema.optional(),
+    nativeSkillRoots: customAcpNativeSkillRootsSchema.optional(),
     supportsManualCompaction: z.boolean().default(false),
   })
   .strict()

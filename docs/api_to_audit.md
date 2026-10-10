@@ -1,5 +1,46 @@
 # APIs To Audit
 
+## `threads.spawn` / `threads.fork` / `threads.get` / `threads.list` caller launch fields
+
+**What it does.** Public plugin SDK fields on existing thread methods.
+Wire names: `experimental_callerLaunchId` (UUID),
+`experimental_callerAttemptId` (1–80), optional `experimental_callerJobId`
+(1–80). `threads.get` returns the same three fields.
+`threads.list({ experimental_callerLaunchId })` is scoped to `originPluginId`
+(plugin SDK injects this plugin; HTTP requires the query param). Internal SQLite
+columns and reserved `bb-caller-launch` JSON keep `caller_launch_id` /
+`callerLaunchId`. Replay is allowed only when the stored binding matches
+project, environment, workspace root, provider, model, prompt digest,
+isolation, skillIds, attempt, and job; any change is `caller_launch_conflict`.
+Fork does not inherit the parent launch id. No unprefixed public aliases.
+
+**Audit before stabilizing.**
+
+1. Confirm scoped uniqueness plus full binding equality is the right replay
+   rule versus launch-id-only replay.
+2. Confirm HTTP list must keep requiring `originPluginId` so one plugin cannot
+   look up another plugin's launch.
+3. Project-wide rename dropping `experimental_` after this audit.
+4. Confirm prompt digest (canonical JSON SHA-256) is the right prompt identity
+   versus storing raw input.
+5. Confirm reserved metadata PATCH stays 403 after clients learn the typed
+   fields.
+
+## `GET /api/v1/system/experimental_thread-spawn-contract`
+
+**What it does.** Isolated 0431 capability probe. Returns the **loaded**
+create/list/response key lists, persist unique on `thread_caller_launches`,
+fork/hidden policies, `appVersion`, and sha256 fingerprint of that accepted
+shape. Agency maps present keys to handshake bits. Not env true-flags.
+
+**Audit before stabilizing.**
+
+1. Confirm plugins should fetch via `bb.server.experimental_appUrl` of this
+   instance rather than a second SDK lookup type.
+2. Confirm persist unique names stay SQL (`origin_plugin_id`,
+   `caller_launch_id`) while public fields stay `experimental_*`.
+3. Confirm fingerprint should ignore `appVersion` (current) versus include it.
+
 ## `bb.http.experimental_websocket`
 
 **What it does.** Registers an exact-path WebSocket upgrade in the plugin's

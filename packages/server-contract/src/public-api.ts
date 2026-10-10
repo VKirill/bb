@@ -196,6 +196,7 @@ import type {
   SystemUsageLimitsQuery,
   SystemVersionQuery,
   SystemVersionResponse,
+  ExperimentalThreadSpawnContract,
   SystemVoiceTranscriptionForm,
   SystemVoiceTranscriptionResponse,
   TerminalListResponse,
@@ -1786,6 +1787,12 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<SystemVersionResponse>(),
     }),
+    experimentalThreadSpawnContract: defineRoute({
+      path: "/system/experimental_thread-spawn-contract",
+      method: "get",
+      request: noRequest(),
+      response: jsonResponse<ExperimentalThreadSpawnContract>(),
+    }),
   },
 };
 
@@ -1794,3 +1801,40 @@ export type PublicApiSchema = ApiSchemaFromRouteDescriptors<
 >;
 
 export type PublicApiRoutes = Hono<{}, PublicApiSchema, "/">;
+
+export {
+  CALLER_LAUNCH_METADATA_PLUGIN_ID,
+  callerLaunchBindingSchema,
+  callerLaunchRequestFieldsSchema,
+  canonicalJson,
+  isReservedCallerLaunchPluginId,
+  parseCallerLaunchBinding,
+  parsePersistedCallerLaunchIdentity,
+  persistedCallerLaunchIdentitySchema,
+  refineCallerLaunchRequest,
+  serializeCallerLaunchBinding,
+  type CallerLaunchBinding,
+  type CallerLaunchRequestFields,
+  type PersistedCallerLaunchIdentity,
+} from "./api/caller-launch.js";
+
+export {
+  ISOLATED_SKILL_DELIVERY_METADATA_PLUGIN_ID,
+  isolatedAllowsBridgeToolProxy,
+  isolatedAllowsDataDirInstructions,
+  isolatedAllowsDynamicTool,
+  isolatedAllowsInstructionPlugin,
+  isolatedAllowsWorkspaceInstructions,
+  isolatedContextAllowlistSchema,
+  isolatedSkillDeliveryRequestFieldsSchema,
+  isolatedSkillIdsSchema,
+  isReservedIsolatedSkillDeliveryPluginId,
+  opaqueSkillIdSchema,
+  parsePersistedIsolatedSkillDeliveryPolicy,
+  persistedIsolatedSkillDeliveryPolicySchema,
+  pickIsolatedContextAllowlist,
+  refineIsolatedSkillDeliveryRequest,
+  type IsolatedContextAllowlist,
+  type IsolatedSkillDeliveryRequestFields,
+  type PersistedIsolatedSkillDeliveryPolicy,
+} from "./api/isolated-skill-delivery.js";

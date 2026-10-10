@@ -78,6 +78,9 @@ export type ClaudeSessionExecutionOptions = RuntimePermissionPolicy & {
   memoryEnabled?: boolean | undefined;
   providerSubagentsEnabled?: boolean | undefined;
   skillRoots?: readonly ClaudeCodeSkillRoot[] | undefined;
+  isolatedSkillDelivery?: boolean | undefined;
+  allowBridgeToolProxy?: boolean | undefined;
+  skillIds?: readonly string[] | undefined;
 };
 
 function resolveClaudeSessionPermissionMode(
@@ -140,6 +143,11 @@ function buildInternalSessionParams(
     ...(args.disallowedTools && args.disallowedTools.length > 0
       ? { disallowedTools: [...args.disallowedTools] }
       : {}),
+    isolatedSkillDelivery: args.options.isolatedSkillDelivery === true,
+    allowBridgeToolProxy: args.options.allowBridgeToolProxy === true,
+    ...(Array.isArray(args.options.skillIds) && args.options.skillIds.length > 0
+      ? { skillIds: [...args.options.skillIds] }
+      : {}),
   };
 }
 
@@ -151,6 +159,18 @@ const claudeProviderOptionsSchema = z
     memoryEnabled: z.boolean().optional(),
     providerSubagentsEnabled: z.boolean().optional(),
     additionalWorkspaceWriteRoots: z.array(z.string()).optional(),
+    isolatedSkillDelivery: z.boolean().optional(),
+    allowBridgeToolProxy: z.boolean().optional(),
+    skillIds: z.array(z.string().trim().min(1).max(180)).max(32).optional(),
+    isolatedSkillRoots: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1).max(180),
+          path: z.string().min(1),
+        }),
+      )
+      .max(32)
+      .optional(),
   })
   .passthrough();
 
@@ -181,7 +201,9 @@ export function buildClaudeSessionParams(
   const config = buildClaudeCodeConfig(args.options.envVars);
   return buildInternalSessionParams({
     additionalWorkspaceWriteRoots:
-      providerOptions.additionalWorkspaceWriteRoots ?? [],
+      providerOptions.isolatedSkillDelivery === true
+        ? []
+        : (providerOptions.additionalWorkspaceWriteRoots ?? []),
     cwd: args.cwd,
     disallowedTools: args.disallowedTools,
     dynamicTools: args.dynamicTools,
@@ -195,6 +217,9 @@ export function buildClaudeSessionParams(
       chromeEnabled: providerOptions.chromeEnabled ?? false,
       memoryEnabled: providerOptions.memoryEnabled,
       providerSubagentsEnabled: providerOptions.providerSubagentsEnabled,
+      isolatedSkillDelivery: providerOptions.isolatedSkillDelivery,
+      allowBridgeToolProxy: providerOptions.allowBridgeToolProxy,
+      skillIds: providerOptions.skillIds,
     },
   });
 }

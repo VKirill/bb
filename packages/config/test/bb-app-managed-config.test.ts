@@ -285,6 +285,81 @@ describe("parseBbAppManagedConfig", () => {
     });
   });
 
+  it("keeps object nativeSkillRoots recursive and project ancestors", () => {
+    const parsed = parseBbAppManagedConfig({
+      customAcpAgents: [
+        {
+          id: "agy",
+          displayName: "Agy",
+          command: "agy-acp",
+          nativeSkillRoots: {
+            user: [
+              { path: ".gemini/skills", recursive: true },
+              { path: ".agents/skills", recursive: true },
+            ],
+            project: [
+              {
+                path: ".agents/skills",
+                recursive: true,
+                ancestors: true,
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(parsed.customAcpAgents?.[0]?.nativeSkillRoots).toEqual({
+      user: [
+        { path: ".gemini/skills", recursive: true },
+        { path: ".agents/skills", recursive: true },
+      ],
+      project: [
+        {
+          path: ".agents/skills",
+          recursive: true,
+          ancestors: true,
+        },
+      ],
+    });
+  });
+
+  it("drops custom ACP agents when a user root walks ancestors", () => {
+    const { parsed, warnings } = parseWithWarnings({
+      customAcpAgents: [
+        {
+          id: "agy",
+          displayName: "Agy",
+          command: "agy-acp",
+          nativeSkillRoots: {
+            user: [{ path: ".agents/skills", ancestors: true }],
+            project: [],
+          },
+        },
+      ],
+    });
+    expect(parsed.customAcpAgents).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(String(warnings[0]?.error)).toMatch(/ancestors/i);
+  });
+
+  it("drops custom ACP agents when an object nativeSkillRoot is absolute", () => {
+    const { parsed, warnings } = parseWithWarnings({
+      customAcpAgents: [
+        {
+          id: "agy",
+          displayName: "Agy",
+          command: "agy-acp",
+          nativeSkillRoots: {
+            user: [{ path: "/tmp/skills", recursive: true }],
+          },
+        },
+      ],
+    });
+    expect(parsed.customAcpAgents).toEqual([]);
+    expect(warnings).toHaveLength(1);
+  });
+
   it("drops custom ACP agents with unsafe native skill roots", () => {
     for (const root of ["/tmp/skills", "../skills", "skills/../other"]) {
       const { parsed, warnings } = parseWithWarnings({
