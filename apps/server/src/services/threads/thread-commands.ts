@@ -39,6 +39,11 @@ import {
 import { clampPermissionModeToHost } from "../hosts/permission-ceiling.js";
 import type { ProviderRegistryService } from "../providers/provider-registry.js";
 import { resolveProviderPlanCommand } from "../providers/provider-plan-command.js";
+import {
+  isolatedProviderOptionsContext,
+  mergeIsolatedProviderOptions,
+  type IsolatedSkillDeliveryContext,
+} from "./isolated-skill-delivery.js";
 import { workspaceContextFromPath } from "../environments/workspace-command-target.js";
 import {
   requireBridgeLaunchForProviderId,
@@ -126,6 +131,7 @@ interface RuntimeExecutionOptionsArgs {
   projectId: string;
   providerId: string;
   threadId: string;
+  isolation: IsolatedSkillDeliveryContext | null;
 }
 
 interface BuildExecutionOptionsArgs {
@@ -187,6 +193,29 @@ function resolvePromptMode(
     : undefined;
 }
 
+function isolationFromRuntime(
+  runtimeContext: ResolvedThreadRuntimeCommandConfig,
+): IsolatedSkillDeliveryContext | null {
+  if (
+    runtimeContext.isolatedSkillDelivery !== true ||
+    runtimeContext.skillIds === undefined ||
+    runtimeContext.isolatedSkillRoots === undefined
+  ) {
+    return null;
+  }
+  return {
+    isolatedSkillDelivery: true,
+    skillIds: runtimeContext.skillIds,
+    isolatedSkillRoots: runtimeContext.isolatedSkillRoots,
+    ...(runtimeContext.isolatedSkillHostId === undefined
+      ? {}
+      : { hostId: runtimeContext.isolatedSkillHostId }),
+    ...(runtimeContext.allowBridgeToolProxy === true
+      ? { allowBridgeToolProxy: true }
+      : {}),
+  };
+}
+
 function toRuntimeExecutionOptions(
   args: RuntimeExecutionOptionsArgs,
 ): RuntimeThreadExecutionOptions {
@@ -199,14 +228,17 @@ function toRuntimeExecutionOptions(
     input: args.input,
     providerId: args.providerId,
   });
-  const providerOptions =
+  const providerOptions = mergeIsolatedProviderOptions(
     args.deps.providerRegistry.get(args.providerId)?.deriveProviderOptions({
       threadId: args.threadId,
       projectId: args.projectId,
       model: args.execution.model,
       permissionMode,
       ...(promptMode !== undefined ? { promptMode } : {}),
-    }) ?? {};
+      ...isolatedProviderOptionsContext(args.isolation),
+    }) ?? {},
+    args.isolation,
+  );
   const base = {
     model: args.execution.model,
     serviceTier: args.execution.serviceTier,
@@ -289,6 +321,7 @@ export async function buildThreadStartCommand(
       deps,
       hostId: args.environment.hostId,
       input: args.input,
+      isolation: isolationFromRuntime(runtimeContext),
       threadId: args.thread.id,
     }),
     instructions: runtimeContext.instructions,
@@ -320,6 +353,7 @@ function buildPreparedTurnSubmitCommandPayload(
     options: toRuntimeExecutionOptions({
       ...args,
       input: args.input,
+      isolation: isolationFromRuntime(args.runtimeContext),
       projectId: args.runtimeContext.projectId,
       providerId: args.runtimeContext.providerId,
     }),

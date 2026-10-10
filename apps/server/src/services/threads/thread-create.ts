@@ -722,6 +722,9 @@ export async function createThreadFromRequest(
     );
   }
 
+  if (childHostId !== null) {
+    request.isolatedSkillHostId = childHostId;
+  }
   const createArgs = {
     environmentId,
     environmentIntent,

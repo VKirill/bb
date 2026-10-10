@@ -231,6 +231,22 @@ describe("SdkSession", () => {
     expect(queryMock.mock.calls[0]?.[0]?.options).not.toHaveProperty("skills");
   });
 
+  it("clears settingSources when isolated skill delivery is on", () => {
+    const session = new SdkSession(
+      { ...defaultOptions, isolatedSkillDelivery: true },
+      vi.fn(),
+      vi.fn(),
+    );
+    session.start();
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          settingSources: [],
+        }),
+      }),
+    );
+  });
+
   it("mirrors the Claude CLI settings cascade so user, project, and local settings all load", () => {
     const onMessage = vi.fn();
     const onDone = vi.fn();

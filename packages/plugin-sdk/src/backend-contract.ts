@@ -1278,6 +1278,14 @@ export interface PluginProviderOptionsContext {
    * derived into them.
    */
   settings: Readonly<Record<string, PluginSettingValue | undefined>>;
+  /**
+   * Per-thread opt-in. Absent or false keeps the provider's legacy session
+   * context. True means only `skillIds` / `isolatedSkillRoots` are delivered.
+   */
+  isolatedSkillDelivery?: boolean;
+  skillIds?: readonly string[];
+  isolatedSkillRoots?: readonly { id: string; path: string }[];
+  allowBridgeToolProxy?: boolean;
 }
 
 /** See {@link PluginProviderDeclaration.models}. */

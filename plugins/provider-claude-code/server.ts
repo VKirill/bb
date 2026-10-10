@@ -96,6 +96,16 @@ export default function plugin(bb: BbPluginApi) {
         ...(context.promptMode === "plan"
           ? { claudeCodePermissionMode: "plan" }
           : {}),
+        ...(context.isolatedSkillDelivery === true
+          ? {
+              isolatedSkillDelivery: true,
+              skillIds: [...(context.skillIds ?? [])],
+              isolatedSkillRoots: [...(context.isolatedSkillRoots ?? [])],
+              ...(context.allowBridgeToolProxy === true
+                ? { allowBridgeToolProxy: true }
+                : {}),
+            }
+          : {}),
       };
     },
   });

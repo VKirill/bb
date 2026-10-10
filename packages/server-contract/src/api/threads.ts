@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  isolatedSkillDeliveryRequestFieldsSchema,
+  refineIsolatedSkillDeliveryRequest,
+} from "./isolated-skill-delivery.js";
+import {
   activeThinkingSchema,
   callerExecutionInputSourceSchema,
   environmentSchema,
@@ -125,8 +129,25 @@ export const createThreadRequestSchema = z
      * created and creation runs exactly as it did before the queue existed.
      */
     sendAt: z.number().int().nonnegative().optional(),
+    isolatedSkillDelivery: isolatedSkillDeliveryRequestFieldsSchema.shape
+      .isolatedSkillDelivery,
+    skillIds: isolatedSkillDeliveryRequestFieldsSchema.shape.skillIds,
+    dynamicToolNames:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.dynamicToolNames,
+    instructionPluginIds:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.instructionPluginIds,
+    includeDataDirInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.includeDataDirInstructions,
+    includeWorkspaceInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape
+        .includeWorkspaceInstructions,
+    allowBridgeToolProxy:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.allowBridgeToolProxy,
   })
   .superRefine((value, ctx) => {
+    refineIsolatedSkillDeliveryRequest(value, (message, path) => {
+      ctx.addIssue({ code: "custom", message, path });
+    });
     if (value.origin === "plugin" && value.originPluginId === undefined) {
       ctx.addIssue({
         code: "custom",
@@ -194,9 +215,26 @@ export const forkThreadRequestSchema = z
     origin: threadCreateOriginSchema.default("sdk"),
     originPluginId: z.string().min(1).optional(),
     pluginMetadata: pluginMetadataSchema.optional(),
+    isolatedSkillDelivery: isolatedSkillDeliveryRequestFieldsSchema.shape
+      .isolatedSkillDelivery,
+    skillIds: isolatedSkillDeliveryRequestFieldsSchema.shape.skillIds,
+    dynamicToolNames:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.dynamicToolNames,
+    instructionPluginIds:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.instructionPluginIds,
+    includeDataDirInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.includeDataDirInstructions,
+    includeWorkspaceInstructions:
+      isolatedSkillDeliveryRequestFieldsSchema.shape
+        .includeWorkspaceInstructions,
+    allowBridgeToolProxy:
+      isolatedSkillDeliveryRequestFieldsSchema.shape.allowBridgeToolProxy,
   })
   .strict()
   .superRefine((value, ctx) => {
+    refineIsolatedSkillDeliveryRequest(value, (message, path) => {
+      ctx.addIssue({ code: "custom", message, path });
+    });
     if (value.origin === "plugin" && value.originPluginId === undefined) {
       ctx.addIssue({
         code: "custom",

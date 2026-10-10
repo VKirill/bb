@@ -40,6 +40,14 @@ export interface ThreadCreateServiceRequestInput {
   startedOnBehalfOf: StartedOnBehalfOf | null;
   title?: string;
   visibility?: ThreadVisibility;
+  isolatedSkillDelivery?: CreateThreadRequest["isolatedSkillDelivery"];
+  skillIds?: CreateThreadRequest["skillIds"];
+  isolatedSkillHostId?: string;
+  dynamicToolNames?: CreateThreadRequest["dynamicToolNames"];
+  instructionPluginIds?: CreateThreadRequest["instructionPluginIds"];
+  includeDataDirInstructions?: CreateThreadRequest["includeDataDirInstructions"];
+  includeWorkspaceInstructions?: CreateThreadRequest["includeWorkspaceInstructions"];
+  allowBridgeToolProxy?: CreateThreadRequest["allowBridgeToolProxy"];
 }
 
 export interface ThreadCreateServiceRequest extends Omit<

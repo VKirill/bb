@@ -32,6 +32,7 @@ export interface BuildSessionOptionsArgs {
   workflowsEnabled: boolean;
   chromeEnabled: boolean;
   memoryEnabled?: boolean;
+  isolatedSkillDelivery?: boolean;
 }
 
 export interface PermissionEscalationWorkContext {
@@ -304,9 +305,12 @@ export function buildSessionOptions(
   const model = params.model;
   const sandbox = buildWorkspaceWriteSandbox(params);
   const hooks = buildReadonlyHooks(params);
-  const additionalDirectories = usesWorkspaceSandbox(params)
-    ? (params.additionalWorkspaceWriteRoots ?? [])
-    : [];
+  const additionalDirectories =
+    params.isolatedSkillDelivery === true
+      ? []
+      : usesWorkspaceSandbox(params)
+        ? (params.additionalWorkspaceWriteRoots ?? [])
+        : [];
   const pathToClaudeCodeExecutable = resolveClaudeCodeExecutable({ env });
   const flagSettings = buildFlagSettings(params);
   const extraArgs = buildChromeExtraArgs(params.chromeEnabled);
@@ -334,6 +338,9 @@ export function buildSessionOptions(
       : {}),
     ...(params.disallowedTools && params.disallowedTools.length > 0
       ? { disallowedTools: [...params.disallowedTools] }
+      : {}),
+    ...(params.isolatedSkillDelivery === true
+      ? { isolatedSkillDelivery: true }
       : {}),
   };
 }

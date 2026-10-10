@@ -46,6 +46,19 @@ import {
   readWorkspaceAgentInstructions,
 } from "./workspace-agent-instructions.js";
 import { resolveDeprecatedWorkspaceProvisionType } from "../environments/environment-response.js";
+import {
+  filterInjectedSkillSourcesForIsolation,
+  readIsolatedSkillDeliveryPolicy,
+  resolveIsolatedDaemonInstructions,
+  resolveIsolatedSkillRoots,
+  type IsolatedSkillRoot,
+} from "./isolated-skill-delivery.js";
+import {
+  isolatedAllowsDataDirInstructions,
+  isolatedAllowsDynamicTool,
+  isolatedAllowsInstructionPlugin,
+  isolatedAllowsWorkspaceInstructions,
+} from "@bb/server-contract";
 
 const UPDATE_ENVIRONMENT_DIRECTORY_INSTRUCTIONS =
   "If the user asks you to move this thread to another checkout, worktree, or directory, make sure the target directory exists, then call `update_environment_directory` with its absolute path. After it succeeds, stop work in the current turn; future turns will run in the updated environment.";
@@ -89,6 +102,11 @@ export interface ResolvedThreadRuntimeCommandConfig {
   providerId: string;
   threadStoragePath: string;
   workspacePath: string;
+  isolatedSkillDelivery: boolean;
+  skillIds?: readonly string[];
+  isolatedSkillRoots?: readonly IsolatedSkillRoot[];
+  isolatedSkillHostId?: string;
+  allowBridgeToolProxy?: boolean;
 }
 
 function requireWorkspacePath(
@@ -241,17 +259,37 @@ export async function resolveThreadRuntimeCommandConfig(
       },
     }),
   );
-  const injectedSkillSources = resolveSkillCatalog(deps, {
+  const skillCatalog = resolveSkillCatalog(deps, {
     projectSkillSources,
     sharedSkillSources: sharedSkills.runtimeSources,
     pluginSkillSelections: conditionalConfiguration.selectedSkillIdsByPlugin,
-  }).map((entry) => entry.runtimeSource);
+  });
+  const isolatedPolicy = readIsolatedSkillDeliveryPolicy(deps, args.thread.id);
+  const isolatedSkillRoots =
+    isolatedPolicy === null
+      ? undefined
+      : resolveIsolatedSkillRoots({
+          skillIds: isolatedPolicy.skillIds,
+          catalog: skillCatalog,
+          hostId: args.environment.hostId,
+          policyHostId: isolatedPolicy.hostId,
+          resolveTreeHash: (treeHash) =>
+            deps.skillTreeRegistry.resolve(treeHash) ?? null,
+        });
+  const injectedSkillSources =
+    isolatedSkillRoots === undefined
+      ? skillCatalog.map((entry) => entry.runtimeSource)
+      : filterInjectedSkillSourcesForIsolation(isolatedSkillRoots);
   const dataDirAgentInstructions = readDataDirAgentInstructions(
     deps.logger,
     deps.config.dataDir,
   );
   const dynamicToolContributions = resolveDynamicTools(
     conditionalConfiguration.tools,
+  ).filter((contribution) =>
+    isolatedPolicy === null
+      ? true
+      : isolatedAllowsDynamicTool(isolatedPolicy, contribution.tool.name),
   );
   const dynamicTools = dynamicToolContributions.map(
     (contribution) => contribution.tool,
@@ -269,6 +307,12 @@ export async function resolveThreadRuntimeCommandConfig(
     }
   }
   for (const contribution of listPluginInstructionContributions()) {
+    if (
+      isolatedPolicy !== null &&
+      !isolatedAllowsInstructionPlugin(isolatedPolicy, contribution.pluginId)
+    ) {
+      continue;
+    }
     let text: string | null;
     try {
       text = contribution.provider({
@@ -296,24 +340,41 @@ export async function resolveThreadRuntimeCommandConfig(
     );
   }
   for (const contribution of conditionalConfiguration.dynamicInstructions) {
+    if (
+      isolatedPolicy !== null &&
+      !isolatedAllowsInstructionPlugin(isolatedPolicy, contribution.pluginId)
+    ) {
+      continue;
+    }
     instructionSections.push(
       `The following dynamic instructions come from the BB plugin "${contribution.pluginId}":`,
       contribution.text,
     );
   }
-  if (dataDirAgentInstructions) {
+  if (
+    dataDirAgentInstructions &&
+    (isolatedPolicy === null ||
+      isolatedAllowsDataDirInstructions(isolatedPolicy))
+  ) {
     instructionSections.push(
       `The following user instructions come from <dataDir>/${DATA_DIR_AGENT_INSTRUCTIONS_RELATIVE_PATH}:`,
       dataDirAgentInstructions,
     );
   }
-  if (workspaceAgentInstructions) {
+  if (
+    workspaceAgentInstructions &&
+    (isolatedPolicy === null ||
+      isolatedAllowsWorkspaceInstructions(isolatedPolicy))
+  ) {
     instructionSections.push(
       `The following workspace instructions come from ${WORKSPACE_AGENT_INSTRUCTIONS_RELATIVE_PATH}:`,
       workspaceAgentInstructions,
     );
   }
-  const instructions = instructionSections.join("\n\n");
+  const instructions = resolveIsolatedDaemonInstructions({
+    joinedInstructions: instructionSections.join("\n\n"),
+    isolated: isolatedPolicy !== null,
+  });
   const threadStoragePath = await requireLiveThreadStoragePath(deps, {
     hostId: args.environment.hostId,
     threadId: args.thread.id,
@@ -322,6 +383,15 @@ export async function resolveThreadRuntimeCommandConfig(
     contributedEnv,
     dynamicTools,
     injectedSkillSources,
+    isolatedSkillDelivery: isolatedPolicy !== null,
+    ...(isolatedPolicy === null
+      ? {}
+      : {
+          skillIds: isolatedPolicy.skillIds,
+          isolatedSkillRoots,
+          isolatedSkillHostId: isolatedPolicy.hostId,
+          allowBridgeToolProxy: isolatedPolicy.allowBridgeToolProxy,
+        }),
     instructionMode: "append",
     instructions,
     projectId: args.thread.projectId,

@@ -275,6 +275,7 @@ export interface CreateThreadInput {
   originKind?: ThreadOriginKind | null;
   originPluginId?: string | null;
   pluginMetadata?: { pluginId: string; metadata: JsonObject } | null;
+  isolatedSkillDeliveryPolicy?: { pluginId: string; metadata: JsonObject } | null;
   visibility?: ThreadVisibility;
 }
 
@@ -330,6 +331,16 @@ export function createThread(
           threadId: createdThread.id,
           pluginId: input.pluginMetadata.pluginId,
           metadata: input.pluginMetadata.metadata,
+        });
+      }
+      if (
+        input.isolatedSkillDeliveryPolicy !== undefined &&
+        input.isolatedSkillDeliveryPolicy !== null
+      ) {
+        insertThreadPluginMetadata(tx, {
+          threadId: createdThread.id,
+          pluginId: input.isolatedSkillDeliveryPolicy.pluginId,
+          metadata: input.isolatedSkillDeliveryPolicy.metadata,
         });
       }
       return createdThread;

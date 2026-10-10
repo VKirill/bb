@@ -1794,3 +1794,24 @@ export type PublicApiSchema = ApiSchemaFromRouteDescriptors<
 >;
 
 export type PublicApiRoutes = Hono<{}, PublicApiSchema, "/">;
+
+export {
+  ISOLATED_SKILL_DELIVERY_METADATA_PLUGIN_ID,
+  isolatedAllowsBridgeToolProxy,
+  isolatedAllowsDataDirInstructions,
+  isolatedAllowsDynamicTool,
+  isolatedAllowsInstructionPlugin,
+  isolatedAllowsWorkspaceInstructions,
+  isolatedContextAllowlistSchema,
+  isolatedSkillDeliveryRequestFieldsSchema,
+  isolatedSkillIdsSchema,
+  isReservedIsolatedSkillDeliveryPluginId,
+  opaqueSkillIdSchema,
+  parsePersistedIsolatedSkillDeliveryPolicy,
+  persistedIsolatedSkillDeliveryPolicySchema,
+  pickIsolatedContextAllowlist,
+  refineIsolatedSkillDeliveryRequest,
+  type IsolatedContextAllowlist,
+  type IsolatedSkillDeliveryRequestFields,
+  type PersistedIsolatedSkillDeliveryPolicy,
+} from "./api/isolated-skill-delivery.js";

@@ -1,5 +1,6 @@
 import {
   createThread,
+  getEnvironment,
   getThreadSectionById,
   getProjectSourceByHost,
   getProject,
@@ -13,6 +14,8 @@ import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { emitPluginThreadCreated } from "../plugins/plugin-thread-events.js";
 import type { ThreadCreateServiceRequest } from "./thread-create-request.js";
+import { ISOLATED_SKILL_DELIVERY_METADATA_PLUGIN_ID } from "@bb/server-contract";
+import { requestIsolatedSkillDeliveryPolicy } from "./isolated-skill-delivery.js";
 import { sanitizeGeneratedBranchSlug } from "./title-generation.js";
 
 type EnvironmentProvisionCommand = Extract<
@@ -98,6 +101,17 @@ export function createThreadRecord(
   }
 
   try {
+    const environmentHostId =
+      args.request.isolatedSkillHostId ??
+      (args.environmentId === null
+        ? undefined
+        : (getEnvironment(deps.db, args.environmentId)?.hostId ?? undefined));
+    const isolatedPolicy = requestIsolatedSkillDeliveryPolicy({
+      isolatedSkillDelivery: args.request.isolatedSkillDelivery,
+      skillIds: args.request.skillIds,
+      originPluginId: args.request.originPluginId,
+      hostId: environmentHostId,
+    });
     const thread = createThread(deps.db, deps.hub, {
       projectId: args.request.projectId,
       environmentId: args.environmentId,
@@ -110,6 +124,13 @@ export function createThreadRecord(
       originKind: args.request.originKind,
       originPluginId: args.request.originPluginId ?? null,
       pluginMetadata: args.request.pluginMetadata,
+      isolatedSkillDeliveryPolicy:
+        isolatedPolicy === null
+          ? null
+          : {
+              pluginId: ISOLATED_SKILL_DELIVERY_METADATA_PLUGIN_ID,
+              metadata: isolatedPolicy,
+            },
       visibility: args.request.visibility,
       // Every thread starts `pending`, with no exception to parameterise.
       // Creation is unhooked and provisions nothing; admission happens at the
