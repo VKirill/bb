@@ -277,6 +277,7 @@ it("sent message image: Edit attaches the result to the thread's composer draft"
       <VkMessageImageThreadProvider threadId="thr_1">
         <ConversationAttachments
           filePaths={[]}
+          fileDetails={[]}
           imageItems={[{ alt: "photo.png", src: "/api/photo.png" }]}
         />
       </VkMessageImageThreadProvider>,
@@ -300,6 +301,7 @@ it("sent message image: no Edit button outside a thread timeline or for another 
   const { unmount } = render(
     <ConversationAttachments
       filePaths={[]}
+      fileDetails={[]}
       imageItems={[{ alt: "photo.png", src: "/api/photo.png" }]}
     />,
   );
@@ -310,6 +312,7 @@ it("sent message image: no Edit button outside a thread timeline or for another 
     <VkMessageImageThreadProvider threadId="thr_1">
       <ConversationAttachments
         filePaths={[]}
+        fileDetails={[]}
         imageItems={[{ alt: "far.png", src: "https://cdn.example/far.png" }]}
       />
     </VkMessageImageThreadProvider>,
