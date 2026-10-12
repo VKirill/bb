@@ -24,7 +24,7 @@ export interface VkImageEdit {
   onDone(file: File): Promise<void>;
 }
 
-type AttachFiles = (files: File[]) => void | Promise<void>;
+type AttachFiles = (files: File[]) => unknown;
 
 /** First registration wins; the slot snapshot is already sorted by plugin id. */
 export function resolveVkImageEditor(
