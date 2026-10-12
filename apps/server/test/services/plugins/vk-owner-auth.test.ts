@@ -325,17 +325,23 @@ describe("VK owner login: over HTTP", () => {
     };
   }
 
-  it("login off: agent-marked callers are refused on every gated route, everyone else passes as before", async () => {
+  it("login off: agent-marked callers are refused on the owner's forms only; plugin and file routes stay open", async () => {
     const token = createVkThreadToken(dataDir, "thr_agent1");
     for (const [method, path] of GATED) {
+      const formRoute = path.includes("/interactions/");
       for (const extra of <Array<Record<string, string>>>[
         { [VK_THREAD_TOKEN_HEADER]: token }, // agent token
         { [VK_THREAD_TOKEN_HEADER]: "vkt1.thr_agent1.forged" }, // forged token
         { [VK_CLIENT_HEADER]: "cli-in-thread" }, // BB_THREAD_ID mark
       ]) {
         const response = await post(path, extra, {}, method);
-        expect(response.status, `${method} ${path}`).toBe(403);
-        expect(await code(response)).toBe("vk_agent_caller_refused");
+        if (formRoute) {
+          expect(response.status, `${method} ${path}`).toBe(403);
+          expect(await code(response)).toBe("vk_agent_caller_refused");
+        } else {
+          // A PM ships its own plugin and installs guards with `bb file write` (owner, 2026-10-12).
+          expect(await code(response) ?? "", `${method} ${path}`).not.toMatch(/^vk_/);
+        }
       }
       // The owner's app and CLI (and a bare script) are not stopped by the gate.
       for (const extra of <Array<Record<string, string>>>[
@@ -362,7 +368,7 @@ describe("VK owner login: over HTTP", () => {
     process.env.BB_VK_OWNER_AUTH = "1";
     const response = await post("/plugins/install", {});
     expect(await code(response)).not.toBe("vk_owner_required");
-    const agent = await post("/plugins/install", {
+    const agent = await post("/threads/thr_x/interactions/pint_abcdefghij/respond", {
       [VK_THREAD_TOKEN_HEADER]: createVkThreadToken(dataDir, "thr_a"),
     });
     expect(await code(agent)).toBe("vk_agent_caller_refused");
@@ -536,9 +542,7 @@ describe("VK owner login: over HTTP", () => {
     const token = { [VK_THREAD_TOKEN_HEADER]: createVkThreadToken(dataDir, "thr_a") };
     const text = async (path: string, extra: Record<string, string>) =>
       ((await (await post(path, extra, {})).json()) as { message: string }).message;
-    expect(await text("/plugins/install", token)).toMatch(/Ask the owner.*Settings, Plugins/);
     expect(await text("/threads/thr_x/interactions/pint_abcdefghij/respond", token)).toMatch(/Ask the owner to answer it/);
-    expect(await text("/files/write", token)).toMatch(/your own worktree/);
     await pairOwner();
     expect(await text("/plugins/install", token)).toMatch(/bb owner login/);
   });

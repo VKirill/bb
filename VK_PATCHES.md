@@ -585,7 +585,9 @@ the hub trusts an owner only through a secret the agent's environment does not h
   `POST /plugins/:id/token`, `DELETE /plugins/:id`, `POST /threads/:id/interactions/:iid/respond|resolve|cancel`,
   `POST /files/write|mkdir|move|remove`. Enforced: owner proof only (403 `vk_owner_required`); a verified parent thread may still answer the interactions of the sub-agents it started (`bb thread interactions`), never its own. Not enforced: callers marked
   as an agent (token header, even forged, or `x-bb-vk-client: cli-in-thread`) get 403 `vk_agent_caller_refused` and a
-  warn log; unmarked callers pass as before (a speed bump, not a boundary). A verified plugin caller token passes (the plugin sdk now carries it on `files.write|mkdir|move|remove`). Every refusal names what the owner should do.
+  warn log on the owner's forms (interactions) only; plugin install/update/settings and host file writes stay open to them
+  (a Lane Pilot PM ships its own plugin, guards are installed with `bb file write`; owner 2026-10-12, no gates against
+  agents); unmarked callers pass as before (a speed bump, not a boundary). A verified plugin caller token passes (the plugin sdk now carries it on `files.write|mkdir|move|remove`). Every refusal names what the owner should do.
   Deliberately NOT gated: `plugins/reload`, `enable`, `disable` (the Lane Pilot deploy script runs them from agent sessions),
   host add / join codes (`/hosts`), `thread spawn --host`, plugin HTTP routes.
 - **Recovery:** hub shell: `bb owner pairing-code` and pair a new device (needs no owner proof); `bb owner remove-key <id>`

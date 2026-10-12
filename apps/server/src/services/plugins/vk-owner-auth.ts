@@ -42,8 +42,9 @@ import type { PluginRpcCallerResolution } from "./plugin-rpc-caller.js";
  *      (`vk_owner`, HttpOnly, SameSite=Strict, 90 days).
  * Agent thread tokens never carry owner rights: a request that carries one is
  * never an owner. Without the flag nothing here is consulted for identity; the
- * gate below only refuses agent-marked callers on the routes that let an agent
- * escalate (install a plugin, answer the owner's form, write files on a host).
+ * gate below only refuses agent-marked callers that answer the owner's form.
+ * Installing plugins and writing files on a host stay open to agents (a PM ships
+ * its own plugin, guards are installed with `bb file write`; owner, 2026-10-12).
  */
 
 const SESSION_PREFIX = "vko1";
@@ -262,14 +263,8 @@ export function isVkOwnerGatedRoute(method: string, path: string): boolean {
   return gatedGroup(method, path) !== null;
 }
 
-const AGENT_REFUSAL: Record<GatedGroup, string> = {
-  plugins:
-    "Installing, updating, removing or configuring plugins is owner-only from an agent session. Ask the owner to do it in the BB app (Settings, Plugins) or to run `bb plugin ...` in his own terminal.",
-  interactions:
-    "An agent session cannot answer this form or approval request: only the owner can (the pending card in the BB app, or `bb thread interactions ...` in his terminal), or a parent thread for the sub-agents it started. Ask the owner to answer it.",
-  files:
-    "Writing files on a machine through the BB API (`bb file write|mkdir|move|remove`) is owner-only from an agent session. Edit files in your own worktree with your normal file tools, use the plugin tool that does it for you, or ask the owner to run the command.",
-};
+const AGENT_REFUSAL =
+  "An agent session cannot answer this form or approval request: only the owner can (the pending card in the BB app, or `bb thread interactions ...` in his terminal), or a parent thread for the sub-agents it started. Ask the owner to answer it.";
 
 const OWNER_REFUSAL =
   "This action needs the owner. In the BB app, sign in once with `bb owner login` (the link opens the app signed in); in a terminal use the `bb` CLI on a machine paired with `bb owner pair`. From an agent session ask the owner. `bb owner status` shows what the hub sees.";
@@ -309,8 +304,8 @@ export interface VkOwnerGateDeps {
  * Login enforced (flag on, a key paired, grace over): only a verified owner (session
  * or signature) may use the gated routes. Flag off, or on but nothing paired yet /
  * still in the grace: callers marked as an agent (thread token, even a forged one, or the CLI
- * saying it runs inside a session) are refused and logged; everyone else passes as
- * before. That is a speed bump against an agent that does not hide, not a boundary:
+ * saying it runs inside a session) are refused and logged on the owner's forms only; plugin
+ * and file routes and everyone else pass as before. That is a speed bump against an agent that does not hide, not a boundary:
  * a script that omits the marks still passes. Only enforced login is a boundary.
  */
 export function createVkOwnerGate(deps: VkOwnerGateDeps): MiddlewareHandler {
@@ -355,12 +350,12 @@ export function createVkOwnerGate(deps: VkOwnerGateDeps): MiddlewareHandler {
     const inSession =
       token !== undefined ||
       context.req.header(VK_CLIENT_HEADER) === "cli-in-thread";
-    if (inSession) {
+    if (inSession && group === "interactions") {
       deps.logger.warn(
         { ...meta, threadId, forgedToken: token !== undefined && threadId === null },
         "VK owner gate: refused an agent-marked call to an owner-only core route",
       );
-      throw new ApiError(403, "vk_agent_caller_refused", AGENT_REFUSAL[group]);
+      throw new ApiError(403, "vk_agent_caller_refused", AGENT_REFUSAL);
     }
     return next();
   };
