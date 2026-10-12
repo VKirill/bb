@@ -7,7 +7,6 @@ import {
   type Options,
   type Settings,
   type Query,
-  type Settings,
   type SDKMessage,
   type SDKUserMessage,
   type SpawnedProcess,
