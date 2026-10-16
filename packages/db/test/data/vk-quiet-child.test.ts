@@ -4,7 +4,7 @@ import { createThread } from "../../src/data/threads.js";
 import { upsertHost } from "../../src/data/hosts.js";
 import { isVkQuietChildThread, VK_QUIET_CHILD_KEY } from "../../src/data/vk-quiet-child.js";
 import { noopNotifier } from "../../src/notifier.js";
-import { createMigratedConnection } from "../helpers/migrated-connection.js";
+import { createMigratedConnection } from "../../src/testing.js";
 import { threadPluginMetadata } from "../../src/schema.js";
 
 function setup() {
