@@ -2,7 +2,7 @@ import { VK_REQUIRED_SESSION_POLICY_MARKER_ID, VK_COMPILED_MAIN_AGENT_MARKER_ID 
 import { describe, expect, it } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { vkPolicyAllows, type VkSessionPolicy } from "@bb/domain/vk-session-policy";
-import { createMigratedConnection } from "../helpers/migrated-connection.js";
+import { createMigratedConnection } from "../../src/testing.js";
 import { noopNotifier } from "../../src/notifier.js";
 import { upsertHost } from "../../src/data/hosts.js";
 import { createProject } from "../../src/data/projects.js";

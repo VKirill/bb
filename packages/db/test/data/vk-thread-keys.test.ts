@@ -13,7 +13,7 @@ import {
 import { noopNotifier } from "../../src/notifier.js";
 import { threads } from "../../src/schema.js";
 import { eq } from "drizzle-orm";
-import { createMigratedConnection } from "../helpers/migrated-connection.js";
+import { createMigratedConnection } from "../../src/testing.js";
 
 function setup() {
   const db = createMigratedConnection();
