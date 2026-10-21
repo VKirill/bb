@@ -50,6 +50,7 @@ import {
   vkPluginAllowed,
   vkProjectInstructionsAllowed,
   vkUserInstructionsAllowed,
+  vkFilterCoreEnforcedSkillSources,
 } from "./vk-session-policy.js";
 import { resolveSkillCatalog } from "../skills/skill-catalog.js";
 import { discoverPluginSkillIds } from "../skills/injected-skills.js";
@@ -277,8 +278,12 @@ export async function resolveThreadRuntimeCommandConfig(
     sharedSkillSources: workspaceAgentContext.sharedSkills.runtimeSources,
     pluginSkillSelections: conditionalConfiguration.selectedSkillIdsByPlugin,
   });
-  const injectedSkillSources = skillCatalog.map((entry) => entry.runtimeSource);
   const builtPolicy = buildVkRuntimeSessionPolicy(vkPolicy, skillCatalog);
+  const injectedSkillSources = vkFilterCoreEnforcedSkillSources(
+    args.thread.providerId,
+    skillCatalog.map((entry) => entry.runtimeSource),
+    builtPolicy,
+  );
   const vkSessionPolicy = requiredPolicy
     ? { ...builtPolicy, version: 1 as const, required: true as const }
     : builtPolicy;

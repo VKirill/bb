@@ -1,4 +1,4 @@
-import type { ThreadEvent } from "@bb/domain";
+import type { JsonObject, ThreadEvent } from "@bb/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createBridgeProtocolAdapter } from "./bridge-protocol-adapter.js";
 import type { ProviderExecutionContext } from "./provider-adapter.js";
@@ -783,9 +783,40 @@ describe("required resource bridge gate", () => {
         threadId: "required",
         cwd: "/tmp",
         instructionMode: "append",
-        options: requiredOptions,
+        options: {
+          ...fullModeOptions,
+          providerOptions: {
+            vkRequiredSessionPolicy: 1,
+            vkSessionPolicy: {
+              version: 1,
+              required: true,
+              projectInstructions: false,
+            },
+          },
+        },
       }),
     ).toThrow("unsupported_cursor");
+  });
+  it("enforces OpenCode v2 in core, with no bridge handshake, and refuses what core cannot narrow", () => {
+    const adapter = policyAdapter("opencode2");
+    completeHandshake(adapter, {});
+    const plan = (providerOptions: JsonObject) =>
+      adapter.buildCommandPlan({
+        type: "thread/start",
+        threadId: "required",
+        cwd: "/tmp",
+        instructionMode: "append",
+        options: { ...fullModeOptions, providerOptions },
+      });
+    expect(
+      plan({
+        vkRequiredSessionPolicy: 1,
+        vkSessionPolicy: { version: 1, required: true, bbSkillsDenied: ["x"] },
+      }),
+    ).toMatchObject({ kind: "request" });
+    expect(() => plan(requiredOptions.providerOptions)).toThrow(
+      "unsupported_opencode2_skills",
+    );
   });
   it("passes an unchanged empty allowlist only after a matching handshake", () => {
     const adapter = policyAdapter();
