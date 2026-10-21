@@ -102,7 +102,7 @@ describe("Cursor and BB skills", () => {
 });
 
 describe("OpenCode v2 required policy", () => {
-  it("advertises only what core enforces and keeps acp-opencode", async () => {
+  it("advertises what the OpenCode v2 bridge enforces and keeps acp-opencode", async () => {
     const { VK_REQUIRED_SESSION_POLICY_CAPABILITY: capability } = await import(
       "../src/vk-session-policy.js"
     );
@@ -113,7 +113,11 @@ describe("OpenCode v2 required policy", () => {
       "codex",
       "opencode2",
     ]);
-    expect(capability.providerGroups.opencode2).toEqual(["bbPlugins"]);
+    expect(capability.providerGroups.opencode2).toEqual([
+      "bbPlugins",
+      "skills",
+      "mcpServers",
+    ]);
     expect(capability.instructionSwitches.opencode2).toEqual([
       "userInstructions",
     ]);
@@ -124,13 +128,15 @@ describe("OpenCode v2 required policy", () => {
     ]);
   });
 
-  it("accepts BB plugins, user instructions and the no-op claude.ai sync", async () => {
+  it("accepts BB plugins, skills, MCP servers, user instructions and the no-op claude.ai sync", async () => {
     const { assertVkRequiredPolicyProvider } = await import(
       "../src/vk-session-policy.js"
     );
     expect(() =>
       assertVkRequiredPolicyProvider("opencode2", {
         bbPlugins: { mode: "allow", names: ["env-catalog"] },
+        skills: { mode: "allow", names: ["alpha"] },
+        mcpServers: { mode: "deny", names: ["x"] },
         userInstructions: false,
         claudeAiSync: false,
       }),
@@ -138,11 +144,9 @@ describe("OpenCode v2 required policy", () => {
   });
 
   it.each<[string, VkSessionPolicy]>([
-    ["skills", { skills: { mode: "allow", names: ["a"] } }],
-    ["mcpServers", { mcpServers: { mode: "deny", names: ["x"] } }],
     ["nativePlugins", { nativePlugins: { mode: "deny", names: ["x"] } }],
     ["projectInstructions", { projectInstructions: false }],
-  ])("refuses %s it cannot narrow", async (group, policy) => {
+  ])("refuses %s, which OpenCode cannot narrow per session", async (group, policy) => {
     const { assertVkRequiredPolicyProvider } = await import(
       "../src/vk-session-policy.js"
     );

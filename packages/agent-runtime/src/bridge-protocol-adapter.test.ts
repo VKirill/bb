@@ -802,10 +802,18 @@ describe("required resource bridge gate", () => {
       }),
     ).toThrow("unsupported_cursor");
   });
-  it("enforces OpenCode v2 in core, with no bridge handshake, and refuses what core cannot narrow", () => {
-    const adapter = policyAdapter("opencode2");
-    completeHandshake(adapter, {});
-    const plan = (providerOptions: JsonObject) =>
+  it("requires the bridge handshake for OpenCode v2 and refuses what OpenCode cannot narrow per session", () => {
+    const required = {
+      vkRequiredSessionPolicy: 1,
+      vkSessionPolicy: {
+        version: 1,
+        required: true,
+        bbSkillsDenied: ["x"],
+        skills: { mode: "allow", names: ["alpha"] },
+        mcpServers: { mode: "allow", names: ["bb-bridge"] },
+      },
+    } as JsonObject;
+    const planWith = (adapter: ReturnType<typeof policyAdapter>) => (providerOptions: JsonObject) =>
       adapter.buildCommandPlan({
         type: "thread/start",
         threadId: "required",
@@ -813,15 +821,31 @@ describe("required resource bridge gate", () => {
         instructionMode: "append",
         options: { ...fullModeOptions, providerOptions },
       });
-    expect(
+    // A bridge that never declared the handshake (OpenCode bridge before vk.3) fails closed.
+    const undeclared = policyAdapter("opencode2");
+    completeHandshake(undeclared, {});
+    expect(() => planWith(undeclared)(required)).toThrow("bridge_unsupported");
+    // A bridge that declares it gets skills and mcpServers.
+    const adapter = policyAdapter("opencode2");
+    completeHandshake(adapter, { experimental_vkRequiredSessionPolicy: 1 });
+    const plan = planWith(adapter);
+    expect(plan(required)).toMatchObject({ kind: "request" });
+    expect(() =>
       plan({
         vkRequiredSessionPolicy: 1,
-        vkSessionPolicy: { version: 1, required: true, bbSkillsDenied: ["x"] },
+        vkSessionPolicy: {
+          version: 1,
+          required: true,
+          nativePlugins: { mode: "deny", names: ["x"] },
+        },
       }),
-    ).toMatchObject({ kind: "request" });
-    expect(() => plan(requiredOptions.providerOptions)).toThrow(
-      "unsupported_opencode2_skills",
-    );
+    ).toThrow("unsupported_opencode2_nativePlugins");
+    expect(() =>
+      plan({
+        vkRequiredSessionPolicy: 1,
+        vkSessionPolicy: { version: 1, required: true, projectInstructions: false },
+      }),
+    ).toThrow("unsupported_opencode2_projectInstructions");
   });
   it("passes an unchanged empty allowlist only after a matching handshake", () => {
     const adapter = policyAdapter();
