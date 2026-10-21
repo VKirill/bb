@@ -56,6 +56,18 @@ describe("required policy persistence", () => {
     } finally { db.$client.close(); }
   });
 
+  it("creates an OpenCode v2 thread only for groups core enforces, also through a parent ceiling", () => {
+    const { db, spawn } = setup();
+    try {
+      const ok = spawn({ bbPlugins: { mode: "allow", names: ["env-catalog"] }, userInstructions: false }, {}, "opencode2");
+      expect(readVkRequiredSessionPolicy(db, ok.id)!.policy.userInstructions).toBe(false);
+      expect(() => spawn({ skills: { mode: "allow", names: [] } }, {}, "opencode2")).toThrow("unsupported_opencode2_skills");
+      const parent = spawn({ mcpServers: { mode: "deny", names: ["x"] } });
+      expect(() => spawn(undefined, { parentThreadId: parent.id }, "opencode2")).toThrow("unsupported_opencode2_mcpServers");
+      expect(db.select().from(threads).all()).toHaveLength(2);
+    } finally { db.$client.close(); }
+  });
+
   it("lets a codex child inherit a Claude Code parent's ceiling that turns claude.ai sync off", () => {
     const { db, spawn } = setup();
     try {
