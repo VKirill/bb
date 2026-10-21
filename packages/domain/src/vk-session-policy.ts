@@ -235,11 +235,12 @@ export function intersectVkSessionPolicies(
 }
 
 /**
- * Providers whose bridge is a plugin core does not ship (OpenCode v2) and
- * cannot hand `vkSessionPolicy` to. Core enforces for them what it can on the
- * server side (BB plugins, BB skills in the injected list, `<dataDir>`
- * instructions) and refuses a required policy asking for anything else, so a
- * bridge handshake is not needed and not trusted.
+ * Providers whose bridge is a plugin core does not ship (OpenCode v2). Its
+ * bridge enforces `skills` and `mcpServers` through OpenCode's session
+ * permission rules and declares the handshake like every other bridge, so
+ * the handshake is required for it. Core still narrows the injected BB skill
+ * list for these providers and refuses what OpenCode cannot narrow per
+ * session (`nativePlugins`, `projectInstructions: false`).
  */
 export const VK_CORE_ENFORCED_POLICY_PROVIDERS: readonly string[] = [
   "opencode2",
@@ -264,15 +265,15 @@ export function assertVkRequiredPolicyProvider(
   ) {
     throw new Error("vk_required_session_policy_unsupported_provider");
   }
-  // VK EXPERIMENTAL: OpenCode v2 loads its own skills, MCP servers and project instructions inside a shared
-  // server that core cannot narrow per session, so a policy that asks for it is refused instead of half applied.
+  // VK EXPERIMENTAL: OpenCode v2 runs one shared service that loads native plugins and the project's own
+  // instruction files for every session; its bridge narrows skills and MCP servers per session through
+  // permission rules, but these two have no per-session switch, so a policy that asks for them is refused
+  // instead of half applied.
   if (vkProviderEnforcesPolicyInCore(providerId)) {
-    for (const group of ["skills", "mcpServers", "nativePlugins"] as const) {
-      if (policy[group])
-        throw new Error(
-          `vk_required_session_policy_unsupported_opencode2_${group}`,
-        );
-    }
+    if (policy.nativePlugins)
+      throw new Error(
+        "vk_required_session_policy_unsupported_opencode2_nativePlugins",
+      );
     if (policy.projectInstructions === false)
       throw new Error(
         "vk_required_session_policy_unsupported_opencode2_projectInstructions",
@@ -309,7 +310,7 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
     "acp-opencode": ["bbPlugins", "skills", "mcpServers"],
     "acp-cursor": ["bbPlugins", "skills", "mcpServers"],
-    opencode2: ["bbPlugins"],
+    opencode2: ["bbPlugins", "skills", "mcpServers"],
   },
   instructionSwitches: {
     "claude-code": ["userInstructions", "projectInstructions", "claudeAiSync"],
