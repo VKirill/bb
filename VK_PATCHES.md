@@ -225,6 +225,16 @@ Consumer: plugin `lane-pilot` (helper context «selected» / «none», PM profil
 
 Own files: `packages/db/src/data/vk-thread-marker.ts`, `thread-required-session-policy.ts`, `packages/domain/src/vk-compiled-main-agent.ts`.
 
+OpenCode v2 (`opencode2`, a provider plugin core does not ship) is enforced by
+core alone: its bridge never sees the policy, so `vkProviderEnforcesPolicyInCore`
+skips the bridge handshake check (`bridge-protocol-adapter.ts`) and
+`assertVkRequiredPolicyProvider` refuses `skills`, `mcpServers`, `nativePlugins`
+and `projectInstructions: false` (OpenCode loads its own skills, MCP servers and
+project AGENTS.md inside one shared server). Advertised: groups `bbPlugins`,
+switch `userInstructions`. Core drops denied BB skills from the injected list
+(`vkFilterCoreEnforcedSkillSources`, `thread-runtime-config.ts`). `acp-opencode`
+stays as it was.
+
 ## Mention recency (`mention-recency`)
 
 The @-mention picker keeps only the first 200 thread candidates. Sidebar
