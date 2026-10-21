@@ -234,14 +234,49 @@ export function intersectVkSessionPolicies(
   return vkSessionPolicySchema.parse(result);
 }
 
+/**
+ * Providers whose bridge is a plugin core does not ship (OpenCode v2) and
+ * cannot hand `vkSessionPolicy` to. Core enforces for them what it can on the
+ * server side (BB plugins, BB skills in the injected list, `<dataDir>`
+ * instructions) and refuses a required policy asking for anything else, so a
+ * bridge handshake is not needed and not trusted.
+ */
+export const VK_CORE_ENFORCED_POLICY_PROVIDERS: readonly string[] = [
+  "opencode2",
+];
+
+export function vkProviderEnforcesPolicyInCore(providerId: string): boolean {
+  return VK_CORE_ENFORCED_POLICY_PROVIDERS.includes(providerId);
+}
+
 export function assertVkRequiredPolicyProvider(
   providerId: string,
   policy: VkSessionPolicy,
 ): void {
   if (
-    !["claude-code", "codex", "acp-opencode", "acp-cursor"].includes(providerId)
+    ![
+      "claude-code",
+      "codex",
+      "acp-opencode",
+      "acp-cursor",
+      ...VK_CORE_ENFORCED_POLICY_PROVIDERS,
+    ].includes(providerId)
   ) {
     throw new Error("vk_required_session_policy_unsupported_provider");
+  }
+  // VK EXPERIMENTAL: OpenCode v2 loads its own skills, MCP servers and project instructions inside a shared
+  // server that core cannot narrow per session, so a policy that asks for it is refused instead of half applied.
+  if (vkProviderEnforcesPolicyInCore(providerId)) {
+    for (const group of ["skills", "mcpServers", "nativePlugins"] as const) {
+      if (policy[group])
+        throw new Error(
+          `vk_required_session_policy_unsupported_opencode2_${group}`,
+        );
+    }
+    if (policy.projectInstructions === false)
+      throw new Error(
+        "vk_required_session_policy_unsupported_opencode2_projectInstructions",
+      );
   }
   // claude.ai sync exists only in Claude Code; «off» is already true for every other provider, so a ceiling
   // inherited from a Claude Code parent or a section's live policy does not refuse a codex or ACP thread.
@@ -274,12 +309,14 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
     "acp-opencode": ["bbPlugins", "skills", "mcpServers"],
     "acp-cursor": ["bbPlugins", "skills", "mcpServers"],
+    opencode2: ["bbPlugins"],
   },
   instructionSwitches: {
     "claude-code": ["userInstructions", "projectInstructions", "claudeAiSync"],
     codex: ["userInstructions", "projectInstructions"],
     "acp-opencode": ["userInstructions", "projectInstructions"],
     "acp-cursor": ["userInstructions"],
+    opencode2: ["userInstructions"],
   },
   mandatoryBbPlugins: VK_REQUIRED_PLUGIN_IDS,
   mandatoryMcpServers: [VK_BRIDGE_MCP_SERVER],

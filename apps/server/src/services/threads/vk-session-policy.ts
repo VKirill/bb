@@ -3,6 +3,7 @@ import {
   VK_REQUIRED_PLUGIN_IDS,
   VK_SESSION_POLICY_VERSION,
   vkPolicyAllows,
+  vkProviderEnforcesPolicyInCore,
   type VkPolicyFilter,
   type VkRuntimeSessionPolicy,
   type VkSessionPolicy,
@@ -89,6 +90,24 @@ export function buildVkRuntimeSessionPolicy(
     ...(policy.claudeAiSync === false ? { claudeAiSync: false as const } : {}),
   };
   return Object.keys(runtime).length > 1 ? runtime : null;
+}
+
+/**
+ * VK EXPERIMENTAL: a provider whose bridge cannot filter (OpenCode v2) gets
+ * the BB skill list already narrowed; the bridges of the other providers
+ * filter by `bbSkillsDenied` themselves.
+ */
+export function vkFilterCoreEnforcedSkillSources<
+  Source extends { name: string },
+>(
+  providerId: string,
+  sources: readonly Source[],
+  runtime: VkRuntimeSessionPolicy | null,
+): Source[] {
+  const denied = new Set(runtime?.bbSkillsDenied ?? []);
+  if (!vkProviderEnforcesPolicyInCore(providerId) || denied.size === 0)
+    return [...sources];
+  return sources.filter((source) => !denied.has(source.name));
 }
 
 /**

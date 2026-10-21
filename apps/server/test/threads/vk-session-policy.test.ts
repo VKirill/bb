@@ -193,6 +193,32 @@ describe("vk session policy", () => {
     });
   });
 
+  it("hands OpenCode v2 an already narrowed BB skill list", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, thread, workspacePath } = await seed(
+        harness,
+        "host-vk-opencode2",
+      );
+      const skillsRoot = path.join(harness.config.dataDir, "skills");
+      await writeSkill(skillsRoot, "ru-text");
+      await writeSkill(skillsRoot, "web-design");
+      await writeSkill(path.join(workspacePath, ".bb", "skills"), "local-one");
+      stub({ skills: { mode: "allow", names: ["ru-text"] } });
+      const config = await resolveThreadRuntimeCommandConfig(harness.deps, {
+        thread: { ...thread, providerId: "opencode2" },
+        model: "test-model",
+        environment,
+      });
+      expect(config.injectedSkillSources.map((s) => s.name)).toEqual([
+        "ru-text",
+      ]);
+      expect(config.vkSessionPolicy?.bbSkillsDenied).toEqual([
+        "local-one",
+        "web-design",
+      ]);
+    });
+  });
+
   it("keeps required plugins and bb-bridge whatever the policy says", async () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = await seed(harness, "host-vk-required");

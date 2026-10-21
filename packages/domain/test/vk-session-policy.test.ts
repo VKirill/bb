@@ -5,6 +5,7 @@ import {
   vkRequiredSessionPolicySchema,
   vkPolicyAllows,
   vkSessionPolicySchema,
+  type VkSessionPolicy,
 } from "../src/vk-session-policy.js";
 
 describe("vk session policy", () => {
@@ -97,5 +98,56 @@ describe("Cursor and BB skills", () => {
     const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy.js");
     expect(() => assertVkRequiredPolicyProvider("acp-cursor", { skills: { mode: "allow", names: ["writer-practices"] } })).not.toThrow();
     expect(() => assertVkRequiredPolicyProvider("acp-cursor", { projectInstructions: false })).toThrow(/cursor/);
+  });
+});
+
+describe("OpenCode v2 required policy", () => {
+  it("advertises only what core enforces and keeps acp-opencode", async () => {
+    const { VK_REQUIRED_SESSION_POLICY_CAPABILITY: capability } = await import(
+      "../src/vk-session-policy.js"
+    );
+    expect(Object.keys(capability.providerGroups).sort()).toEqual([
+      "acp-cursor",
+      "acp-opencode",
+      "claude-code",
+      "codex",
+      "opencode2",
+    ]);
+    expect(capability.providerGroups.opencode2).toEqual(["bbPlugins"]);
+    expect(capability.instructionSwitches.opencode2).toEqual([
+      "userInstructions",
+    ]);
+    expect(capability.providerGroups["acp-opencode"]).toEqual([
+      "bbPlugins",
+      "skills",
+      "mcpServers",
+    ]);
+  });
+
+  it("accepts BB plugins, user instructions and the no-op claude.ai sync", async () => {
+    const { assertVkRequiredPolicyProvider } = await import(
+      "../src/vk-session-policy.js"
+    );
+    expect(() =>
+      assertVkRequiredPolicyProvider("opencode2", {
+        bbPlugins: { mode: "allow", names: ["env-catalog"] },
+        userInstructions: false,
+        claudeAiSync: false,
+      }),
+    ).not.toThrow();
+  });
+
+  it.each<[string, VkSessionPolicy]>([
+    ["skills", { skills: { mode: "allow", names: ["a"] } }],
+    ["mcpServers", { mcpServers: { mode: "deny", names: ["x"] } }],
+    ["nativePlugins", { nativePlugins: { mode: "deny", names: ["x"] } }],
+    ["projectInstructions", { projectInstructions: false }],
+  ])("refuses %s it cannot narrow", async (group, policy) => {
+    const { assertVkRequiredPolicyProvider } = await import(
+      "../src/vk-session-policy.js"
+    );
+    expect(() => assertVkRequiredPolicyProvider("opencode2", policy)).toThrow(
+      `unsupported_opencode2_${group}`,
+    );
   });
 });
