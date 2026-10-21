@@ -225,15 +225,21 @@ Consumer: plugin `lane-pilot` (helper context «selected» / «none», PM profil
 
 Own files: `packages/db/src/data/vk-thread-marker.ts`, `thread-required-session-policy.ts`, `packages/domain/src/vk-compiled-main-agent.ts`.
 
-OpenCode v2 (`opencode2`, a provider plugin core does not ship) is enforced by
-core alone: its bridge never sees the policy, so `vkProviderEnforcesPolicyInCore`
-skips the bridge handshake check (`bridge-protocol-adapter.ts`) and
-`assertVkRequiredPolicyProvider` refuses `skills`, `mcpServers`, `nativePlugins`
-and `projectInstructions: false` (OpenCode loads its own skills, MCP servers and
-project AGENTS.md inside one shared server). Advertised: groups `bbPlugins`,
-switch `userInstructions`. Core drops denied BB skills from the injected list
-(`vkFilterCoreEnforcedSkillSources`, `thread-runtime-config.ts`). `acp-opencode`
-stays as it was.
+OpenCode v2 (`opencode2`, a provider plugin core does not ship; our fork
+`VKirill/bb-plugin-opencode2` >= `v1.1.0-vk.3`): the bridge enforces `skills` and
+`mcpServers` itself through OpenCode's native session permission rules (`skill`
+deny/allow rules hide skills from the model request; `<server>_*` denies hide
+OpenCode's own MCP servers and refuse their calls through Code Mode) and
+declares `experimental_vkRequiredSessionPolicy: 1` in `initialize`. The
+handshake is therefore required for it like for every other bridge
+(`bridge-protocol-adapter.ts`; a bridge older than vk.3 fails closed with
+`vk_required_session_policy_bridge_unsupported`). Core still drops denied BB
+skills from the injected list (`vkFilterCoreEnforcedSkillSources`,
+`thread-runtime-config.ts`) and `assertVkRequiredPolicyProvider` refuses
+`nativePlugins` and `projectInstructions: false`: OpenCode loads native plugins
+and the project's AGENTS.md inside one shared service with no per-session
+switch. Advertised: groups `bbPlugins`, `skills`, `mcpServers`; switch
+`userInstructions`. `acp-opencode` stays as it was.
 
 ## Mention recency (`mention-recency`)
 

@@ -1,7 +1,6 @@
 import {
   readVkRuntimeSessionPolicy,
   assertVkRequiredPolicyProvider,
-  vkProviderEnforcesPolicyInCore,
 } from "@bb/domain/vk-session-policy";
 import type {
   AvailableModel,
@@ -221,10 +220,7 @@ export function createBridgeProtocolAdapter(
         const providerOptions = command.options.providerOptions;
         const policy = readVkRuntimeSessionPolicy(providerOptions);
         if (policy?.required) {
-          if (
-            handshake.experimental_vkRequiredSessionPolicy !== 1 &&
-            !vkProviderEnforcesPolicyInCore(options.id)
-          )
+          if (handshake.experimental_vkRequiredSessionPolicy !== 1)
             throw new Error("vk_required_session_policy_bridge_unsupported");
           assertVkRequiredPolicyProvider(options.id, policy);
         }

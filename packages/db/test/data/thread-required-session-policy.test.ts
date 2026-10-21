@@ -56,14 +56,15 @@ describe("required policy persistence", () => {
     } finally { db.$client.close(); }
   });
 
-  it("creates an OpenCode v2 thread only for groups core enforces, also through a parent ceiling", () => {
+  it("creates an OpenCode v2 thread for the groups its bridge enforces, also through a parent ceiling", () => {
     const { db, spawn } = setup();
     try {
-      const ok = spawn({ bbPlugins: { mode: "allow", names: ["env-catalog"] }, userInstructions: false }, {}, "opencode2");
+      const ok = spawn({ bbPlugins: { mode: "allow", names: ["env-catalog"] }, userInstructions: false, skills: { mode: "allow", names: [] }, mcpServers: { mode: "deny", names: ["x"] } }, {}, "opencode2");
       expect(readVkRequiredSessionPolicy(db, ok.id)!.policy.userInstructions).toBe(false);
-      expect(() => spawn({ skills: { mode: "allow", names: [] } }, {}, "opencode2")).toThrow("unsupported_opencode2_skills");
-      const parent = spawn({ mcpServers: { mode: "deny", names: ["x"] } });
-      expect(() => spawn(undefined, { parentThreadId: parent.id }, "opencode2")).toThrow("unsupported_opencode2_mcpServers");
+      expect(() => spawn({ nativePlugins: { mode: "allow", names: [] } }, {}, "opencode2")).toThrow("unsupported_opencode2_nativePlugins");
+      const parent = spawn({ nativePlugins: { mode: "deny", names: ["x"] } });
+      expect(() => spawn(undefined, { parentThreadId: parent.id }, "opencode2")).toThrow("unsupported_opencode2_nativePlugins");
+      expect(() => spawn({ projectInstructions: false }, {}, "opencode2")).toThrow("unsupported_opencode2_projectInstructions");
       expect(db.select().from(threads).all()).toHaveLength(2);
     } finally { db.$client.close(); }
   });
