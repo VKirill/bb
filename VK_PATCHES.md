@@ -509,6 +509,24 @@ New files: `apps/app/src/lib/vk-image-editor.ts`, `apps/app/src/components/ui/vk
 `apps/app/src/lib/vk-image-editor.test.ts`, `apps/app/src/components/ui/vk-image-editor.test.tsx`,
 `packages/plugin-sdk/src/internal/vk-image-editor.test.ts`.
 
+## Child told its parent (`child-told-parent`)
+
+A child thread that has just told its parent its result itself (`bb thread tell`: a turn request in the parent whose
+`senderThreadId` is the child, in the last two minutes of the child's turn) gets no «[bb system] … completed» notice on top:
+the parent was woken twice for one result (12 of 80 completion notices on the hub, 2026-10-21..23). A progress note earlier in the
+turn does not count, and a failed or interrupted turn is always told. Read failures never swallow a notice.
+
+No schema, no migration, no protocol change.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/threads/child-thread-notifications.ts` | `queueChildThreadTurnNotificationBestEffort` skips a completed turn when `vkChildJustToldParent` |
+| `packages/db/src/data/index.ts` | exports `vkChildJustToldParent` |
+
+New files: `packages/db/src/data/vk-child-told-parent.ts`, `packages/db/test/data/vk-child-told-parent.test.ts`.
+
 ## Thread info section (`thread-info-section`)
 
 A plugin adds a section to a thread's info panel (project, environment, branch, commits, uncommitted
