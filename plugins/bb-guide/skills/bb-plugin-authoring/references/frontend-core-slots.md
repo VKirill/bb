@@ -242,6 +242,11 @@ onChange }` — the control the New Thread environment picker renders beside
 - `experimental_threadList`, `experimental_threadHeaderAction`,
   `experimental_threadAction`, and `experimental_browserToolbarAction` are
   covered in frontend-registration.md.
+- `experimental_vkThreadInfoSection` → `{ threadId, projectId }` — VK builds only
+  (feature-test `typeof app.slots.experimental_vkThreadInfoSection === "function"`).
+  Registration: `{ id, title, component }`. Renders in every open thread info panel,
+  below the uncommitted changes, in its own error boundary; return null for a thread
+  the plugin has nothing to show about.
 - `experimental_vkImageEditor` → `{ src, name, target, done(file), cancel() }` —
   VK builds only (feature-test `typeof app.slots.experimental_vkImageEditor ===
   "function"`). Registration: `{ id, title, component }`. The image preview of

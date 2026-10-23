@@ -104,6 +104,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `PluginFileOpenerSource`
 - `PluginFileOpenerProps`
 - `PluginVkImageEditorProps` — VK builds only; `{ src, name, target, done(file), cancel() }` for the image editor slot
+- `PluginVkThreadInfoSectionProps` — VK builds only; `{ threadId, projectId }` for a section of the thread's info panel
 - `CodeOverflowMode`
 - `DiffViewMode`
 - `SourceCodeLineRange`
@@ -188,6 +189,7 @@ Read the installed SDK declarations for the exact current signatures.
 - `PluginThreadListRegistration`
 - `PluginFileOpenerRegistration`
 - `PluginVkImageEditorRegistration` — VK builds only; `app.slots.experimental_vkImageEditor({ id, title, component })`, the "Edit" button of the image preview
+- `PluginVkThreadInfoSectionRegistration` — VK builds only; `app.slots.experimental_vkThreadInfoSection({ id, title, component })`, a section of the thread's info panel below the uncommitted changes
 - `PluginSourceCodeRendererRegistration`
 - `PluginDiffRendererRegistration`
 - `PluginMessageDirectiveRegistration`

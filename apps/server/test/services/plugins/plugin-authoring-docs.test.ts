@@ -14,6 +14,7 @@ import {
   type PluginDiffRendererProps,
   type PluginFileOpenerProps,
   type PluginVkImageEditorProps,
+  type PluginVkThreadInfoSectionProps,
   type PluginHomepageSectionProps,
   type PluginHttpAuthMode,
   type PluginCommandContext,
@@ -280,6 +281,7 @@ type SlotPropsByName = {
   experimental_browserToolbarAction: ExperimentalPluginBrowserToolbarActionProps;
   fileOpener: PluginFileOpenerProps;
   experimental_vkImageEditor: PluginVkImageEditorProps;
+  experimental_vkThreadInfoSection: PluginVkThreadInfoSectionProps;
   experimental_sourceCodeRenderer: PluginSourceCodeRendererProps;
   experimental_diffRenderer: PluginDiffRendererProps;
   messageDirective: PluginMessageDirectiveProps;
