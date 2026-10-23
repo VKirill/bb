@@ -10,6 +10,7 @@ import {
   getThread,
   isVkQuietChildThread,
   listActiveBackgroundTaskCountsByThreadIds,
+  vkChildJustToldParent,
 } from "@bb/db";
 import { renderTemplate } from "@bb/templates";
 import { z } from "zod";
@@ -490,6 +491,8 @@ export async function queueChildThreadTurnNotificationBestEffort(
   try {
     // VK EXPERIMENTAL: a quiet child (plugin metadata experimental_vkQuietChild) does not wake its parent.
     if (isVkQuietChildThread(deps.db, args.childThread.id)) return;
+    // VK EXPERIMENTAL: a child that just told its parent its result itself does not wake it a second time.
+    if (args.turnStatus === "completed" && vkChildJustToldParent(deps.db, args.childThread.id, args.parentThreadId)) return;
     await queueChildThreadTurnNotificationBatchItem(deps, args);
   } catch (error) {
     deps.logger.error(
