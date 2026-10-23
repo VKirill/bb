@@ -509,6 +509,32 @@ New files: `apps/app/src/lib/vk-image-editor.ts`, `apps/app/src/components/ui/vk
 `apps/app/src/lib/vk-image-editor.test.ts`, `apps/app/src/components/ui/vk-image-editor.test.tsx`,
 `packages/plugin-sdk/src/internal/vk-image-editor.test.ts`.
 
+## Thread info section (`thread-info-section`)
+
+A plugin adds a section to a thread's info panel (project, environment, branch, commits, uncommitted
+files), below the uncommitted changes. Plugin API: `app.slots.experimental_vkThreadInfoSection({ id,
+title, component })`; the component gets `PluginVkThreadInfoSectionProps` (`threadId`, `projectId`) and
+renders for every thread whose info panel is open (return null to show nothing). Each section mounts
+through `PluginSlotMount` (CSS scope, error boundary; a crash shows nothing). Feature-test
+`typeof app.slots.experimental_vkThreadInfoSection === "function"`.
+
+No schema, no migration, no protocol change.
+
+Consumer: plugin `lane-pilot` (what Lane Pilot runs for this chat: tasks, current stage, step by step).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/plugin-sdk/src/app-contract.ts` | `PluginVkThreadInfoSectionProps`, `PluginVkThreadInfoSectionRegistration`, `PluginAppSlots.experimental_vkThreadInfoSection` |
+| `packages/plugin-sdk/src/internal/plugin-app-registration-collector.ts` | `vkThreadInfoSections` collection and the slot method |
+| `packages/plugin-sdk/src/testing/app.tsx` | harness type: `vkThreadInfoSections` |
+| `apps/app/src/lib/plugin-slots.ts` | `vkThreadInfoSections` slot kind |
+| `apps/app/src/components/secondary-panel/ThreadMetadataContent.tsx` | `<VkPluginThreadInfoSections>` after upstream `<ThreadInfoSections>` (0.47 also has the official `experimental_threadInfoSection`; Lane Pilot still uses the VK slot) |
+| `apps/server/test/services/plugins/plugin-authoring-docs.test.ts`, `plugins/bb-guide/.../frontend-api-index.md`, `frontend-core-slots.md` | docs |
+
+New files: `apps/app/src/components/plugin/VkPluginThreadInfoSections.tsx`, `packages/plugin-sdk/src/internal/vk-thread-info-section.test.ts`.
+
 ## Claude bridge tool presentation (`claude-bridge-tool-presentation`)
 
 A plugin registers `presentation` (label, glyph, `suppress`) with `bb.agents.registerTool`. The server resolves it

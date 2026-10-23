@@ -10,6 +10,7 @@ import {
   type UIEvent,
 } from "react";
 import { UncommittedChangesSection } from "./info/ChangesSection";
+import { VkPluginThreadInfoSections } from "../plugin/VkPluginThreadInfoSections"; // VK EXPERIMENTAL
 import { CommitsSection } from "./info/CommitsSection";
 import {
   ForksSection,
@@ -1138,6 +1139,11 @@ export function ThreadMetadataContent(props: ThreadMetadataContentProps) {
             threadId={props.thread.id}
             projectId={props.projectId}
             environment={infoEnvironment}
+          />
+          {/* VK EXPERIMENTAL: plugin sections of the info panel. */}
+          <VkPluginThreadInfoSections
+            threadId={props.thread.id}
+            projectId={props.projectId}
           />
         </div>
       </ThreadMetadataCard>
