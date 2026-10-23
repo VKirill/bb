@@ -147,6 +147,29 @@ describe("vk session policy", () => {
     });
   });
 
+  it("keeps the env of the plugin that started the thread", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project } = await seed(harness, "host-vk-origin");
+      const thread = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+        providerId: "codex",
+        originPluginId: "drop",
+      });
+      stub({ bbPlugins: { mode: "deny", names: ["drop"] } });
+      const config = await resolveThreadRuntimeCommandConfig(harness.deps, {
+        thread,
+        model: "test-model",
+        environment,
+      });
+      const envNames = config.contributedEnv.map((entry) => entry.name);
+      expect(envNames).toContain("DROP_ENV");
+      expect(config.dynamicTools.map((tool) => tool.name)).not.toContain(
+        "drop_tool",
+      );
+    });
+  });
+
   it("resolves BB skills to exact denied names and sends them to the bridge", async () => {
     await withTestHarness(async (harness) => {
       const { environment, project, thread, workspacePath } = await seed(

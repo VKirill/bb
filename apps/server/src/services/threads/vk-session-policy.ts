@@ -27,6 +27,20 @@ export function vkPluginAllowed(
   return vkPolicyAllows(policy.bbPlugins, pluginId);
 }
 
+/**
+ * Env is the one exception: the plugin that started the thread wrote its
+ * policy, so its own env (lane markers, guard PATH) still reaches the thread
+ * while the policy keeps that plugin's skills, tools and instructions out.
+ */
+export function vkEnvPluginAllowed(
+  policy: VkSessionPolicy | null,
+  pluginId: string | null,
+  originPluginId: string | null | undefined,
+): boolean {
+  if (pluginId !== null && pluginId === originPluginId) return true;
+  return vkPluginAllowed(policy, pluginId);
+}
+
 /** The plugin a contributed env entry came from, or null for host env. */
 export function vkEnvPluginId(entry: { source?: unknown }): string | null {
   const source = entry.source;
