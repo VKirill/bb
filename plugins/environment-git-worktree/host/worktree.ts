@@ -41,6 +41,7 @@ import {
   WORKTREE_INCLUDE_FILE_NAME,
   type CopyWorktreeIncludeFilesResult,
 } from "./worktree-include.js";
+import { vkLinkWorktreeDependencies } from "./vk-worktree-deps.js"; // VK EXPERIMENTAL
 
 export type BranchMode = "reset" | "reuse-existing";
 
@@ -464,6 +465,11 @@ async function finishWorktreeSetup(args: CreateWorktreeArgs): Promise<void> {
     onProgress: args.onProgress,
     signal: args.signal,
   });
+  // VK EXPERIMENTAL: the checkout's installed packages as links (vk-worktree-deps.ts), so the agent does not reinstall them.
+  const vkLinked = await vkLinkWorktreeDependencies({ sourcePath: args.sourcePath, targetPath: args.targetPath });
+  if (vkLinked.length > 0) {
+    emitOutput(args.onProgress, "worktree-include", `Linked installed packages from the checkout: ${vkLinked.join(", ")}`);
+  }
   await fs.writeFile(args.completionPath, `${args.branchName}\n`, "utf8");
 }
 
