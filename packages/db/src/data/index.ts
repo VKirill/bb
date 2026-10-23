@@ -558,3 +558,5 @@ export { readVkRequiredSessionPolicy, insertVkRequiredSessionPolicy, narrowVkReq
 export { VK_REQUIRED_SESSION_POLICY_MARKER_ID, VK_COMPILED_MAIN_AGENT_MARKER_ID } from "./vk-thread-marker.js";
 // VK EXPERIMENTAL: quiet child threads (plugin metadata flag), see vk-quiet-child.ts.
 export { VK_QUIET_CHILD_KEY, isVkQuietChildThread } from "./vk-quiet-child.js";
+// VK EXPERIMENTAL: a child that just told its parent itself gets no «completed» notice, see vk-child-told-parent.ts.
+export { VK_CHILD_TOLD_PARENT_WINDOW_MS, vkChildJustToldParent } from "./vk-child-told-parent.js";
