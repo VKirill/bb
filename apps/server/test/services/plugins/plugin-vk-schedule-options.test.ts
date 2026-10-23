@@ -295,6 +295,31 @@ describe("vk isolated schedules", () => {
     expect(ctl.started).toHaveLength(9);
   });
 
+  it("tries a tick deferred at the ceiling again within a minute, not at its next cron time", async () => {
+    const names = Array.from({ length: 9 }, (_, index) => `d${index}`);
+    await install(
+      "daily",
+      `export default function plugin(bb: any) {
+        const g = globalThis as any;
+        for (let i = 0; i < 9; i += 1) {
+          bb.background.schedule("d" + i, "0 3 * * *", () => g.__vk.wait("d" + i));
+        }
+      }`,
+      {
+        schedules: Object.fromEntries(
+          names.map((name) => [name, { isolated: true }]),
+        ),
+      },
+    );
+    for (const name of names) makeDue("daily", name);
+    const before = Date.now();
+    await service.sweepDueSchedules(before);
+    const deferred = names.find((name) => !ctl.started.includes(name)) as string;
+    const next = row(db, "daily", deferred).nextRunAt;
+    expect(next).toBeGreaterThan(before);
+    expect(next).toBeLessThanOrEqual(before + 60_000);
+  });
+
   it("aborts a run on timeout and records the timeout", async () => {
     await install(
       "timeouter",

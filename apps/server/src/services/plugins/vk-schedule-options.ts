@@ -21,6 +21,9 @@ import type {
 export const VK_SCHEDULE_DEFAULT_TIMEOUT_MS = 15 * 60_000;
 export const VK_SCHEDULE_MAX_TIMEOUT_MS = 6 * 60 * 60_000;
 export const VK_SCHEDULE_ISOLATED_CEILING = 8;
+// A tick skipped at the ceiling is tried again this soon instead of at its next cron time: a once-a-day schedule
+// (a night loop at 03:00) otherwise lost the whole day whenever long runs held the slots (2026-10-23, 2 nights of 2).
+export const VK_SCHEDULE_CEILING_RETRY_MS = 60_000;
 
 const OPTION_KEYS = new Set(["isolated", "timeoutMs", "overlap"]);
 
@@ -214,9 +217,9 @@ export function createVkScheduleRunner(deps: {
         return;
       }
       if (running.size >= VK_SCHEDULE_ISOLATED_CEILING) {
-        skipTick(args);
+        skipTick({ ...args, newNextRunAt: Math.min(args.newNextRunAt, args.now + VK_SCHEDULE_CEILING_RETRY_MS) });
         logger.warn(
-          `${label} tick skipped: ${VK_SCHEDULE_ISOLATED_CEILING} isolated runs are already going`,
+          `${label} tick deferred a minute: ${VK_SCHEDULE_ISOLATED_CEILING} isolated runs are already going`,
         );
         return;
       }

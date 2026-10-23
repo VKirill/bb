@@ -348,8 +348,9 @@ New files: `packages/db/src/data/vk-thread-keys.ts`, `apps/server/src/services/p
 schedule held the others back (a 50-minute Lane Pilot run blocked its own self-repair and other plugins'
 schedules). A schedule marked `isolated` is now started without awaiting it. At most one run per
 (plugin, schedule); a due tick while the previous run still goes is skipped (`next_run_at` moves on, `last_run_at` and
-`last_status` stay those of the running one); at most 8 isolated runs at once, a tick beyond that is skipped
-the same way and logged; a run is aborted after `timeoutMs` (default 15 min, at most 6 h, larger values are clamped
+`last_status` stay those of the running one); at most 8 isolated runs at once, a tick beyond that is deferred a
+minute (`next_run_at` = now + 60 s or the next cron time, whichever is sooner; before 2026-10-24 it waited for the next
+cron time, so a daily schedule lost the day) and logged; a run is aborted after `timeoutMs` (default 15 min, at most 6 h, larger values are clamped
 with a warning) and recorded as `last_status = "error"`, `last_error = "timeout after <N>ms"` (the status enum in
 `plugin-state-snapshot.ts` and the server contract stays `running | ok | error`, so `bb plugin list` and the UI need no
 change). The slot is held until the function really settles, so a function that ignores its signal is not started a
