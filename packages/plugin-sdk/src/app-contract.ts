@@ -1707,6 +1707,30 @@ export interface PluginSidebarThreadActions {
 }
 
 /**
+ * VK EXPERIMENTAL: props of a section in a thread's info panel.
+ */
+export interface PluginVkThreadInfoSectionProps {
+  threadId: string;
+  projectId: string;
+}
+
+/**
+ * VK EXPERIMENTAL: a section a plugin adds to a thread's info panel (the
+ * panel with the project, environment, branch, commits and uncommitted
+ * files), below the uncommitted changes. The component renders for every
+ * thread whose info panel is open: return null for a thread it has nothing to
+ * say about. Feature-test `typeof app.slots.experimental_vkThreadInfoSection
+ * === "function"`.
+ */
+export interface PluginVkThreadInfoSectionRegistration {
+  /** Unique within the plugin; letters, digits, `-`, `_`. */
+  id: string;
+  /** Names the region the host wraps around the section. */
+  title: string;
+  component: ComponentType<PluginVkThreadInfoSectionProps>;
+}
+
+/**
  * Props passed to an `experimental_threadRowMetadata` component, rendered on a
  * thread's row in a thread list: bb's sidebar and any list that draws
  * {@link PluginSdkApp.experimental_ThreadRowMetadata}.
@@ -3635,6 +3659,13 @@ export interface PluginAppSlots {
    */
   experimental_vkImageEditor(
     registration: PluginVkImageEditorRegistration,
+  ): void;
+  /**
+   * VK EXPERIMENTAL: add a section to a thread's info panel, below the
+   * uncommitted changes (see {@link PluginVkThreadInfoSectionRegistration}).
+   */
+  experimental_vkThreadInfoSection(
+    registration: PluginVkThreadInfoSectionRegistration,
   ): void;
   /**
    * Replace BB's source-code renderer (see

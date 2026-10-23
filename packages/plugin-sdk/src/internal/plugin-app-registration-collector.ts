@@ -18,6 +18,7 @@ import type {
   PluginMachineProviderInputsRegistration,
   PluginFileOpenerRegistration,
   PluginVkImageEditorRegistration,
+  PluginVkThreadInfoSectionRegistration,
   PluginHomepageSectionRegistration,
   PluginCommandRegistration,
   ExperimentalComposerCommandRegistration,
@@ -325,6 +326,7 @@ export interface CollectedPluginAppRegistrations {
   fileOpeners: PluginFileOpenerRegistration[];
   /** VK EXPERIMENTAL */
   vkImageEditors: PluginVkImageEditorRegistration[];
+  vkThreadInfoSections: PluginVkThreadInfoSectionRegistration[];
   sourceCodeRenderers: PluginSourceCodeRendererRegistration[];
   diffRenderers: PluginDiffRendererRegistration[];
   composers: ExperimentalComposerRegistration[];
@@ -466,6 +468,7 @@ export function collectPluginAppRegistrations(
     browserToolbarActions: [],
     fileOpeners: [],
     vkImageEditors: [],
+    vkThreadInfoSections: [],
     sourceCodeRenderers: [],
     diffRenderers: [],
     composers: [],
@@ -504,6 +507,7 @@ export function collectPluginAppRegistrations(
     browserToolbarAction: new Set<string>(),
     fileOpener: new Set<string>(),
     vkImageEditor: new Set<string>(),
+    vkThreadInfoSection: new Set<string>(),
     sourceCodeRenderer: new Set<string>(),
     diffRenderer: new Set<string>(),
     composer: new Set<string>(),
@@ -1088,6 +1092,16 @@ export function collectPluginAppRegistrations(
           collectTitledComponent(
             "slots.experimental_vkImageEditor",
             seenIds.vkImageEditor,
+            registration,
+          ),
+        );
+      },
+      // VK EXPERIMENTAL: a section of the thread's info panel.
+      experimental_vkThreadInfoSection(registration) {
+        collected.vkThreadInfoSections.push(
+          collectTitledComponent(
+            "slots.experimental_vkThreadInfoSection",
+            seenIds.vkThreadInfoSection,
             registration,
           ),
         );

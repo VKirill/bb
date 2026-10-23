@@ -9,6 +9,7 @@ import {
   type ReactNode,
   type UIEvent,
 } from "react";
+import { VkPluginThreadInfoSections } from "../plugin/VkPluginThreadInfoSections"; // VK EXPERIMENTAL
 import {
   ForksSection,
   ChildThreadsSection,
@@ -625,6 +626,17 @@ function CoreForksSection() {
   return <ForksSection thread={useThreadInfoHost().thread} />;
 }
 
+// VK EXPERIMENTAL: plugin sections (`experimental_vkThreadInfoSection`).
+function CoreVkPluginThreadInfoSections() {
+  const { thread } = useThreadInfoHost();
+  return (
+    <VkPluginThreadInfoSections
+      threadId={thread.id}
+      projectId={thread.projectId}
+    />
+  );
+}
+
 function CoreThreadStorageSection() {
   const { storage } = useThreadInfoHost();
   return storage ? <ThreadStorageSection {...storage} /> : null;
@@ -690,6 +702,13 @@ const CORE_THREAD_INFO_SECTIONS: readonly CoreThreadInfoRegistration[] = [
     group: SECTION_GROUPS.related,
     order: 20,
     component: CoreForksSection,
+  },
+  // VK EXPERIMENTAL: below the uncommitted changes.
+  {
+    id: "vkPluginSections",
+    group: SECTION_GROUPS.changes,
+    order: 30,
+    component: CoreVkPluginThreadInfoSections,
   },
   {
     id: "threadStorage",
