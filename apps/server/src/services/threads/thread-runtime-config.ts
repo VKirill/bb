@@ -46,6 +46,7 @@ import {
 } from "../plugins/vk-rpc-caller.js"; // VK EXPERIMENTAL
 import {
   buildVkRuntimeSessionPolicy,
+  vkEnvPluginAllowed,
   vkEnvPluginId,
   vkPluginAllowed,
   vkProjectInstructionsAllowed,
@@ -249,7 +250,8 @@ export async function resolveThreadRuntimeCommandConfig(
       hostId: host.id,
       projectId: project.id,
     }),
-    // VK EXPERIMENTAL: a plugin the policy drops contributes no env either.
+    // VK EXPERIMENTAL: a plugin the policy drops contributes no env either,
+    // unless it started the thread (its markers and guard PATH stay).
     (
       await resolvePluginProviderEnv({
         providerId: args.thread.providerId,
@@ -258,9 +260,16 @@ export async function resolveThreadRuntimeCommandConfig(
           projectId: project.id,
           hostId: host.id,
         },
-        vkPluginAllowed: (pluginId) => vkPluginAllowed(vkPolicy, pluginId),
+        vkPluginAllowed: (pluginId) =>
+          vkEnvPluginAllowed(vkPolicy, pluginId, args.thread.originPluginId),
       })
-    ).filter((entry) => vkPluginAllowed(vkPolicy, vkEnvPluginId(entry))),
+    ).filter((entry) =>
+      vkEnvPluginAllowed(
+        vkPolicy,
+        vkEnvPluginId(entry),
+        args.thread.originPluginId,
+      ),
+    ),
   );
   // VK EXPERIMENTAL: while a plugin declares vk.rpcCallerPolicy, the agent's shell carries
   // a per-thread token that marks its API calls. Otherwise the env is the stock one.
