@@ -681,3 +681,23 @@ No schema, no migration, no host-daemon protocol change: two files in the data d
 New files: `packages/config/src/vk-owner-auth.ts`, `apps/server/src/services/plugins/vk-owner-auth.ts`,
 `apps/cli/src/vk-owner-key.ts`, `apps/cli/src/commands/owner.ts`, tests `apps/server/test/services/plugins/vk-owner-auth.test.ts`,
 `apps/cli/src/__tests__/vk-owner-key.test.ts`.
+
+## Worktree dependencies (`worktree-deps`, off with `BB_VK_WORKTREE_DEPS=0`)
+
+A new git worktree environment gets the source checkout's installed packages as links, so the agent does not run
+`npm ci` in every worktree chat (1.9 GB per SelfyStudio worktree, 18 GB on one machine, 2026-10-23). Each package in the
+checkout's `node_modules` (root, declared workspaces, nested packages with their own install up to 3 folders deep) becomes
+a link to the checkout's copy; a link back into the repository (a workspace package) points at the worktree's own copy;
+`.bin` and `.package-lock.json` are copied, generated clients (`.prisma`, `@prisma/client`) are copied, tool caches
+(`.vite`, `.vitest`, `.cache`) get empty folders of their own. A worktree that already has `node_modules` is left alone; any
+failure leaves the worktree as before (the agent installs as it used to). The same mirror Lane Pilot gives its writers.
+
+No schema, no migration, no protocol change.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `plugins/environment-git-worktree/host/worktree.ts` | `finishWorktreeSetup`: `vkLinkWorktreeDependencies` after the included files, a progress line naming the linked folders |
+
+New files: `plugins/environment-git-worktree/host/vk-worktree-deps.ts`, `plugins/environment-git-worktree/host/vk-worktree-deps.test.ts`.
