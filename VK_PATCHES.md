@@ -98,6 +98,12 @@ tools, instructions, env, skills, composer UI and dispatch hooks stay — and
 `bb-bridge` is removed from MCP deny lists and added to allow lists before a
 bridge sees the policy. Context contributions carry `required: true` for them.
 
+Env of the thread's origin plugin (`threads.origin_plugin_id`, the plugin that
+started the thread and wrote its policy) is kept even when the policy leaves
+that plugin out (`vkEnvPluginAllowed`): Lane Pilot helpers with a required
+policy keep `LANE_PILOT_ROLE` and the guard PATH, while its skills, tools and
+instructions stay out.
+
 `bb.agents.experimental_vkContextContributions()` lists what each running plugin
 adds to agent sessions (instructions, configure, tools, skills) for the editor.
 
