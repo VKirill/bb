@@ -417,6 +417,7 @@ const FRONTEND_SLOT_PROP_FIELDS = {
   ],
   fileOpener: ["path", "source", "experimental_lineRange", "Original"],
   experimental_vkImageEditor: ["src", "name", "target", "done", "cancel"],
+  experimental_vkThreadInfoSection: ["threadId", "projectId"],
   experimental_sourceCodeRenderer: [
     "content",
     "path",
