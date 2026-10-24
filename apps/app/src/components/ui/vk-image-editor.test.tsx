@@ -18,7 +18,8 @@ import { resetAllCrashedPluginSlotsForTest } from "@/components/plugin/PluginSlo
 import { makePluginRegistrationSet } from "@/test/fixtures/plugins";
 import type { VkImageEdit } from "@/lib/vk-image-editor";
 import { ImageLightbox } from "./image-lightbox";
-import { AttachmentPreview } from "@/components/promptbox/AttachmentPreview";
+// 0.47: the draft preview lives in plugins/composer and reaches the editor through the SDK lightbox.
+import { VkSdkImageLightbox } from "./vk-sdk-image-lightbox";
 import {
   PluginComposerHostProvider,
   type PluginComposerHost,
@@ -196,16 +197,34 @@ function draftAttachment(name: string): PromptDraftAttachment {
   } as PromptDraftAttachment;
 }
 
+function DraftLightbox({
+  attachment,
+  mediaType,
+}: {
+  attachment: PromptDraftAttachment;
+  mediaType?: "image" | "video";
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <VkSdkImageLightbox
+      imageSrc={open ? `/api/${attachment.name}` : null}
+      imageAlt={attachment.name}
+      title="Attached media preview"
+      {...(mediaType === undefined ? {} : { mediaType })}
+      onClose={() => setOpen(false)}
+      experimental_vkDraftAttachment={{
+        path: attachment.path,
+        name: attachment.name,
+        projectId: "proj_1",
+      }}
+    />
+  );
+}
+
 function DraftPreview({ host }: { host: PluginComposerHost }) {
-  const [index, setIndex] = useState<number | null>(null);
   return (
     <PluginComposerHostProvider value={host}>
-      <AttachmentPreview
-        attachments={host.getCurrent().attachments}
-        attachmentProjectId="proj_1"
-        expandedImageIndex={index}
-        onExpandedImageIndexChange={setIndex}
-      />
+      <DraftLightbox attachment={host.getCurrent().attachments[1]!} />
     </PluginComposerHostProvider>
   );
 }
@@ -229,7 +248,6 @@ it("draft attachment: Edit replaces it at the same position in the draft", async
     focus: () => {},
   } as PluginComposerHost;
   render(<DraftPreview host={host} />);
-  fireEvent.click(screen.getByTitle("b.png"));
   fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
   expect(lastProps).toMatchObject({ name: "b.png", target: "draft" });
   const file = new File(["x"], "b-edited.png", { type: "image/png" });
@@ -250,14 +268,31 @@ it("draft attachment: Edit replaces it at the same position in the draft", async
 
 it("draft attachment: no Edit button outside a composer host", () => {
   register();
+  render(<DraftLightbox attachment={draftAttachment("a.png")} />);
+  expect(screen.queryByRole("button", { name: "Edit image" })).toBeNull();
+});
+
+it("draft attachment: no Edit button for a video", () => {
+  register();
+  const draft: PromptDraftState = {
+    text: "",
+    mentions: [],
+    attachments: [draftAttachment("clip.mp4")],
+  };
+  const host = {
+    scope: { kind: "thread", threadId: "thr_1" },
+    textEffectKey: "main",
+    getCurrent: () => draft,
+    subscribeDraft: () => () => {},
+    setDraft: () => {},
+    focus: () => {},
+  } as PluginComposerHost;
   render(
-    <AttachmentPreview
-      attachments={[draftAttachment("a.png")]}
-      attachmentProjectId="proj_1"
-      expandedImageIndex={0}
-      onExpandedImageIndexChange={() => {}}
-    />,
+    <PluginComposerHostProvider value={host}>
+      <DraftLightbox attachment={draftAttachment("clip.mp4")} mediaType="video" />
+    </PluginComposerHostProvider>,
   );
+  expect(screen.getByRole("dialog")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Edit image" })).toBeNull();
 });
 
@@ -282,7 +317,7 @@ it("sent message image: Edit attaches the result to the thread's composer draft"
         />
       </VkMessageImageThreadProvider>,
     );
-    fireEvent.click(screen.getByTitle("photo.png"));
+    fireEvent.click(screen.getByLabelText("photo.png"));
     fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
     expect(lastProps).toMatchObject({ name: "photo.png", target: "message" });
     const file = new File(["x"], "photo-edited.png", { type: "image/png" });
@@ -305,7 +340,7 @@ it("sent message image: no Edit button outside a thread timeline or for another 
       imageItems={[{ alt: "photo.png", src: "/api/photo.png" }]}
     />,
   );
-  fireEvent.click(screen.getByTitle("photo.png"));
+  fireEvent.click(screen.getByLabelText("photo.png"));
   expect(screen.queryByRole("button", { name: "Edit image" })).toBeNull();
   unmount();
   render(
@@ -317,6 +352,6 @@ it("sent message image: no Edit button outside a thread timeline or for another 
       />
     </VkMessageImageThreadProvider>,
   );
-  fireEvent.click(screen.getByTitle("far.png"));
+  fireEvent.click(screen.getByLabelText("far.png"));
   expect(screen.queryByRole("button", { name: "Edit image" })).toBeNull();
 });
