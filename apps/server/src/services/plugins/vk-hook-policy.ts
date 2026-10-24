@@ -236,8 +236,9 @@ export function handleVkEnvFailure(args: {
   policy: ExperimentalVkHookPolicy | undefined;
   timeoutMs: number;
   error: string;
-  threadId: string;
-  projectId: string;
+  /** Null since 0.47 when bb resolves env for a process that serves no thread. */
+  threadId: string | null;
+  projectId: string | null;
 }): void {
   const declared = args.policy?.contributeEnv;
   if (declared === undefined) return;
@@ -248,8 +249,8 @@ export function handleVkEnvFailure(args: {
       hook: "contributeEnv",
       pluginId: args.pluginId,
       timeoutMs: args.timeoutMs,
-      threadId: args.threadId,
-      projectId: args.projectId,
+      ...(args.threadId === null ? {} : { threadId: args.threadId }),
+      ...(args.projectId === null ? {} : { projectId: args.projectId }),
       required,
     });
   }
