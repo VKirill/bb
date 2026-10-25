@@ -528,10 +528,14 @@ function useComposerRendererHostApi({
       // VK EXPERIMENTAL: experimental_vkAttachFiles through the box's own upload.
       ...(host !== null
         ? {
-            vkAttachFiles: createVkAttachFiles(
-              host,
-              () => vkAttachFilesRef.current,
-            ),
+            vkAttachFiles: createVkAttachFiles(host, () => {
+              const attach = vkAttachFilesRef.current;
+              return attach === undefined
+                ? undefined
+                : async (files: File[]) => {
+                    await attach(files);
+                  };
+            }),
           }
         : {}),
     };
