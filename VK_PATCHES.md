@@ -500,13 +500,13 @@ Consumer: plugin `office-viewer` (image editor; "To chat" button).
 | `apps/app/src/components/promptbox/ComposerBox.tsx` | `vkAttachFiles: createVkAttachFiles(host, …)` in the bridge built by `registerEditor` |
 | `apps/app/src/components/ui/image-lightbox.tsx` | `vkEdit` prop, Edit button, editor view, key/Escape/click guards |
 | `plugins/composer/src/AttachmentPreview.tsx` | passes `experimental_vkDraftAttachment` to `experimental_ImageLightbox` (draft) |
-| `apps/app/src/lib/plugin-sdk-app-impl.tsx` | `experimental_ImageLightbox` is `VkPluginImageLightbox` (`vkEdit` from `useVkDraftImageEdit`) |
+| `apps/app/src/lib/plugin-sdk-app-impl.tsx` | `experimental_ImageLightbox` is `VkSdkImageLightbox` (`vkEdit` from `useVkDraftImageEdit`) |
 | `apps/app/src/components/thread/timeline/ConversationAttachments.tsx`, `TimelineImageGallery.tsx` | `vkEdit` from `useVkMessageImageEdit` (message) |
 | `apps/app/src/components/thread/timeline/ThreadTimelineRows.tsx` | `VkMessageImageThreadProvider` around the gallery |
 | `plugins/plugin-api-docs/src/surfaces.ts`, `plugins/bb-guide/.../frontend-api-index.md`, `frontend-core-slots.md`, `apps/server/test/services/plugins/plugin-authoring-docs.test.ts` | docs; `experimental_vkImageEditor` added to the slot lists |
 
 New files: `apps/app/src/lib/vk-image-editor.ts`, `apps/app/src/components/ui/vk-image-editor.tsx`,
-`apps/app/src/components/ui/vk-plugin-image-lightbox.tsx`, tests
+`apps/app/src/components/ui/vk-sdk-image-lightbox.tsx`, tests
 `apps/app/src/lib/vk-image-editor.test.ts`, `apps/app/src/components/ui/vk-image-editor.test.tsx`,
 `packages/plugin-sdk/src/internal/vk-image-editor.test.ts`.
 
