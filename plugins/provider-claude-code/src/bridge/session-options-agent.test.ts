@@ -11,6 +11,7 @@ const base = {
   disable1MContext: false,
   sandboxEnabled: false,
   chromeEnabled: false,
+  artifactsEnabled: false,
 };
 
 describe("compiled main agent session options", () => {
