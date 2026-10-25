@@ -10,7 +10,6 @@ import {
   type UIEvent,
 } from "react";
 import { UncommittedChangesSection } from "./info/ChangesSection";
-import { VkPluginThreadInfoSections } from "../plugin/VkPluginThreadInfoSections"; // VK EXPERIMENTAL
 import { CommitsSection } from "./info/CommitsSection";
 import {
   ForksSection,
@@ -1018,17 +1017,6 @@ function CoreUncommittedChangesSection() {
   );
 }
 
-// VK EXPERIMENTAL: plugin sections (`experimental_vkThreadInfoSection`).
-function CoreVkPluginThreadInfoSections() {
-  const { thread } = useThreadInfoHost();
-  return (
-    <VkPluginThreadInfoSections
-      threadId={thread.id}
-      projectId={thread.projectId}
-    />
-  );
-}
-
 function CoreThreadStorageSection() {
   const { storage } = useThreadInfoHost();
   return storage ? <ThreadStorageSection {...storage} /> : null;
@@ -1119,13 +1107,6 @@ const CORE_THREAD_INFO_SECTIONS: readonly CoreThreadInfoRegistration[] = [
     group: SECTION_GROUPS.changes,
     order: 20,
     component: CoreUncommittedChangesSection,
-  },
-  // VK EXPERIMENTAL: below the uncommitted changes.
-  {
-    id: "vkPluginSections",
-    group: SECTION_GROUPS.changes,
-    order: 30,
-    component: CoreVkPluginThreadInfoSections,
   },
   {
     id: "threadStorage",

@@ -237,7 +237,9 @@ experimental_Original }` — draws the sidebar navigation. Registration:
   (feature-test `typeof app.slots.experimental_vkThreadInfoSection === "function"`).
   Registration: `{ id, title, component }`. Renders in every open thread info panel,
   below the uncommitted changes, in its own error boundary; return null for a thread
-  the plugin has nothing to show about.
+  the plugin has nothing to show about. Since 0.47 it is an alias of
+  `experimental_threadInfoSection` (group `changes`, order 30); new code should
+  feature-test and use `experimental_threadInfoSection` first.
 - `experimental_vkImageEditor` → `{ src, name, target, done(file), cancel() }` —
   VK builds only (feature-test `typeof app.slots.experimental_vkImageEditor ===
   "function"`). Registration: `{ id, title, component }`. The image preview of

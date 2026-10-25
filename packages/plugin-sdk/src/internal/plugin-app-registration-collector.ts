@@ -1,4 +1,5 @@
-import type { ComponentType } from "react";
+import { createElement, type ComponentType } from "react";
+import { experimental_THREAD_INFO_SECTION_GROUPS } from "../thread-info-groups.js";
 import { z } from "zod";
 import type {
   ExperimentalTabRegistration,
@@ -18,7 +19,7 @@ import type {
   PluginMachineProviderInputsRegistration,
   PluginFileOpenerRegistration,
   PluginVkImageEditorRegistration,
-  PluginVkThreadInfoSectionRegistration,
+  PluginVkThreadInfoSectionProps,
   PluginHomepageSectionRegistration,
   PluginCommandRegistration,
   ExperimentalComposerCommandRegistration,
@@ -36,6 +37,7 @@ import type {
   PluginThreadHeaderActionRegistration,
   ExperimentalThreadInfoRowRegistration,
   ExperimentalThreadInfoSectionRegistration,
+  ExperimentalThreadInfoProps,
   PluginThreadActionRegistration,
   ExperimentalPluginBrowserToolbarActionRegistration,
   ExperimentalSidebarHeaderProps,
@@ -313,7 +315,6 @@ export interface CollectedPluginAppRegistrations {
   fileOpeners: PluginFileOpenerRegistration[];
   /** VK EXPERIMENTAL */
   vkImageEditors: PluginVkImageEditorRegistration[];
-  vkThreadInfoSections: PluginVkThreadInfoSectionRegistration[];
   sourceCodeRenderers: PluginSourceCodeRendererRegistration[];
   diffRenderers: PluginDiffRendererRegistration[];
   composers: ExperimentalComposerRegistration[];
@@ -342,6 +343,33 @@ function requireOptionalOrder(
     throw new Error(`${kind}: "order" must be a finite number`);
   }
   return { order };
+}
+
+// VK EXPERIMENTAL: bb's own sections in the "changes" group use orders 10 and 20.
+const VK_THREAD_INFO_SECTION_ORDER = 30;
+
+/** VK EXPERIMENTAL: a VK Info section inside the labelled group it always had. */
+function vkTitledInfoSection(
+  id: string,
+  title: string,
+  Section: ComponentType<PluginVkThreadInfoSectionProps>,
+): ComponentType<ExperimentalThreadInfoProps> {
+  function VkThreadInfoSection({
+    threadId,
+    projectId,
+  }: ExperimentalThreadInfoProps) {
+    return createElement(
+      "div",
+      {
+        role: "group",
+        "aria-label": title,
+        className: "min-w-0",
+        "data-vk-thread-info-section": id,
+      },
+      createElement(Section, { threadId, projectId }),
+    );
+  }
+  return VkThreadInfoSection;
 }
 
 function collectTitledComponent<C>(
@@ -454,7 +482,6 @@ export function collectPluginAppRegistrations(
     browserToolbarActions: [],
     fileOpeners: [],
     vkImageEditors: [],
-    vkThreadInfoSections: [],
     sourceCodeRenderers: [],
     diffRenderers: [],
     composers: [],
@@ -492,7 +519,6 @@ export function collectPluginAppRegistrations(
     browserToolbarAction: new Set<string>(),
     fileOpener: new Set<string>(),
     vkImageEditor: new Set<string>(),
-    vkThreadInfoSection: new Set<string>(),
     sourceCodeRenderer: new Set<string>(),
     diffRenderer: new Set<string>(),
     composer: new Set<string>(),
@@ -1039,15 +1065,20 @@ export function collectPluginAppRegistrations(
           ),
         );
       },
-      // VK EXPERIMENTAL: a section of the thread's info panel.
+      // VK EXPERIMENTAL: since 0.47 an alias of bb's own Info section slot,
+      // placed after the uncommitted changes and before thread storage.
       experimental_vkThreadInfoSection(registration) {
-        collected.vkThreadInfoSections.push(
-          collectTitledComponent(
-            "slots.experimental_vkThreadInfoSection",
-            seenIds.vkThreadInfoSection,
-            registration,
-          ),
+        const { id, title, component } = collectTitledComponent(
+          "slots.experimental_vkThreadInfoSection",
+          seenIds.threadInfoSection,
+          registration,
         );
+        collected.threadInfoSections.push({
+          id,
+          group: experimental_THREAD_INFO_SECTION_GROUPS.changes,
+          order: VK_THREAD_INFO_SECTION_ORDER,
+          component: vkTitledInfoSection(id, title, component),
+        });
       },
       experimental_sourceCodeRenderer(registration) {
         collected.sourceCodeRenderers.push(
