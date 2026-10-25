@@ -533,9 +533,15 @@ New files: `packages/db/src/data/vk-child-told-parent.ts`, `packages/db/test/dat
 A plugin adds a section to a thread's info panel (project, environment, branch, commits, uncommitted
 files), below the uncommitted changes. Plugin API: `app.slots.experimental_vkThreadInfoSection({ id,
 title, component })`; the component gets `PluginVkThreadInfoSectionProps` (`threadId`, `projectId`) and
-renders for every thread whose info panel is open (return null to show nothing). Each section mounts
-through `PluginSlotMount` (CSS scope, error boundary; a crash shows nothing). Feature-test
+renders for every thread whose info panel is open (return null to show nothing). Feature-test
 `typeof app.slots.experimental_vkThreadInfoSection === "function"`.
+
+Since 0.47 bb has its own Info section slot (`experimental_threadInfoSection`, #6117). The VK slot is an
+alias of it: the collector registers the section among `threadInfoSections` with group `changes` and
+order 30 (after bb's commits 10 and uncommitted changes 20, before storage), wrapped in the labelled group
+(`role="group"`, `aria-label` = title) it always had. Rendering, per-pane mounts, ordering and crash
+isolation are bb's. Ids share bb's Info section namespace. New plugin code should use
+`experimental_threadInfoSection` when present; drop this alias once Lane Pilot does.
 
 No schema, no migration, no protocol change.
 
@@ -546,13 +552,10 @@ Consumer: plugin `lane-pilot` (what Lane Pilot runs for this chat: tasks, curren
 | File | What |
 | --- | --- |
 | `packages/plugin-sdk/src/app-contract.ts` | `PluginVkThreadInfoSectionProps`, `PluginVkThreadInfoSectionRegistration`, `PluginAppSlots.experimental_vkThreadInfoSection` |
-| `packages/plugin-sdk/src/internal/plugin-app-registration-collector.ts` | `vkThreadInfoSections` collection and the slot method |
-| `packages/plugin-sdk/src/testing/app.tsx` | harness type: `vkThreadInfoSections` |
-| `apps/app/src/lib/plugin-slots.ts` | `vkThreadInfoSections` slot kind |
-| `apps/app/src/components/secondary-panel/ThreadMetadataContent.tsx` | core section `vkPluginSections` (group `changes`, order 30) rendering `<VkPluginThreadInfoSections>` after the uncommitted changes |
+| `packages/plugin-sdk/src/internal/plugin-app-registration-collector.ts` | the slot method: alias into `threadInfoSections` (`vkTitledInfoSection`, `VK_THREAD_INFO_SECTION_ORDER`) |
 | `apps/server/test/services/plugins/plugin-authoring-docs.test.ts`, `plugins/bb-guide/.../frontend-api-index.md`, `frontend-core-slots.md` | docs |
 
-New files: `apps/app/src/components/plugin/VkPluginThreadInfoSections.tsx`, `packages/plugin-sdk/src/internal/vk-thread-info-section.test.ts`.
+New files: `packages/plugin-sdk/src/internal/vk-thread-info-section.test.ts`. No app-side hook points since 0.47.
 
 ## Claude bridge tool presentation (`claude-bridge-tool-presentation`)
 

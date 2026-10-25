@@ -62,7 +62,6 @@ import {
   type PluginComposerThreadRowStatus,
   type PluginFileOpenerRegistration,
   type PluginVkImageEditorRegistration,
-  type PluginVkThreadInfoSectionRegistration,
   type PluginHomepageSectionRegistration,
   type PluginMessageActionRegistration,
   type ExperimentalMessageMetadataRegistration,
@@ -2192,7 +2191,6 @@ export interface CapturedPluginApp {
   browserToolbarActions: ExperimentalPluginBrowserToolbarActionRegistration[];
   fileOpeners: PluginFileOpenerRegistration[];
   vkImageEditors: PluginVkImageEditorRegistration[];
-  vkThreadInfoSections: PluginVkThreadInfoSectionRegistration[];
   sourceCodeRenderers: PluginSourceCodeRendererRegistration[];
   diffRenderers: PluginDiffRendererRegistration[];
   composers: ExperimentalComposerRegistration[];
