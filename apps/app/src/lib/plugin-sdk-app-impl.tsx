@@ -31,7 +31,7 @@ import { VoiceInputButton } from "@/components/promptbox/VoiceInputButton";
 import { VoiceRecordingBar } from "@/components/promptbox/VoiceRecordingBar";
 import { FailedVoiceRecordings } from "@/components/promptbox/FailedVoiceRecordings";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
-import { VkPluginImageLightbox } from "@/components/ui/vk-plugin-image-lightbox"; // VK EXPERIMENTAL
+import { VkSdkImageLightbox } from "@/components/ui/vk-sdk-image-lightbox"; // VK EXPERIMENTAL
 import { ComposerMentionIcon } from "@/components/promptbox/mentions/PromptMentionIcon";
 import {
   describePromptMention,
@@ -182,7 +182,7 @@ export const pluginSdkAppImplementation = {
   experimental_VoiceRecordingBar: VoiceRecordingBar,
   experimental_FailedVoiceRecordings: FailedVoiceRecordings,
   experimental_ShortcutHint: AppCommandShortcutHint,
-  experimental_ImageLightbox: VkPluginImageLightbox,
+  experimental_ImageLightbox: VkSdkImageLightbox,
   experimental_PromptMentionIcon: ComposerMentionIcon,
   experimental_describePromptMention: describePromptMention,
   experimental_promptMentionClipboardAttributes:
