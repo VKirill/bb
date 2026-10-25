@@ -2264,23 +2264,26 @@ export interface PluginStatusApi {
 export type PluginBbSdk = Omit<BbSdk, "threads"> & {
   threads: Omit<
     BbSdk["threads"],
-    "getPluginMetadata" | "updatePluginMetadata" | "experimental_listPluginMetadata"
+    | "getPluginMetadata"
+    | "updatePluginMetadata"
+    | "experimental_listPluginMetadata"
   > &
+    // VK EXPERIMENTAL: experimental_vkSpawnKeyed, vkFindByKey, vkFindByPluginMetadata.
     ExperimentalVkThreadKeys & {
-      getPluginMetadata(
-        args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
-      ): Promise<ThreadPluginMetadataResult>;
-      experimental_listPluginMetadata(
-        args: Omit<PluginThreadMetadataListArgs, "pluginId"> & {
-          pluginId?: string;
-        },
-      ): Promise<PluginThreadMetadataListResult>;
-      updatePluginMetadata(
-        args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
-          pluginId?: string;
-        },
-      ): Promise<ThreadPluginMetadataResult>;
-    };
+    getPluginMetadata(
+      args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
+    ): Promise<ThreadPluginMetadataResult>;
+    experimental_listPluginMetadata(
+      args: Omit<PluginThreadMetadataListArgs, "pluginId"> & {
+        pluginId?: string;
+      },
+    ): Promise<PluginThreadMetadataListResult>;
+    updatePluginMetadata(
+      args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
+        pluginId?: string;
+      },
+    ): Promise<ThreadPluginMetadataResult>;
+  };
 };
 
 /**
