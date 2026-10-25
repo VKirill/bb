@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type {
   CanUseTool,
+  McpSdkServerConfigWithInstance,
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -109,7 +110,8 @@ interface ControlledClaudeQuery {
 
 interface ClaudeQueryCallOptions {
   allowDangerouslySkipPermissions?: boolean;
-  mcpServers?: BridgeSessionOptions["mcpServers"];
+  // VK EXPERIMENTAL: the session also accepts plain MCP configs; bb-bridge here is the SDK server.
+  mcpServers?: Record<string, McpSdkServerConfigWithInstance>;
   canUseTool?: CanUseTool;
   env?: Record<string, string | undefined>;
   extraArgs?: Record<string, string | null>;
