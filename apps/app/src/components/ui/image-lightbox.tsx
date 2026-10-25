@@ -191,6 +191,7 @@ export function ImageLightbox({
   const vkActive =
     vkEditing &&
     vkEdit !== undefined &&
+    mediaType !== "video" &&
     vkEditor !== null &&
     imageSrc !== null &&
     !vkEditorCrashed;
