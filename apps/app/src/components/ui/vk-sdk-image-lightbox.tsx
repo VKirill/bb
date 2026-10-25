@@ -1,13 +1,10 @@
-// VK EXPERIMENTAL: `experimental_ImageLightbox` as plugins get it.
+// VK EXPERIMENTAL: `experimental_ImageLightbox` for plugins, with the plugin
+// image editor for composer draft attachments (`experimental_vkDraftAttachment`).
 import type { ExperimentalImageLightboxProps } from "@get-bb/plugin-sdk";
 import { ImageLightbox } from "./image-lightbox";
 import { useVkDraftImageEdit } from "./vk-image-editor";
 
-/**
- * The core lightbox plus the plugin image editor when the plugin names the
- * previewed composer draft attachment (bb's composer plugin does).
- */
-export function VkPluginImageLightbox({
+export function VkSdkImageLightbox({
   experimental_vkDraftAttachment: draftAttachment,
   ...props
 }: ExperimentalImageLightboxProps) {
