@@ -253,11 +253,13 @@ function systemMessageTitleSegments(
         : SYSTEM_MESSAGE_FALLBACK_SEGMENTS;
     case "tool-result-delivered":
       return subject !== null && subject.kind === "tool-call"
-        ? [
-            verbSegment("Delivered"),
-            subjectSegment(subject.toolName, null),
-            verbSegment("result"),
-          ]
+        ? subject.label // VK EXPERIMENTAL (delivered-label): the plugin's label for the finished call
+          ? [subjectSegment(subject.label, null)]
+          : [
+              verbSegment("Delivered"),
+              subjectSegment(subject.toolName, null),
+              verbSegment("result"),
+            ]
         : SYSTEM_MESSAGE_FALLBACK_SEGMENTS;
     case "environment-directory-updated":
       return subject !== null && subject.kind === "directory"

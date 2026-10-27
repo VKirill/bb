@@ -579,6 +579,27 @@ Consumer: plugin `lane-pilot` (H7 labels of its `lane_pilot_*` tools).
 
 Tests: `plugins/provider-claude-code/src/session-params.test.ts` ("dynamic tool presentation": kept, absent when not registered, bridge row label).
 
+## Delivered result label (`delivered-label`)
+
+A long tool call the model detached comes back as a system message titled «Delivered <tool_name> result», and the plugin's
+`presentation.label` (which already titles the tool's own row) was dropped on the way. The tool-call subject now carries the
+completed label, and the app titles the delivered result with it («Владелец ответил» for `lane_pilot_ask_owner`). A tool
+without a label reads as before. No SDK symbol, so no `vk-requires.json` entry.
+
+No migration: the subject is JSON inside the existing system-message column; `label` is optional, old rows parse unchanged.
+
+Consumer: plugin `lane-pilot` (`lane_pilot_ask_owner` and its other detached tools).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/domain/src/system-message.ts` | optional `label` on the `tool-call` subject |
+| `apps/server/src/services/plugins/detached-tool-result-delivery.ts` | `buildDetachedToolResultSubject` copies `presentation.label.completed` |
+| `apps/app/src/components/thread/timeline/GeneratedConversationMessage.tsx` | the `tool-result-delivered` title uses `subject.label` when present |
+
+Tests: `apps/server/src/services/plugins/vk-delivered-label.test.ts`, `apps/app/src/components/thread/timeline/GeneratedConversationMessage.test.ts` ("titles a detached result with the plugin's label").
+
 ## RPC caller identity (`rpc-caller`)
 
 BB's HTTP API has no login: anything that reaches `$BB_SERVER_URL` can post to `/api/v1/plugins/<id>/rpc/<method>`

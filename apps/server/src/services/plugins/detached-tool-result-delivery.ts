@@ -44,10 +44,13 @@ function buildDetachedToolResultSubject(args: {
   toolName: string;
   presentation: PluginRowPresentation | null;
 }): SystemMessageSubject {
+  // VK EXPERIMENTAL (delivered-label): the plugin's own label for the finished call titles the delivered result.
+  const label = args.presentation?.label?.completed?.trim();
   return {
     kind: "tool-call",
     toolName: args.toolName,
     suppress: args.presentation?.suppress ?? false,
+    ...(label ? { label } : {}),
   };
 }
 
