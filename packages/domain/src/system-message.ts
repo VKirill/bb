@@ -66,6 +66,8 @@ export const systemMessageSubjectSchema = z.discriminatedUnion("kind", [
     kind: z.literal("tool-call"),
     toolName: z.string(),
     suppress: z.boolean(),
+    // VK EXPERIMENTAL (delivered-label): the tool's completed label from its registered presentation, read as the row title.
+    label: z.string().optional(),
   }),
   z.object({
     kind: z.literal("directory"),
