@@ -119,6 +119,21 @@ describe("generatedConversationTitle — system source", () => {
     expect(title.segments[2]?.text).toBe("result");
   });
 
+  it("titles a detached result with the plugin's label for the finished call (VK delivered-label)", () => {
+    const title = systemTitle({
+      systemMessageKind: "tool-result-delivered",
+      systemMessageSubject: {
+        kind: "tool-call",
+        toolName: "lane_pilot_ask_owner",
+        suppress: false,
+        label: "Владелец ответил",
+      },
+    });
+
+    expect(title.plain).toBe("Владелец ответил");
+    expect(title.segments).toHaveLength(1);
+  });
+
   it("falls back to the generic System Message title for unlabeled rows", () => {
     const title = systemTitle({
       systemMessageKind: "unlabeled",
