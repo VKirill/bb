@@ -1,4 +1,5 @@
 import { firstPerIdentity, resolveSkillPath } from "@bb/skill-index";
+import { vkSkillTreeCacheLimit } from "./vk-skill-cache.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
@@ -18,7 +19,7 @@ const STORE_ROOT_SEGMENTS = ["runtime", "skill-store"] as const;
 const STORE_CONTENT_DIR = "content";
 const STORE_COMPLETE_MARKER = ".complete";
 const STORE_LAST_USED_MARKER = ".last-used";
-export const MAX_SKILL_STORE_TREES = 64;
+export const MAX_SKILL_STORE_TREES = vkSkillTreeCacheLimit;
 const STALE_TEMP_STAGING_DIR_AGE_MS = 60 * 60 * 1000;
 const STAGE_CATALOG_FILE = "catalog.json";
 const WINDOWS_RENAME_RETRY_BUDGET_MS = 5_000;
@@ -143,7 +144,7 @@ interface CreateCatalogFileArgs {
   trees: readonly CollectedSkillTree[];
 }
 
-const MAX_COLLECTED_TREE_MEMOS = 256;
+const MAX_COLLECTED_TREE_MEMOS = vkSkillTreeCacheLimit;
 
 const collectedTreeMemos = new Map<string, SkillTreeCollectionState>();
 const scheduledSkillStoreGcs = new Set<string>();

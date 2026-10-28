@@ -196,6 +196,45 @@ async function countStoredTrees(dataDir: string): Promise<number> {
 }
 
 describe("injected skill staging", () => {
+  it("keeps a 333-skill catalog warm across turns after disk eviction", async () => {
+    const dataDir = await makeTempDir();
+    const trees = Array.from({ length: 333 }, (_, index) => {
+      const name = `warm-catalog-${index}`;
+      const payload = createTreePayload(name, `content-${index}`);
+      return { payload, source: createTreeSource(name, payload.treeHash) };
+    });
+    const payloadByHash = new Map(
+      trees.map(({ payload }) => [payload.treeHash, payload]),
+    );
+    const fetchSkillTree = vi.fn(async (treeHash: string) => {
+      const payload = payloadByHash.get(treeHash);
+      if (!payload) throw new Error("Unknown fixture tree");
+      return payload;
+    });
+    const args = {
+      workspacePath: dataDir,
+      dataDir,
+      fetchSkillTree,
+      injectedSkillSources: trees.map(({ source }) => source),
+    };
+    await stageInjectedSkillSources(args);
+    await vi.waitFor(async () => {
+      expect(await countStoredTrees(dataDir)).toBeLessThanOrEqual(
+        MAX_SKILL_STORE_TREES,
+      );
+    });
+    await rm(path.join(dataDir, "runtime", "skill-store"), {
+      recursive: true,
+      force: true,
+    });
+    fetchSkillTree.mockClear();
+    fetchSkillTree.mockImplementation(async () => {
+      throw new Error("A warm catalog must not be fetched again");
+    });
+    await stageInjectedSkillSources(args);
+    expect(fetchSkillTree).not.toHaveBeenCalled();
+  });
+
   it("pulls a missing tree, stages identical bytes and modes, and reuses the store", async () => {
     const dataDir = await makeTempDir();
     const payload = createTreePayload("synced-skill");
