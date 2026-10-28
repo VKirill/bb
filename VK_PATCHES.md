@@ -726,3 +726,18 @@ No schema, no migration, no protocol change.
 | `plugins/environment-git-worktree/host/worktree.ts` | `finishWorktreeSetup`: `vkLinkWorktreeDependencies` after the included files, a progress line naming the linked folders |
 
 New files: `plugins/environment-git-worktree/host/vk-worktree-deps.ts`, `plugins/environment-git-worktree/host/vk-worktree-deps.test.ts`.
+
+## Skill tree cache capacity
+
+The host daemon keeps up to 512 immutable skill trees in memory and on disk. With a 333-skill catalog,
+upstream's 256-entry memory LRU evicted the next turn's entries while reading them; the 64-tree disk
+store then forced 269 repeated server fetches per turn. This adds seconds before `turn/started`,
+including for ACP providers such as ZCode. The bounded cache now holds the current catalog without
+that eviction cycle. No wire, schema or migration changes.
+
+| File | What |
+| --- | --- |
+| `apps/host-daemon/src/injected-skills.ts` | Both cache capacities use `vkSkillTreeCacheLimit` |
+
+New file: `apps/host-daemon/src/vk-skill-cache.ts`. Regression: a 333-skill catalog stays warm after
+its disk copies are evicted; no second server fetch. Existing store-cap tests retain LRU eviction.
