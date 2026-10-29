@@ -500,7 +500,7 @@ Consumer: plugin `office-viewer` (image editor; "To chat" button).
 | `apps/app/src/lib/composer-editor-registry.ts` | optional `vkAttachFiles` on `ComposerEditorBridge` |
 | `apps/app/src/lib/plugin-composer-handle.ts` | `vkAttachFiles` on the handle target |
 | `apps/app/src/components/promptbox/ComposerBox.tsx` | `vkAttachFiles: createVkAttachFiles(host, …)` in the bridge built by `registerEditor` |
-| `apps/app/src/components/ui/image-lightbox.tsx` | `vkEdit` prop, Edit button, editor view, key/Escape/click guards |
+| `apps/app/src/components/ui/image-lightbox.tsx` | `vkEdit` prop, Edit button, editor view, key/Escape/click guards; upstream's pan-zoom `touch-none` is dropped while the editor is open |
 | `plugins/composer/src/AttachmentPreview.tsx` | passes `experimental_vkDraftAttachment` to `experimental_ImageLightbox` (draft) |
 | `apps/app/src/lib/plugin-sdk-app-impl.tsx` | `experimental_ImageLightbox` is `VkSdkImageLightbox` (`vkEdit` from `useVkDraftImageEdit`) |
 | `apps/app/src/components/thread/timeline/ConversationAttachments.tsx`, `TimelineImageGallery.tsx` | `vkEdit` from `useVkMessageImageEdit` (message) |
@@ -739,7 +739,7 @@ that eviction cycle. No wire, schema or migration changes.
 
 | File | What |
 | --- | --- |
-| `apps/host-daemon/src/injected-skills.ts` | Both cache capacities use `vkSkillTreeCacheLimit` |
+| `apps/host-daemon/src/injected-skills.ts` | Both cache capacities use `vkSkillTreeCacheLimit`; upstream's `MAX_COLLECTED_TREE_MEMO_FILES` (16 384 files, 0.48) stays and bounds memory |
 
 New file: `apps/host-daemon/src/vk-skill-cache.ts`. Regression: a 333-skill catalog stays warm after
 its disk copies are evicted; no second server fetch. Existing store-cap tests retain LRU eviction.
