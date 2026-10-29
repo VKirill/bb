@@ -1297,6 +1297,38 @@ describe("ModelReasoningPicker", () => {
   });
 });
 
+describe("ModelReasoningPicker vendor subgroups", () => {
+  beforeAll(() => ModelReasoningMenu.preload());
+
+  it("opens the selected model's vendor, then another vendor on click", () => {
+    renderPicker({
+      modelOptions: [
+        { value: "or-free", label: "OpenRouter/🎁 Free/Gemma" },
+        { value: "or-opus", label: "OpenRouter/Anthropic/Claude Opus" },
+        { value: "or-haiku", label: "OpenRouter/Anthropic/Claude Haiku" },
+        { value: "ds-pro", label: "DeepSeek/V4 Pro" },
+        { value: "ds-flash", label: "DeepSeek/V4.1 Flash" },
+        { value: "ds-lite", label: "DeepSeek/V4 Lite" },
+      ],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Provider, model and reasoning" }),
+    );
+    // The first model is selected, so its provider and vendor start open.
+    expect(screen.getByRole("option", { name: "Gemma" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Anthropic/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Claude Opus" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Anthropic/ }));
+    expect(screen.getByRole("option", { name: "Claude Opus" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /OpenRouter/ }));
+    expect(screen.queryByRole("button", { name: /Anthropic/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Gemma" })).toBeNull();
+  });
+});
+
 describe("buildModelNavRows", () => {
   const primary: readonly PickerOption<string>[] = [
     { value: "a", label: "A" },

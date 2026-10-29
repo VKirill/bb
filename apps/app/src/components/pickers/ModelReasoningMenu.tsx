@@ -47,7 +47,7 @@ import {
 } from "./model-load-error-message";
 import type { ModelNavRow } from "./ModelReasoningPicker";
 import type { VkFavoriteCopy } from "./vk-favorite-models";
-import { vkSplitModelGroupLabel } from "./vk-model-groups";
+import { vkModelLeafLabel } from "./vk-model-groups";
 
 /** VK EXPERIMENTAL: favorite models and accordion groups. */
 export interface VkModelMenuProps {
@@ -194,6 +194,7 @@ export function ModelReasoningMenu({
                       label={row.label}
                       count={row.count}
                       expanded={row.expanded}
+                      depth={row.depth}
                       isActive={active}
                       onToggle={() => vk?.onToggleGroup(row.id)}
                     />
@@ -222,9 +223,10 @@ export function ModelReasoningMenu({
                     role={listboxId ? "option" : undefined}
                     isActive={active}
                     inset={row.inset}
+                    deepInset={(row.depth ?? 0) > 1}
                     label={
                       row.inset
-                        ? vkSplitModelGroupLabel(strippedLabel).model
+                        ? vkModelLeafLabel(strippedLabel, row.depth ?? 1)
                         : strippedLabel
                     }
                     qualifier={option.routeProviderId}
@@ -535,6 +537,7 @@ function ProviderGroupRow({
   onToggle,
   isActive,
   id,
+  depth = 0,
 }: {
   label: string;
   count: number;
@@ -542,6 +545,7 @@ function ProviderGroupRow({
   onToggle: () => void;
   isActive?: boolean;
   id?: string;
+  depth?: number;
 }) {
   const { hoverProps } = useMenuItemHover();
   const isCompactViewport = useIsCompactViewport();
@@ -557,6 +561,7 @@ function ProviderGroupRow({
         MENU_ITEM_LAST_HOVERED_CLASS,
         isActive && "bg-state-active",
         isCompactViewport ? "py-2" : "py-1.5",
+        depth > 0 && "mt-0 pl-7",
       )}
       {...hoverProps}
     >
@@ -567,7 +572,12 @@ function ProviderGroupRow({
           expanded && "rotate-90 text-foreground",
         )}
       />
-      <span className="min-w-0 flex-1 truncate text-left font-medium">
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-left",
+          depth === 0 && "font-medium",
+        )}
+      >
         {label}
       </span>
       <span className="shrink-0 tabular-nums text-muted-foreground">
@@ -577,10 +587,7 @@ function ProviderGroupRow({
   );
 }
 
-function vkFavoriteRowProps(
-  vk: VkModelMenuProps | undefined,
-  model: string,
-) {
+function vkFavoriteRowProps(vk: VkModelMenuProps | undefined, model: string) {
   if (!vk) return {};
   return {
     favorite: vk.isFavorite(model),
@@ -755,6 +762,7 @@ function MenuRowButton({
   favoriteRemoveLabel,
   onToggleFavorite,
   inset = false,
+  deepInset = false,
 }: {
   label: string;
   qualifier?: string;
@@ -770,6 +778,8 @@ function MenuRowButton({
   favoriteRemoveLabel?: string;
   onToggleFavorite?: () => void;
   inset?: boolean;
+  /** VK EXPERIMENTAL: a model inside a subgroup. */
+  deepInset?: boolean;
 }) {
   const { hoverProps } = useMenuItemHover();
   const { base, tag } = splitModelLabelTag(label);
@@ -780,10 +790,13 @@ function MenuRowButton({
     isActive && "bg-state-active",
     disabled && "cursor-not-allowed opacity-60",
     "py-[0.3125rem] max-md:pointer-coarse:py-2",
-    inset && "pl-7",
+    inset && (deepInset ? "pl-12" : "pl-7"),
   );
   return (
-    <div className={rowClassName} data-last-hovered={hoverProps["data-last-hovered"]}>
+    <div
+      className={rowClassName}
+      data-last-hovered={hoverProps["data-last-hovered"]}
+    >
       <button
         type="button"
         id={id}
