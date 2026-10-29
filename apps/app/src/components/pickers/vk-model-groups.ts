@@ -7,7 +7,13 @@ export const VK_UNGROUPED_MODEL_GROUP_ID = "__ungrouped__";
 export interface VkModelGroup {
   id: string;
   label: string;
+  /** Every model of the group, subgroups included. */
   options: ModelPickerOption[];
+  /**
+   * Second level for labels like `Provider/Vendor/Model`: set when the
+   * group's models name at least two vendors, otherwise the group is flat.
+   */
+  subgroups?: VkModelGroup[];
 }
 
 export function vkSplitModelGroupLabel(label: string): {
@@ -32,31 +38,68 @@ function defaultLang(): string {
   return typeof document === "undefined" ? "en" : document.documentElement.lang;
 }
 
+/** Buckets by the label's first segment, in catalog order. */
+function bucketModels(
+  options: readonly ModelPickerOption[],
+  getLabel: (option: ModelPickerOption) => string,
+  idPrefix: string,
+  ungroupedLabel: string,
+): VkModelGroup[] {
+  const groups = new Map<string, VkModelGroup>();
+  for (const option of options) {
+    const { group } = vkSplitModelGroupLabel(getLabel(option));
+    const key = group ?? VK_UNGROUPED_MODEL_GROUP_ID;
+    let bucket = groups.get(key);
+    if (!bucket) {
+      bucket = {
+        id: `${idPrefix}${key}`,
+        label: group ?? ungroupedLabel,
+        options: [],
+      };
+      groups.set(key, bucket);
+    }
+    bucket.options.push(option);
+  }
+  // Models without a group of their own close the list.
+  const ungrouped = groups.get(VK_UNGROUPED_MODEL_GROUP_ID);
+  if (!ungrouped || idPrefix === "") return [...groups.values()];
+  groups.delete(VK_UNGROUPED_MODEL_GROUP_ID);
+  return [...groups.values(), ungrouped];
+}
+
+function namedGroupCount(groups: readonly VkModelGroup[]): number {
+  return groups.filter(
+    (group) => !group.id.endsWith(VK_UNGROUPED_MODEL_GROUP_ID),
+  ).length;
+}
+
 export function vkGroupModels(
   options: readonly ModelPickerOption[],
   getLabel: (option: ModelPickerOption) => string,
   ungroupedLabel = vkUngroupedGroupLabel(),
 ): VkModelGroup[] {
-  const groups = new Map<string, VkModelGroup>();
-  const order: string[] = [];
-  for (const option of options) {
-    const { group } = vkSplitModelGroupLabel(getLabel(option));
-    const id = group ?? VK_UNGROUPED_MODEL_GROUP_ID;
-    let bucket = groups.get(id);
-    if (!bucket) {
-      bucket = {
-        id,
-        label: group ?? ungroupedLabel,
-        options: [],
-      };
-      groups.set(id, bucket);
-      order.push(id);
-    }
-    bucket.options.push(option);
+  const groups = bucketModels(options, getLabel, "", ungroupedLabel);
+  if (namedGroupCount(groups) < 2) return [];
+  for (const group of groups) {
+    if (group.id === VK_UNGROUPED_MODEL_GROUP_ID) continue;
+    const subgroups = bucketModels(
+      group.options,
+      (option) => vkSplitModelGroupLabel(getLabel(option)).model,
+      `${group.id}/`,
+      ungroupedLabel,
+    );
+    if (namedGroupCount(subgroups) >= 2) group.subgroups = subgroups;
   }
-  const named = order.filter((id) => id !== VK_UNGROUPED_MODEL_GROUP_ID);
-  if (named.length < 2) return [];
-  return order.map((id) => groups.get(id)!);
+  return groups;
+}
+
+/** The model's name without the group segments shown above it. */
+export function vkModelLeafLabel(label: string, depth: number): string {
+  let rest = label;
+  for (let level = 0; level < depth; level += 1) {
+    rest = vkSplitModelGroupLabel(rest).model;
+  }
+  return rest;
 }
 
 export function vkGroupContaining(
@@ -66,4 +109,17 @@ export function vkGroupContaining(
   return groups.find((group) =>
     group.options.some((option) => option.value === modelValue),
   );
+}
+
+/** IDs of the group and subgroup holding the model, outermost first. */
+export function vkGroupPathContaining(
+  groups: readonly VkModelGroup[],
+  modelValue: string,
+): string[] {
+  const group = vkGroupContaining(groups, modelValue);
+  if (!group) return [];
+  const subgroup = group.subgroups
+    ? vkGroupContaining(group.subgroups, modelValue)
+    : undefined;
+  return subgroup ? [group.id, subgroup.id] : [group.id];
 }
