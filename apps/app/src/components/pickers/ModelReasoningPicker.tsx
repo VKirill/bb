@@ -87,8 +87,8 @@ import {
   vkFavoriteOptionsForProvider,
 } from "./vk-favorite-models";
 import {
-  vkGroupContaining,
   vkGroupModels,
+  vkGroupPathContaining,
   type VkModelGroup,
 } from "./vk-model-groups";
 import type {
@@ -150,6 +150,8 @@ export type ModelNavRow =
       option: ModelPickerOption;
       list?: "favorites" | "all";
       inset?: boolean;
+      /** VK EXPERIMENTAL: 2 inside a subgroup. */
+      depth?: number;
     }
   | { kind: "more-toggle" }
   | { kind: "section"; id: "favorites" | "all" }
@@ -159,6 +161,8 @@ export type ModelNavRow =
       label: string;
       count: number;
       expanded: boolean;
+      /** VK EXPERIMENTAL: 1 for a subgroup. */
+      depth?: number;
     };
 
 const EMPTY_FAVORITE_OPTIONS: readonly ModelPickerOption[] = [];
@@ -200,23 +204,26 @@ export function buildModelNavRows({
   }
   const restModelOptions = exceptFavorites(modelOptions);
   const restMoreModelOptions = exceptFavorites(moreModelOptions);
-  const restGroups = groups
-    .map((group) => ({
-      ...group,
-      options: exceptFavorites(group.options),
-    }))
-    .filter((group) => group.options.length > 0);
+  const withoutFavorites = (list: readonly VkModelGroup[]): VkModelGroup[] =>
+    list
+      .map((group) => ({
+        ...group,
+        options: [...exceptFavorites(group.options)],
+        ...(group.subgroups
+          ? { subgroups: withoutFavorites(group.subgroups) }
+          : {}),
+      }))
+      .filter((group) => group.options.length > 0);
+  const restGroups = withoutFavorites(groups);
   const useGroups = restGroups.length >= 2;
   const hasRest =
-    useGroups ||
-    restModelOptions.length > 0 ||
-    restMoreModelOptions.length > 0;
+    useGroups || restModelOptions.length > 0 || restMoreModelOptions.length > 0;
   if (showFavoriteBlock && hasRest) {
     rows.push({ kind: "section", id: "all" });
   }
   const list = showFavoriteBlock ? "all" : undefined;
   if (useGroups) {
-    for (const group of restGroups) {
+    const pushGroup = (group: VkModelGroup, depth: number) => {
       const expanded =
         isSearching || (expandedGroupIds?.has(group.id) ?? false);
       rows.push({
@@ -225,17 +232,24 @@ export function buildModelNavRows({
         label: group.label,
         count: group.options.length,
         expanded,
+        depth,
       });
-      if (!expanded) continue;
+      if (!expanded) return;
+      if (group.subgroups) {
+        for (const subgroup of group.subgroups) pushGroup(subgroup, depth + 1);
+        return;
+      }
       for (const option of group.options) {
         rows.push({
           kind: "model",
           option,
           list,
           inset: true,
+          depth: depth + 1,
         });
       }
-    }
+    };
+    for (const group of restGroups) pushGroup(group, 0);
     return rows;
   }
   for (const option of restModelOptions) {
@@ -574,20 +588,18 @@ export function ModelReasoningPicker({
   const activeBrandPrefix = activeProvider?.brandPrefix;
   // VK EXPERIMENTAL: starred models for this provider, stored in localStorage.
   const favoriteCopy = vkFavoriteCopy();
-  const { favorites, toggle: toggleFavorite, isFavorite } =
-    useVkFavoriteModels(activeProviderId);
+  const {
+    favorites,
+    toggle: toggleFavorite,
+    isFavorite,
+  } = useVkFavoriteModels(activeProviderId);
   const favoriteCatalogOptions = useMemo(
     () =>
       vkFavoriteOptionsForProvider(favorites, activeProviderId, [
         ...activeModelOptions,
         ...activeMoreModelOptions,
       ]),
-    [
-      activeModelOptions,
-      activeMoreModelOptions,
-      activeProviderId,
-      favorites,
-    ],
+    [activeModelOptions, activeMoreModelOptions, activeProviderId, favorites],
   );
   const filteredModelOptions = useMemo(() => {
     if (!isSearching) {
@@ -626,12 +638,7 @@ export function ModelReasoningPicker({
           ? [option.routeProviderId, option.value]
           : [option.value],
     });
-  }, [
-    activeBrandPrefix,
-    favoriteCatalogOptions,
-    isSearching,
-    searchQuery,
-  ]);
+  }, [activeBrandPrefix, favoriteCatalogOptions, isSearching, searchQuery]);
   const groupingCatalog = useMemo(() => {
     const favoriteIds = new Set(
       filteredFavoriteOptions.map((option) => option.value),
@@ -657,19 +664,16 @@ export function ModelReasoningPicker({
   );
   const groupingActive = modelGroups.length >= 2;
   useEffect(() => {
-    setExpandedGroupIds(() => {
-      const selectedGroup = vkGroupContaining(modelGroups, modelValue);
-      return selectedGroup ? new Set([selectedGroup.id]) : new Set();
-    });
+    setExpandedGroupIds(
+      () => new Set(vkGroupPathContaining(modelGroups, modelValue)),
+    );
   }, [activeProviderId]);
   useEffect(() => {
-    const selectedGroup = vkGroupContaining(modelGroups, modelValue);
-    if (!selectedGroup) return;
+    const path = vkGroupPathContaining(modelGroups, modelValue);
+    if (path.length === 0) return;
     setExpandedGroupIds((current) => {
-      if (current.has(selectedGroup.id)) return current;
-      const next = new Set(current);
-      next.add(selectedGroup.id);
-      return next;
+      if (path.every((id) => current.has(id))) return current;
+      return new Set([...current, ...path]);
     });
   }, [modelGroups, modelValue]);
   const toggleGroup = useCallback((groupId: string) => {
@@ -686,7 +690,9 @@ export function ModelReasoningPicker({
     () =>
       groupingActive
         ? EMPTY_MODEL_OPTIONS
-        : filteredMoreModelOptions.filter((option) => !isFavorite(option.value)),
+        : filteredMoreModelOptions.filter(
+            (option) => !isFavorite(option.value),
+          ),
     [filteredMoreModelOptions, groupingActive, isFavorite],
   );
 
