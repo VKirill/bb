@@ -290,6 +290,8 @@ New files: `apps/app/src/components/pickers/vk-favorite-models.ts`, `vk-model-gr
 
 When model labels look like `Provider/Model` and there are at least two providers, the catalog is an accordion: click a provider row to expand its models.
 
+A second level for `Provider/Vendor/Model` labels: when one provider's models name at least two vendors, the provider row opens into vendor rows (opencode2 sends OpenRouter as `OpenRouter/Anthropic/…`, free models as `OpenRouter/🎁 Бесплатные/…`). Models without a vendor go into a closing «Другие» row; the selected model's provider and vendor start open.
+
 ## Quiet child threads (`quiet-child`)
 
 A plugin that watches its own helper threads marks them `experimental_vkQuietChild: true` in the `pluginMetadata`
