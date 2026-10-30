@@ -170,6 +170,46 @@ describe("VK drain on reload and shutdown", () => {
     ]);
   });
 
+  it("runs a hook listed from the replaced instance on the new one without stalling the reload", async () => {
+    await install(true);
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      trace().drainStarted = resolve;
+    });
+    trace().hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await writeV2();
+    // Listed before the reload, as dispatch does: the record belongs to v1.
+    const [registration] = harness.pluginService.hooks
+      .listHooks("message.dispatch")
+      .filter((entry) => entry.pluginId === "drainer");
+    if (registration === undefined) throw new Error("hook is not registered");
+    const reloading = harness.pluginService.reload("drainer");
+    await started;
+
+    const invocation = harness.pluginService.hooks.invokeHook(
+      registration,
+      "message.dispatch",
+      async () => registration.handler({} as never),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(events().filter((event) => event.hook)).toEqual([]);
+
+    const releasedAt = Date.now();
+    release();
+    expect((await reloading).ok).toBe(true);
+    // Disposal drains v1's invocations; the held hook must not be one of them.
+    expect(Date.now() - releasedAt).toBeLessThan(2_000);
+    expect(await invocation).toEqual({
+      ok: true,
+      value: { action: "proceed" },
+    });
+    expect(events().filter((event) => event.hook)).toEqual([
+      { v: "v2", hook: true },
+    ]);
+  });
+
   it("aborts a drain that overruns its deadline and reloads anyway", async () => {
     await install(true);
     await writeFile(join(rootDir, "package.json"), packageJson(true).replace("5000", "1000"));
