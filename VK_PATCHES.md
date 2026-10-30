@@ -743,3 +743,20 @@ that eviction cycle. No wire, schema or migration changes.
 
 New file: `apps/host-daemon/src/vk-skill-cache.ts`. Regression: a 333-skill catalog stays warm after
 its disk copies are evicted; no second server fetch. Existing store-cap tests retain LRU eviction.
+
+## Last turn in `thread.idle` (`idle-payload`)
+
+The `thread.idle` plugin event gains `experimental_vkLastTurn`: the newest
+`turn/completed` of the thread as `{ turnId, isSubAgent }`, or null when the
+thread never completed one. A plugin whose completion logic otherwise
+re-scans the event log (Lane Pilot's thread-observe: sub-agent
+`parentToolCallId` turns must not end the parent's wait) gets the answer
+inside the event it already receives.
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/plugin-service.ts` | `emitThreadIdle` adds `experimental_vkLastTurn` from `vkLastCompletedTurn` |
+| `packages/plugin-sdk/src/backend-contract.ts` | `PluginThreadEventPayloads["thread.idle"].experimental_vkLastTurn` |
+
+New files: `apps/server/src/services/plugins/vk-idle-payload.ts`,
+`apps/server/test/internal/vk-idle-payload.test.ts`.
