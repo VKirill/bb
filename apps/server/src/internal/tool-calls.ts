@@ -19,6 +19,8 @@ import {
   UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME,
 } from "../services/threads/thread-environment-directory.js";
 import { requireAuthenticatedDaemonSession } from "./session-state.js";
+// VK EXPERIMENTAL: the calling plugin's own thread metadata inside the tool's ctx.
+import { vkToolContextPluginMetadata } from "./vk-tool-ctx-metadata.js";
 
 const textEncoder = new TextEncoder();
 
@@ -105,6 +107,11 @@ export function registerInternalToolCallRoutes(app: Hono, deps: AppDeps): void {
                 threadId: thread.id,
                 projectId: thread.projectId,
                 signal,
+                // VK EXPERIMENTAL
+                experimental_vkPluginMetadata: vkToolContextPluginMetadata(deps, {
+                  threadId: thread.id,
+                  pluginId: pluginTool.pluginId,
+                }),
               },
             }),
           onDetachedResult: (result) =>

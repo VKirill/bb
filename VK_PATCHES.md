@@ -743,3 +743,20 @@ that eviction cycle. No wire, schema or migration changes.
 
 New file: `apps/host-daemon/src/vk-skill-cache.ts`. Regression: a 333-skill catalog stays warm after
 its disk copies are evicted; no second server fetch. Existing store-cap tests retain LRU eviction.
+
+## Tool context plugin metadata (`tool-ctx-metadata`)
+
+A plugin tool's `execute` ctx carries the calling plugin's own
+`thread_plugin_metadata` for the current thread as
+`ctx.experimental_vkPluginMetadata` (null when the thread stores none). The
+tool no longer round-trips `bb.sdk.threads.getPluginMetadata` per call — the
+metadata is read once where the ctx is assembled. Same value the SDK read
+returns; the SDK call stays for plugins on upstream bb (absent field = null).
+
+| File | What |
+| --- | --- |
+| `apps/server/src/internal/tool-calls.ts` | `ctx.experimental_vkPluginMetadata` from `vkToolContextPluginMetadata` |
+| `packages/plugin-sdk/src/backend-contract.ts` | `PluginAgentToolContext.experimental_vkPluginMetadata` |
+
+New files: `apps/server/src/internal/vk-tool-ctx-metadata.ts`,
+`apps/server/test/internal/vk-tool-ctx-metadata.test.ts`.
