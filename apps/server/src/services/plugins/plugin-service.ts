@@ -2467,7 +2467,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         .sort(([a], [b]) => a.localeCompare(b))
         .flatMap(([pluginId, plugin]) => {
           const resolver = plugin.handle.vkSessionPolicyResolver;
-          return resolver === null ? [] : [{ pluginId, resolver }];
+          return resolver === null ? [] : [{ pluginId, plugin, resolver }];
         });
       // The resolver sees the thread's metadata under its own id, as
       // `configure` does, so a plugin can recognise threads it started.
@@ -2484,9 +2484,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           }
         }
       }
-      for (const { pluginId, resolver } of resolvers) {
+      for (const { pluginId, plugin, resolver } of resolvers) {
         const outcome = await invokeWrapped(
-          pluginId,
+          plugin,
           "vk session policy",
           async () =>
             raceTimeout(

@@ -5,7 +5,6 @@ import type {
 } from "./vk-schedule-options.js";
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
-import type { ExperimentalVkLifecycleInfo } from "./vk-plugin-lifecycle.js";
 import type { PluginVkApi } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import type { ExperimentalVkRpcCaller } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
 import type {
