@@ -1146,6 +1146,13 @@ export interface PluginAgentToolContext {
    * plugin disposal still abort the signal after detachment.
    */
   signal: AbortSignal;
+  /**
+   * VK EXPERIMENTAL: the calling plugin's own `thread_plugin_metadata` for this
+   * thread, or null when the thread carries none. Same value as
+   * `bb.sdk.threads.getPluginMetadata({ threadId })` inside the tool, read once
+   * per call so tools do not have to round-trip the SDK.
+   */
+  experimental_vkPluginMetadata?: Record<string, unknown> | null;
 }
 
 /**
