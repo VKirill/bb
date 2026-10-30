@@ -320,7 +320,9 @@ export interface PluginThreadEventPayloads {
   "thread.active": { thread: ThreadResponse };
   /** Fired when a thread transitions into `idle`. `lastAssistantText` is
    * assembled the same way GET /threads/:id/output is. */
-  "thread.idle": { thread: ThreadResponse; lastAssistantText: string | null };
+  "thread.idle": { thread: ThreadResponse; lastAssistantText: string | null;
+    /** VK EXPERIMENTAL: the latest `turn/completed` behind this idle — its turn id and whether it was a nested sub-agent turn; null when the thread never completed a turn. */
+    experimental_vkLastTurn?: { turnId: string | null; isSubAgent: boolean } | null };
   /** Fired when a thread transitions into `error`. `error` is the latest
    * system/error event message, when one exists. */
   "thread.failed": { thread: ThreadResponse; error: string | null };
