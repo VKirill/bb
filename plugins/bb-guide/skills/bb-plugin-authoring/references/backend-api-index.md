@@ -115,6 +115,8 @@ Read the installed declarations for exact current signatures.
 - `PluginAgentConfigurationContext`
 - `PluginAgentToolContentPart`
 - `PluginAgentToolContext`
+  - `ctx.experimental_vkPluginMetadata` — VK builds only: the calling plugin's own thread plugin metadata for the current thread (null when none), read once where the ctx is built. Fall back to `bb.sdk.threads.getPluginMetadata` when the field is absent (upstream BB).
+- `thread.idle` event — VK builds only: `experimental_vkLastTurn` `{ turnId, isSubAgent }` of the newest completed turn, or null. Treat an absent field as unknown and fall back to reading the event log.
 - `PluginAgentToolRegistrationBase`
 - `PluginAgentToolResult`
 - `PluginAgentToolSelection`
