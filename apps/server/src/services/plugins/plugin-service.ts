@@ -171,6 +171,7 @@ import {
   vkHookTimeoutMs,
 } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import { VK_UNKNOWN_CALLER } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
+import { vkLastCompletedTurn } from "./vk-idle-payload.js"; // VK EXPERIMENTAL
 import {
   DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
   type PluginHookProvider,
@@ -1444,6 +1445,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         emitThreadEvent("thread.idle", () => ({
           thread: buildThreadDto(thread),
           lastAssistantText: getLastThreadOutput(deps.db, thread.id),
+          // VK EXPERIMENTAL
+          experimental_vkLastTurn: vkLastCompletedTurn(deps.db, thread.id),
         }));
       },
       emitThreadFailed(thread) {

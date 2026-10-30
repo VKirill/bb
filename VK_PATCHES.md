@@ -760,3 +760,20 @@ returns; the SDK call stays for plugins on upstream bb (absent field = null).
 
 New files: `apps/server/src/internal/vk-tool-ctx-metadata.ts`,
 `apps/server/test/internal/vk-tool-ctx-metadata.test.ts`.
+
+## Last turn in `thread.idle` (`idle-payload`)
+
+The `thread.idle` plugin event gains `experimental_vkLastTurn`: the newest
+`turn/completed` of the thread as `{ turnId, isSubAgent }`, or null when the
+thread never completed one. A plugin whose completion logic otherwise
+re-scans the event log (Lane Pilot's thread-observe: sub-agent
+`parentToolCallId` turns must not end the parent's wait) gets the answer
+inside the event it already receives.
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/plugin-service.ts` | `emitThreadIdle` adds `experimental_vkLastTurn` from `vkLastCompletedTurn` |
+| `packages/plugin-sdk/src/backend-contract.ts` | `PluginThreadEventPayloads["thread.idle"].experimental_vkLastTurn` |
+
+New files: `apps/server/src/services/plugins/vk-idle-payload.ts`,
+`apps/server/test/internal/vk-idle-payload.test.ts`.
