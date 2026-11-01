@@ -215,6 +215,13 @@ two migrations), with the marker tables moved into thread plugin metadata.
 
 Consumer: plugin `lane-pilot` (helper context «selected» / «none», PM profile).
 
+ACP provider plugins (`devin` from `VKirill/bb-plugin-devin`, `zcode`): they run
+on `packages/provider-bridge-acp` (dialect `generic`), whose handshake and BB
+skill-list narrowing hold for any ACP agent, so `assertVkRequiredPolicyProvider`
+holds them to the Cursor rules (`VK_ACP_PLUGIN_POLICY_PROVIDERS`) and the
+capability lists them. Before 2026-11-01 a Lane Pilot writer on devin under a PM
+chat was refused as an unknown provider.
+
 ### Hook points in upstream files
 
 | File | What |

@@ -250,6 +250,18 @@ export function vkProviderEnforcesPolicyInCore(providerId: string): boolean {
   return VK_CORE_ENFORCED_POLICY_PROVIDERS.includes(providerId);
 }
 
+/**
+ * VK EXPERIMENTAL: provider plugins that run on BB's shared ACP bridge (packages/provider-bridge-acp, dialect `generic`):
+ * Devin (bb-plugin-devin) and ZCode. The bridge declares the handshake and narrows the BB skill list for any ACP agent, so
+ * a required policy holds for them exactly as for Cursor; nothing else (native plugins, a project-instruction switch) exists
+ * on their side. Without this entry a Lane Pilot writer thread under a PM chat was refused (2026-10-30, devin).
+ */
+export const VK_ACP_PLUGIN_POLICY_PROVIDERS: readonly string[] = ["devin", "zcode"];
+
+function vkAcpLikeProvider(providerId: string): boolean {
+  return providerId === "acp-cursor" || VK_ACP_PLUGIN_POLICY_PROVIDERS.includes(providerId);
+}
+
 export function assertVkRequiredPolicyProvider(
   providerId: string,
   policy: VkSessionPolicy,
@@ -260,6 +272,7 @@ export function assertVkRequiredPolicyProvider(
       "codex",
       "acp-opencode",
       "acp-cursor",
+      ...VK_ACP_PLUGIN_POLICY_PROVIDERS,
       ...VK_CORE_ENFORCED_POLICY_PROVIDERS,
     ].includes(providerId)
   ) {
@@ -282,14 +295,14 @@ export function assertVkRequiredPolicyProvider(
   // claude.ai sync exists only in Claude Code; «off» is already true for every other provider, so a ceiling
   // inherited from a Claude Code parent or a section's live policy does not refuse a codex or ACP thread.
   if (
-    (providerId === "acp-opencode" || providerId === "acp-cursor") &&
+    (providerId === "acp-opencode" || vkAcpLikeProvider(providerId)) &&
     policy.nativePlugins
   ) {
     throw new Error("vk_required_session_policy_unsupported_native_plugins");
   }
   // VK EXPERIMENTAL: Cursor gets BB skills as a list the ACP bridge filters, so a skills filter narrows the
   // BB side; Cursor's own skill folders have no per-process switch and stay as they are.
-  if (providerId === "acp-cursor" && policy.projectInstructions === false) {
+  if (vkAcpLikeProvider(providerId) && policy.projectInstructions === false) {
     throw new Error(
       "vk_required_session_policy_unsupported_cursor_instructions_or_skills",
     );
@@ -310,6 +323,8 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
     "acp-opencode": ["bbPlugins", "skills", "mcpServers"],
     "acp-cursor": ["bbPlugins", "skills", "mcpServers"],
+    devin: ["bbPlugins", "skills", "mcpServers"],
+    zcode: ["bbPlugins", "skills", "mcpServers"],
     opencode2: ["bbPlugins", "skills", "mcpServers"],
   },
   instructionSwitches: {
@@ -317,6 +332,8 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     codex: ["userInstructions", "projectInstructions"],
     "acp-opencode": ["userInstructions", "projectInstructions"],
     "acp-cursor": ["userInstructions"],
+    devin: ["userInstructions"],
+    zcode: ["userInstructions"],
     opencode2: ["userInstructions"],
   },
   mandatoryBbPlugins: VK_REQUIRED_PLUGIN_IDS,
