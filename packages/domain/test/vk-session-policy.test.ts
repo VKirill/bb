@@ -101,6 +101,19 @@ describe("Cursor and BB skills", () => {
   });
 });
 
+describe("ACP provider plugins (Devin, ZCode) under a required policy", () => {
+  it("are held to the Cursor rules instead of being refused as unknown", async () => {
+    // 2026-10-30: a Lane Pilot writer thread on devin under a PM chat got vk_required_session_policy_unsupported_provider.
+    const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy.js");
+    for (const provider of ["devin", "zcode"]) {
+      expect(() => assertVkRequiredPolicyProvider(provider, { skills: { mode: "allow", names: ["writer-practices"] }, claudeAiSync: false })).not.toThrow();
+      expect(() => assertVkRequiredPolicyProvider(provider, { nativePlugins: { mode: "allow", names: [] } })).toThrow(/native_plugins/);
+      expect(() => assertVkRequiredPolicyProvider(provider, { projectInstructions: false })).toThrow(/cursor/);
+    }
+    expect(() => assertVkRequiredPolicyProvider("some-other-provider", { claudeAiSync: false })).toThrow(/unsupported_provider/);
+  });
+});
+
 describe("OpenCode v2 required policy", () => {
   it("advertises what the OpenCode v2 bridge enforces and keeps acp-opencode", async () => {
     const { VK_REQUIRED_SESSION_POLICY_CAPABILITY: capability } = await import(
@@ -111,7 +124,9 @@ describe("OpenCode v2 required policy", () => {
       "acp-opencode",
       "claude-code",
       "codex",
+      "devin",
       "opencode2",
+      "zcode",
     ]);
     expect(capability.providerGroups.opencode2).toEqual([
       "bbPlugins",
