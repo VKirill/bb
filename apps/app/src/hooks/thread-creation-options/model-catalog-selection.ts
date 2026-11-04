@@ -15,6 +15,7 @@ import {
   reasoningLadderLabels,
   type ReasoningLabelSource,
 } from "@/lib/reasoning-labels";
+import { vkSortReasoningEfforts } from "./vk-reasoning-order";
 
 interface ResolveModelCatalogSelectionArgs {
   models: readonly AvailableModel[];
@@ -161,13 +162,14 @@ export function resolveModelCatalogSelection({
     availableModels[0];
 
   const seenReasoningLevels = new Set<ReasoningLevel>();
-  const reasoningEfforts = (
-    activeModel?.supportedReasoningEfforts ?? []
-  ).filter((effort) => {
-    if (seenReasoningLevels.has(effort.reasoningEffort)) return false;
-    seenReasoningLevels.add(effort.reasoningEffort);
-    return true;
-  });
+  // VK EXPERIMENTAL: one ladder order for every provider (vk-reasoning-order.ts).
+  const reasoningEfforts = vkSortReasoningEfforts(
+    (activeModel?.supportedReasoningEfforts ?? []).filter((effort) => {
+      if (seenReasoningLevels.has(effort.reasoningEffort)) return false;
+      seenReasoningLevels.add(effort.reasoningEffort);
+      return true;
+    }),
+  );
   const reasoningLabels = reasoningLadderLabels(reasoningEfforts, provider);
   const reasoningOptions: PickerOption<ReasoningLevel>[] = reasoningEfforts.map(
     (effort, index) => ({

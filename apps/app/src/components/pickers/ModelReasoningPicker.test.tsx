@@ -373,7 +373,7 @@ describe("ModelReasoningPicker", () => {
         name: "Provider, model and reasoning",
       }),
     );
-    const model = screen.getByRole("button", { name: "5.5" });
+    const model = screen.getByRole("option", { name: "5.5" });
     model.focus();
     fireEvent.keyDown(model, { key: "ArrowRight" });
     expect(onReasoningChange).toHaveBeenCalledExactlyOnceWith("high");
@@ -1075,7 +1075,7 @@ describe("ModelReasoningPicker", () => {
       screen.getByRole("button", { name: "Hand off to new thread" }),
     );
     expect(onStart).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "5.5" }));
+    fireEvent.click(screen.getByRole("option", { name: "5.5" }));
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ providerId: "codex" }),
     );

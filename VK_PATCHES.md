@@ -299,6 +299,23 @@ When model labels look like `Provider/Model` and there are at least two provider
 
 A second level for `Provider/Vendor/Model` labels: when one provider's models name at least two vendors, the provider row opens into vendor rows (opencode2 sends OpenRouter as `OpenRouter/Anthropic/…`, free models as `OpenRouter/🎁 Бесплатные/…`). Models without a vendor go into a closing «Другие» row; the selected model's provider and vendor start open.
 
+## One model picker look (`model-picker-unity`)
+
+Every provider tab of the native picker looks the same. The model list is always a `listbox` with `option` rows
+(upstream sets the roles only with the search field, i.e. more than five models), so short lists (Grok, Gemini,
+Devin) get the same rows and the same theme styling (Pokecut keys its picker look on `role="listbox"`).
+Reasoning levels are sorted weakest first by `reasoningLevelValues` for every provider: providers report them in
+their own order (Grok high → low). Unknown levels keep their order at the end.
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `apps/app/src/components/pickers/ModelReasoningPicker.tsx` | `listboxId` passed to the menu always |
+| `apps/app/src/hooks/thread-creation-options/model-catalog-selection.ts` | `vkSortReasoningEfforts` around the deduped ladder |
+
+New files: `apps/app/src/hooks/thread-creation-options/vk-reasoning-order.ts` and its test.
+
 ## Quiet child threads (`quiet-child`)
 
 A plugin that watches its own helper threads marks them `experimental_vkQuietChild: true` in the `pluginMetadata`
