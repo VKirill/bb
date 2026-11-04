@@ -1344,7 +1344,8 @@ export function ModelReasoningPicker({
           providerId={activeProviderId}
           provider={activeProvider}
           providerLabel={activeProviderLabel}
-          listboxId={showSearchInput ? listboxId : undefined}
+          // VK EXPERIMENTAL: always a listbox, so short provider lists get the same rows and theme as long ones.
+          listboxId={listboxId}
           optionId={optionDomId}
           modelIsLoading={activeModelIsLoading}
           isShowingModelError={isShowingModelError}
