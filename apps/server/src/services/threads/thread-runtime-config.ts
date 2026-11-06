@@ -375,11 +375,7 @@ export async function resolveThreadRuntimeCommandConfig(
     vkProjectInstructionsAllowed(
       vkPolicy,
       args.thread.providerId,
-      await vkClaudeMdImportsAgents(deps, {
-        hostId: args.environment.hostId,
-        providerId: args.thread.providerId,
-        workspacePath,
-      }),
+      vkClaudeMdImportsAgents(workspaceAgentContext.claudeMdInstructions),
     )
   ) {
     instructionSections.push(

@@ -9,10 +9,6 @@ import {
   type VkSessionPolicy,
 } from "@bb/domain/vk-session-policy";
 import type { ResolvedSkillCatalogEntry } from "../skills/injected-skills.js";
-import { COMMAND_TIMEOUT_MS } from "../../constants.js";
-import type { LoggedWorkSessionDeps } from "../../types.js";
-import { callHostRetryableOnlineRpc } from "../hosts/online-rpc.js";
-import { joinHostPathSegments } from "../lib/host-path.js";
 
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
@@ -98,49 +94,20 @@ export function vkProjectInstructionsAllowed(
 }
 
 /**
- * VK EXPERIMENTAL: whether the CLAUDE.md Claude Code would load at the
- * workspace root pulls AGENTS.md in through an `@AGENTS.md` import line —
- * the only way the project rules reach that provider natively. Reads
- * `<workspace>/CLAUDE.md` through the host like
- * `host.read_workspace_agent_context` does for `.bb/AGENTS.md`. Returns
- * undefined for other providers (no host call is made) and false when the
- * file is missing or unreadable, so the inline copy stays as the fallback.
+ * VK EXPERIMENTAL: whether the CLAUDE.md Claude Code loads at the workspace
+ * root pulls AGENTS.md in through an `@AGENTS.md` import line — the only
+ * way the project rules reach that provider natively. The daemon hands the
+ * file over in the same read_workspace_agent_context result as AGENTS.md,
+ * so no extra host call rides on the thread start path.
  */
-export async function vkClaudeMdImportsAgents(
-  deps: LoggedWorkSessionDeps,
-  args: {
-    hostId: string;
-    providerId: string;
-    workspacePath: string;
-  },
-): Promise<boolean | undefined> {
-  if (args.providerId !== "claude-code") return undefined;
-  const claudeMdPath = joinHostPathSegments(args.workspacePath, "CLAUDE.md");
-  try {
-    const exists = await callHostRetryableOnlineRpc(deps, {
-      hostId: args.hostId,
-      timeoutMs: COMMAND_TIMEOUT_MS,
-      command: { type: "host.paths_exist", paths: [claudeMdPath] },
-    });
-    if (exists.existence[claudeMdPath] !== true) return false;
-    const result = await callHostRetryableOnlineRpc(deps, {
-      hostId: args.hostId,
-      timeoutMs: COMMAND_TIMEOUT_MS,
-      command: {
-        type: "host.read_file",
-        path: claudeMdPath,
-        followRootSymlink: false,
-      },
-    });
-    if (!("content" in result)) return false;
-    const text =
-      result.contentEncoding === "base64"
-        ? Buffer.from(result.content, "base64").toString("utf8")
-        : result.content;
-    return /^@AGENTS\.md\s*$/mu.test(text);
-  } catch {
-    return false;
-  }
+export function vkClaudeMdImportsAgents(
+  claudeMd: string | null | undefined,
+): boolean {
+  return (
+    claudeMd !== null &&
+    claudeMd !== undefined &&
+    /^@AGENTS\.md\s*$/mu.test(claudeMd)
+  );
 }
 
 export function vkUserInstructionsAllowed(
