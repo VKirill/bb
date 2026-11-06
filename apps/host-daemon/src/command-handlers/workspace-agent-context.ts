@@ -177,9 +177,12 @@ async function readProjectSkillFiles(
   return { skills, truncated: directoryNames.length > policy.limit };
 }
 
-async function readAgentInstructions(rootPath: string): Promise<string | null> {
+async function readWorkspaceInstructionFile(
+  rootPath: string,
+  segments: readonly string[],
+): Promise<string | null> {
   const content = await readContainedUtf8File({
-    filePath: path.join(rootPath, ...AGENT_INSTRUCTIONS_RELATIVE_SEGMENTS),
+    filePath: path.join(rootPath, ...segments),
     rootPath,
   });
   const trimmed = content?.trim() ?? "";
@@ -192,18 +195,26 @@ export async function readWorkspaceAgentContext(
   if (!path.isAbsolute(command.rootPath)) {
     throw new CommandDispatchError("invalid_path", "rootPath must be absolute");
   }
-  const [projectSkills, agentInstructions, sharedSkills] = await Promise.all([
-    readProjectSkillFiles(command.rootPath, command.projectSkillRead),
-    command.includeAgentInstructions
-      ? readAgentInstructions(command.rootPath)
-      : Promise.resolve(null),
-    listSharedSkills({
-      cwd: command.rootPath,
-      roots: command.sharedSkillRoots,
-    }),
-  ]);
+  const [projectSkills, agentInstructions, claudeMdInstructions, sharedSkills] =
+    await Promise.all([
+      readProjectSkillFiles(command.rootPath, command.projectSkillRead),
+      command.includeAgentInstructions
+        ? readWorkspaceInstructionFile(
+            command.rootPath,
+            AGENT_INSTRUCTIONS_RELATIVE_SEGMENTS,
+          )
+        : Promise.resolve(null),
+      command.includeAgentInstructions
+        ? readWorkspaceInstructionFile(command.rootPath, ["CLAUDE.md"])
+        : Promise.resolve(null),
+      listSharedSkills({
+        cwd: command.rootPath,
+        roots: command.sharedSkillRoots,
+      }),
+    ]);
   return {
     agentInstructions,
+    claudeMdInstructions,
     projectSkills: projectSkills.skills,
     projectSkillsTruncated: projectSkills.truncated,
     sharedSkills,
