@@ -48,7 +48,6 @@ import {
   buildVkRuntimeSessionPolicy,
   vkEnvPluginAllowed,
   vkEnvPluginId,
-  vkClaudeMdImportsAgents,
   vkPluginAllowed,
   vkProjectInstructionsAllowed,
   vkUserInstructionsAllowed,
@@ -372,11 +371,7 @@ export async function resolveThreadRuntimeCommandConfig(
   }
   if (
     workspaceAgentContext.agentInstructions &&
-    vkProjectInstructionsAllowed(
-      vkPolicy,
-      args.thread.providerId,
-      vkClaudeMdImportsAgents(workspaceAgentContext.claudeMdInstructions),
-    )
+    vkProjectInstructionsAllowed(vkPolicy)
   ) {
     instructionSections.push(
       `The following workspace instructions come from ${WORKSPACE_AGENT_INSTRUCTIONS_RELATIVE_PATH}:`,

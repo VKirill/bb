@@ -826,38 +826,3 @@ inside the event it already receives.
 
 New files: `apps/server/src/services/plugins/vk-idle-payload.ts`,
 `apps/server/test/internal/vk-idle-payload.test.ts`.
-
-## Context dedupe (`context-dedupe`)
-
-Project instructions no longer arrive twice.
-
-`vkProjectInstructionsAllowed(policy, providerId)` also answers for the
-provider: CLIs that read `<workspace>/AGENTS.md` from the cwd themselves
-(codex, acp-opencode, opencode2, acp-cursor, devin — evidence
-in `VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS`) get no inlined copy, so the
-file reaches them once. claude-code is conditional: it reads CLAUDE.md, not
-AGENTS.md, so the inline stays unless `<workspace>/CLAUDE.md` imports the
-file with an `@AGENTS.md` line (`vkClaudeMdImportsAgents`). The daemon
-returns CLAUDE.md inside the existing `read_workspace_agent_context`
-result (`claudeMdInstructions`, optional — a daemon that predates the field
-sends no key and the inline stays, so no protocol bump and no extra host
-call). zcode and acp-antigravity have no verified native read and keep the
-inline. A `projectInstructions: false` policy still wins.
-
-The Devin half of the dedupe — skipping the "Available bb skills" text block
-because Devin's own scan of `~/.agents/skills` listed the same catalog — was
-reverted on the owner's call (2026-11-06): the machine skill folders are
-being emptied on every machine, the hub catalog is the canon, so the
-filtered BB list must keep reaching Devin through the bridge.
-
-| File | What |
-| --- | --- |
-| `apps/server/src/services/threads/thread-runtime-config.ts` | the existing `vkProjectInstructionsAllowed` call passes `args.thread.providerId` and `vkClaudeMdImportsAgents(workspaceAgentContext.claudeMdInstructions)` |
-| `packages/host-daemon-contract/src/commands.ts` | optional `claudeMdInstructions` in the `host.read_workspace_agent_context` result (no protocol bump — absent means the inline stays) |
-| `apps/host-daemon/src/command-handlers/workspace-agent-context.ts` | reads `<root>/CLAUDE.md` alongside `.bb/AGENTS.md` when agent instructions are requested |
-| `apps/server/src/services/threads/workspace-agent-context.ts` | carries `claudeMdInstructions` through `WorkspaceAgentContext` |
-
-Same file, extended: `apps/server/src/services/threads/vk-session-policy.ts`;
-tests in `apps/server/test/threads/thread-runtime-config.test.ts` and the
-`claudeMdInstructions` field of the workspace-context responder in
-`apps/server/test/helpers/commands.ts`.
