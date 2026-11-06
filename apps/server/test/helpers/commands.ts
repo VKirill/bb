@@ -151,8 +151,16 @@ function readWorkspaceAgentContextFromDisk(
   } catch {
     agentInstructions = null;
   }
+  let claudeMdInstructions: string | null = null;
+  try {
+    const trimmed = readFileSync(path.join(rootPath, "CLAUDE.md"), "utf8").trim();
+    claudeMdInstructions = trimmed.length > 0 ? trimmed : null;
+  } catch {
+    claudeMdInstructions = null;
+  }
   return {
     agentInstructions,
+    claudeMdInstructions,
     projectSkills,
     projectSkillsTruncated: false,
     sharedSkills: [],

@@ -1063,6 +1063,7 @@ const skillListResultSchema = z.object({
 const hostReadWorkspaceAgentContextResultSchema = z
   .object({
     agentInstructions: z.string().nullable(),
+    claudeMdInstructions: z.string().nullable().optional(),
     projectSkills: z.array(workspaceProjectSkillFileSchema),
     projectSkillsTruncated: z.boolean(),
     sharedSkills: z.array(discoveredSkillSchema),

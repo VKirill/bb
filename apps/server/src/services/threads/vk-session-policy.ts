@@ -51,10 +51,63 @@ export function vkEnvPluginId(entry: { source?: unknown }): string | null {
   return null;
 }
 
+/**
+ * VK EXPERIMENTAL: providers whose CLI reads <workspace>/AGENTS.md from the
+ * cwd itself, so the server's copy arrives twice. Evidence (2026-11-06,
+ * thr_exknr6pddz ctx-audit): codex — every rollout carries a separate
+ * "# AGENTS.md instructions for <cwd>" user message on top of the inlined
+ * developer message (~/.codex/sessions, argon-report §1.3); claude-code —
+ * the native block lists the project's CLAUDE.md/AGENTS.md chain
+ * (~/.claude/projects/*.jsonl); acp-opencode and opencode2 — OpenCode loads
+ * project AGENTS.md/CLAUDE.md itself (OPENCODE_DISABLE_PROJECT_CONFIG is the
+ * switch the bridge uses to stop it); acp-cursor — cursor-agent reads
+ * AGENTS.md from the workspace (a policy cannot disable project
+ * instructions for ACP providers precisely because the CLI loads them);
+ * devin — "Devin CLI reads this file automatically" per its rules docs, and
+ * a Lane Pilot writer's first message carried the file twice
+ * (~/.local/share/devin/cli/sessions.db). claude-code is NOT in the table:
+ * it reads CLAUDE.md, not AGENTS.md, and sees the file only when CLAUDE.md
+ * imports it — decided per workspace by `vkClaudeMdImportsAgents`. zcode and
+ * acp-antigravity have no verified native read, so they keep the inline.
+ */
+const VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS: readonly string[] = [
+  "acp-cursor",
+  "acp-opencode",
+  "codex",
+  "devin",
+  "opencode2",
+];
+
 export function vkProjectInstructionsAllowed(
   policy: VkSessionPolicy | null,
+  providerId?: string,
+  claudeMdImportsAgents?: boolean,
 ): boolean {
-  return policy?.projectInstructions !== false;
+  if (policy?.projectInstructions === false) return false;
+  if (providerId === "claude-code") return claudeMdImportsAgents !== true;
+  if (
+    providerId !== undefined &&
+    VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS.includes(providerId)
+  )
+    return false;
+  return true;
+}
+
+/**
+ * VK EXPERIMENTAL: whether the CLAUDE.md Claude Code loads at the workspace
+ * root pulls AGENTS.md in through an `@AGENTS.md` import line — the only
+ * way the project rules reach that provider natively. The daemon hands the
+ * file over in the same read_workspace_agent_context result as AGENTS.md,
+ * so no extra host call rides on the thread start path.
+ */
+export function vkClaudeMdImportsAgents(
+  claudeMd: string | null | undefined,
+): boolean {
+  return (
+    claudeMd !== null &&
+    claudeMd !== undefined &&
+    /^@AGENTS\.md\s*$/mu.test(claudeMd)
+  );
 }
 
 export function vkUserInstructionsAllowed(
