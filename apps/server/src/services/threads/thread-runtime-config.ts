@@ -371,7 +371,7 @@ export async function resolveThreadRuntimeCommandConfig(
   }
   if (
     workspaceAgentContext.agentInstructions &&
-    vkProjectInstructionsAllowed(vkPolicy)
+    vkProjectInstructionsAllowed(vkPolicy, args.thread.providerId)
   ) {
     instructionSections.push(
       `The following workspace instructions come from ${WORKSPACE_AGENT_INSTRUCTIONS_RELATIVE_PATH}:`,

@@ -167,4 +167,39 @@ describe("Cursor vk session policy", () => {
       }),
     ).toEqual({ OPENCODE_DISABLE_PROJECT_CONFIG: "1" });
   });
+
+  it("skips the skill text list for Devin, which lists the same catalog itself", () => {
+    const roots = [
+      {
+        id: "global",
+        skillDirectoryRootPath: "/skills",
+        skills: [{ name: "ru-text", description: "a" }],
+      },
+    ];
+    const devin = {
+      launchSpec: { command: "devin", args: ["acp"], displayName: "Devin" },
+    };
+    const shim = {
+      launchSpec: {
+        command: "node",
+        args: ["/home/u/lib/bb-plugin-devin/acp-stdio-shim-a1.mjs", "acp"],
+        displayName: "Agent default",
+      },
+    };
+    expect(vkFilterAcpSkillRoots(roots, null, devin)).toBeUndefined();
+    expect(vkFilterAcpSkillRoots(roots, null, shim)).toBeUndefined();
+    expect(vkFilterAcpSkillRoots(roots, null)).toHaveLength(1);
+    expect(
+      vkFilterAcpSkillRoots(roots, null, {
+        launchSpec: { command: "cursor-agent", args: [], displayName: "Cursor" },
+      }),
+    ).toHaveLength(1);
+    expect(
+      vkFilterAcpSkillRoots(
+        roots,
+        { version: 1, bbSkillsDenied: ["ru-text"] },
+        devin,
+      ),
+    ).toHaveLength(1);
+  });
 });

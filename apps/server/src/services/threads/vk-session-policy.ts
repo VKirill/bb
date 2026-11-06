@@ -51,9 +51,41 @@ export function vkEnvPluginId(entry: { source?: unknown }): string | null {
   return null;
 }
 
+/**
+ * VK EXPERIMENTAL: providers whose CLI reads <workspace>/AGENTS.md from the
+ * cwd itself, so the server's copy arrives twice. Evidence (2026-11-06,
+ * thr_exknr6pddz ctx-audit): codex — every rollout carries a separate
+ * "# AGENTS.md instructions for <cwd>" user message on top of the inlined
+ * developer message (~/.codex/sessions, argon-report §1.3); claude-code —
+ * the native block lists the project's CLAUDE.md/AGENTS.md chain
+ * (~/.claude/projects/*.jsonl); acp-opencode and opencode2 — OpenCode loads
+ * project AGENTS.md/CLAUDE.md itself (OPENCODE_DISABLE_PROJECT_CONFIG is the
+ * switch the bridge uses to stop it); acp-cursor — cursor-agent reads
+ * AGENTS.md from the workspace (a policy cannot disable project
+ * instructions for ACP providers precisely because the CLI loads them);
+ * devin — "Devin CLI reads this file automatically" per its rules docs, and
+ * a Lane Pilot writer's first message carried the file twice
+ * (~/.local/share/devin/cli/sessions.db). zcode and acp-antigravity have no
+ * verified native read, so they keep the inlined copy.
+ */
+const VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS: readonly string[] = [
+  "acp-cursor",
+  "acp-opencode",
+  "claude-code",
+  "codex",
+  "devin",
+  "opencode2",
+];
+
 export function vkProjectInstructionsAllowed(
   policy: VkSessionPolicy | null,
+  providerId?: string,
 ): boolean {
+  if (
+    providerId !== undefined &&
+    VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS.includes(providerId)
+  )
+    return false;
   return policy?.projectInstructions !== false;
 }
 

@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import type { AcpLaunchSpec } from "./launch-spec.js";
 import type { AcpSkillRoot } from "./session-params.js";
 import {
   cursorDataDirectory,
@@ -40,12 +41,45 @@ import {
  * - Other ACP agents: only the BB side (plugins, instructions, tools, BB
  *   skills) applies.
  */
+/**
+ * Agents that enumerate installed skill folders themselves, so the bridge's
+ * "Available bb skills" text block duplicates their own listing. Evidence
+ * (2026-11-06): Devin scans ~/.agents/skills, ~/.config/devin/skills,
+ * ~/.config/cognition/skills and project .agents/.devin/.cognition skills
+ * (`devin skills paths`), bb installs the same catalog into ~/.agents/skills
+ * via host.install_global_skills, and a Lane Pilot writer's first message
+ * carried the ~120K catalog once as <system_instructions> text and once as
+ * Devin's own <available_skills> (sessions.db). Devin launches either as its
+ * binary or through the bb-plugin-devin shim under a bb-plugin-devin dir.
+ */
+export function vkAcpAgentListsSkillsNatively(
+  dialectId: string | undefined,
+  launchSpec: Pick<AcpLaunchSpec, "command" | "args" | "displayName">,
+): boolean {
+  return (
+    dialectId === "devin" ||
+    /devin/i.test(launchSpec.displayName) ||
+    /devin/i.test(launchSpec.command) ||
+    /devin/i.test(launchSpec.args[0] ?? "")
+  );
+}
+
 export function vkFilterAcpSkillRoots(
   skillRoots: readonly AcpSkillRoot[] | null,
   policy: VkRuntimeSessionPolicy | null,
+  agent?: {
+    dialectId?: string | undefined;
+    launchSpec?: Pick<AcpLaunchSpec, "command" | "args" | "displayName">;
+  },
 ): AcpSkillRoot[] | undefined {
   if (skillRoots === null) return undefined;
   const denied = new Set(policy?.bbSkillsDenied ?? []);
+  if (
+    denied.size === 0 &&
+    agent?.launchSpec !== undefined &&
+    vkAcpAgentListsSkillsNatively(agent.dialectId, agent.launchSpec)
+  )
+    return undefined;
   if (denied.size === 0) return [...skillRoots];
   return skillRoots.map((root) => ({
     ...root,
