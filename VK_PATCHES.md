@@ -839,9 +839,9 @@ file reaches them once. claude-code is conditional: it reads CLAUDE.md, not
 AGENTS.md, so the inline stays unless `<workspace>/CLAUDE.md` imports the
 file with an `@AGENTS.md` line (`vkClaudeMdImportsAgents`). The daemon
 returns CLAUDE.md inside the existing `read_workspace_agent_context`
-result (`claudeMdInstructions`, optional for old daemons — absent means the
-inline stays), so the check adds no host call and cannot stall a thread
-start. zcode and acp-antigravity have no verified native read and keep the
+result (`claudeMdInstructions`, optional — a daemon that predates the field
+sends no key and the inline stays, so no protocol bump and no extra host
+call). zcode and acp-antigravity have no verified native read and keep the
 inline. A `projectInstructions: false` policy still wins.
 
 The Devin half of the dedupe — skipping the "Available bb skills" text block
@@ -853,8 +853,7 @@ filtered BB list must keep reaching Devin through the bridge.
 | File | What |
 | --- | --- |
 | `apps/server/src/services/threads/thread-runtime-config.ts` | the existing `vkProjectInstructionsAllowed` call passes `args.thread.providerId` and `vkClaudeMdImportsAgents(workspaceAgentContext.claudeMdInstructions)` |
-| `packages/host-daemon-contract/src/commands.ts` | optional `claudeMdInstructions` in the `host.read_workspace_agent_context` result (protocol 259) |
-| `packages/host-daemon-contract/src/protocol.ts` | `HOST_DAEMON_PROTOCOL_VERSION` 258 → 259 |
+| `packages/host-daemon-contract/src/commands.ts` | optional `claudeMdInstructions` in the `host.read_workspace_agent_context` result (no protocol bump — absent means the inline stays) |
 | `apps/host-daemon/src/command-handlers/workspace-agent-context.ts` | reads `<root>/CLAUDE.md` alongside `.bb/AGENTS.md` when agent instructions are requested |
 | `apps/server/src/services/threads/workspace-agent-context.ts` | carries `claudeMdInstructions` through `WorkspaceAgentContext` |
 
