@@ -3,6 +3,7 @@ import { markThreadPruningPolicyWork } from "./thread-pruning-work.js";
 import {
   insertVkRequiredSessionPolicy,
   readVkRequiredSessionPolicy,
+  vkSessionPolicyCeiling,
 } from "./thread-required-session-policy.js";
 import { intersectVkSessionPolicies, intersectVkPolicyFilters, vkPolicyAllows, type VkRequiredSessionPolicy } from "@bb/domain/vk-session-policy";
 import { copyProjectAttachmentOwnership } from "./project-attachments.js";
@@ -399,15 +400,19 @@ export function createThread(
       }
       const parentIds = [input.parentThreadId, input.sourceThreadId, input.lifecycleOwnerThreadId].filter((id): id is string => typeof id === "string");
       const parentSnapshots = [...new Set(parentIds)].map((id) => {
-        const policy = readVkRequiredSessionPolicy(tx, id);
+        const snapshot = readVkRequiredSessionPolicy(tx, id);
         const agent = readVkCompiledMainAgentSnapshot(tx, id);
-        if (agent.required && policy === null) {
+        if (agent.required && snapshot === null) {
           throw new Error("vk_required_session_policy_dropped");
         }
-        return { agent, policy };
+        return { agent, snapshot };
       });
-      const parentPolicies = parentSnapshots.flatMap(({ policy }) =>
-        policy ? [policy.policy] : [],
+      // VK EXPERIMENTAL: children inherit the parent's ceiling, not its whole session policy. A compiled
+      // MAIN agent's own skill/MCP selection narrows that thread's session but is a working set, not a
+      // ceiling, so a helper child with its own policy keeps it, and a child with no request gets no skill
+      // restriction from the parent's agent (vkSessionPolicyCeiling).
+      const parentCeilings = parentSnapshots.flatMap(({ agent, snapshot }) =>
+        snapshot ? [vkSessionPolicyCeiling(snapshot, agent.required ? agent.profile : null)] : [],
       );
       const parentAgents = parentSnapshots.flatMap(({ agent }) =>
         agent.required ? [agent.profile] : [],
@@ -435,7 +440,7 @@ export function createThread(
           mcpServers: intersectVkPolicyFilters(definitions.map((profile) => profile.mcpServers ? { mode: "allow", names: profile.mcpServers } : undefined)),
         };
         const effectivePolicy = intersectVkSessionPolicies([
-          ...parentPolicies,
+          ...parentCeilings,
           ...(input.vkRequiredSessionPolicy ? [input.vkRequiredSessionPolicy.policy] : []),
           agentPolicy,
         ]);
@@ -458,7 +463,8 @@ export function createThread(
       insertVkRequiredSessionPolicy(tx, {
         threadId: createdThread.id,
         providerId: input.providerId,
-        requested: compiled ? { version: 1, policy: intersectVkSessionPolicies([input.vkRequiredSessionPolicy?.policy ?? {}, agentPolicy ?? {}]) } : input.vkRequiredSessionPolicy,
+        requested: input.vkRequiredSessionPolicy,
+        agentPolicy: agentPolicy ?? undefined,
         parentIds,
       });
       return createdThread;

@@ -213,6 +213,21 @@ and core refuses a required thread on a bridge without them.
 Ported 2026-10-02 from `vk-archive/required-session-policy` (protocol 216 with
 two migrations), with the marker tables moved into thread plugin metadata.
 
+Since 2026-11-06 the stored snapshot carries two policies: `policy`, what the
+thread's own session loads, and `ceiling`, what a child, fork or
+lifecycle-owned thread inherits. A compiled MAIN agent's skill/MCP selection
+narrows its own session only (`agentPolicy` argument of
+`insertVkRequiredSessionPolicy`): it is a working set, not a ceiling, so a
+helper child with its own explicit policy is no longer intersected with it,
+and a child with no request gets no restriction from the parent's agent
+(2026-11-06 audit: writer children of a compiled PM lost `writer-practices`).
+Rows written before `ceiling` existed keep their bytes; `vkSessionPolicyCeiling`
+resolves them at inheritance time: on a compiled-MAIN parent a `skills` or
+`mcpServers` allow filter counts as agent-derived — and is left out — only
+when every clause stays inside the agent's stored selection; deny clauses,
+names outside the agent's lists, the other groups and the switches still
+narrow children, so a legacy row errs toward restricting.
+
 Consumer: plugin `lane-pilot` (helper context «selected» / «none», PM profile).
 
 ACP provider plugins (`devin` from `VKirill/bb-plugin-devin`, `zcode`): they run
@@ -234,12 +249,12 @@ Antigravity cut the message at ~12 KB, the task with it.
 | `apps/server/src/services/threads/thread-runtime-config.ts`, `thread-commands.ts` | snapshot into provider options |
 | `apps/server/src/routes/threads/data.ts`, `packages/server-contract/src/api/threads.ts` | request schema |
 | `apps/cli/src/commands/thread/spawn.ts` | `bb thread spawn` flags |
-| `packages/db/src/data/thread-plugin-metadata.ts`, `threads.ts` | reserved rows, refusal of `__vk.` ids |
+| `packages/db/src/data/thread-plugin-metadata.ts`, `threads.ts` | reserved rows, refusal of `__vk.` ids; `threads.ts` reads parent ceilings via `vkSessionPolicyCeiling` and passes the compiled agent policy as own-session-only |
 | `packages/agent-runtime/src/bridge-protocol-adapter.ts` | handshake check |
 | `packages/provider-bridge-protocol/src/handshake.ts` | optional handshake fields |
 | `plugins/provider-claude-code`, `plugins/provider-codex`, `packages/provider-bridge-acp` | enforcement and handshake |
 
-Own files: `packages/db/src/data/vk-thread-marker.ts`, `thread-required-session-policy.ts`, `packages/domain/src/vk-compiled-main-agent.ts`.
+Own files: `packages/db/src/data/vk-thread-marker.ts`, `thread-required-session-policy.ts` (stored `policy`/`ceiling` split, `vkSessionPolicyCeiling`, `vkRequiredSessionPolicyDigest`), `packages/domain/src/vk-compiled-main-agent.ts`.
 
 OpenCode v2 (`opencode2`, a provider plugin core does not ship; our fork
 `VKirill/bb-plugin-opencode2` >= `v1.1.0-vk.3`): the bridge enforces `skills` and

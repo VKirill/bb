@@ -7,7 +7,8 @@ import { noopNotifier } from "../../src/notifier.js";
 import { upsertHost } from "../../src/data/hosts.js";
 import { createProject } from "../../src/data/projects.js";
 import { createThread } from "../../src/data/threads.js";
-import { readVkRequiredSessionPolicy, narrowVkRequiredSessionPolicy } from "../../src/data/thread-required-session-policy.js";
+import { readVkRequiredSessionPolicy, narrowVkRequiredSessionPolicy, vkRequiredSessionPolicyDigest } from "../../src/data/thread-required-session-policy.js";
+import { writeVkThreadMarker } from "../../src/data/vk-thread-marker.js";
 import { patchThreadPluginMetadata, insertThreadPluginMetadata } from "../../src/data/thread-plugin-metadata.js";
 import { digestVkCompiledMainAgentSource, readVkCompiledMainAgentSnapshot } from "../../src/data/thread-plugin-metadata.js";
 import {
@@ -94,7 +95,7 @@ describe("required policy persistence", () => {
   });
 
   it.each(["codex", "claude-code"] as const)(
-    "inherits the required ceiling without inheriting a compiled MAIN role on %s",
+    "stays a required thread without inheriting a compiled MAIN role's working set on %s",
     (providerId) => {
       const { db, spawn } = setup();
       try {
@@ -115,16 +116,139 @@ describe("required policy persistence", () => {
           required: false,
           profile: null,
         });
-        expect(readVkRequiredSessionPolicy(db, child.id)?.policy.skills).toEqual({
-          mode: "allow",
-          names: ["safe-skill"],
-          allOf: [],
-        });
+        // The parent's agent skills are its own working set, not the child's ceiling.
+        const snapshot = readVkRequiredSessionPolicy(db, child.id);
+        expect(snapshot?.policy.skills).toBeUndefined();
+        expect(snapshot?.ceiling).toBeUndefined();
       } finally {
         db.$client.close();
       }
     },
   );
+
+  it("keeps a child's explicit skill request whole under a compiled MAIN parent", () => {
+    const { db, spawn } = setup();
+    try {
+      const sourceBody = {
+        id: "pm",
+        sourceVersion: "lp-owned-1",
+        description: "PM",
+        prompt: "Manage the run.",
+        skills: ["pm-skill-a", "pm-skill-b"],
+        mcpServers: ["pm-server"],
+      };
+      const parent = spawn(undefined, {}, "claude-code", {
+        ...sourceBody,
+        sourceHash: digestVkCompiledMainAgentSource(sourceBody),
+      });
+      const child = spawn(
+        { skills: { mode: "allow", names: ["writer-practices", "karpathy-guidelines", "picked-skill"] } },
+        { parentThreadId: parent.id },
+        "codex",
+      );
+      const policy = readVkRequiredSessionPolicy(db, child.id)!.policy;
+      for (const name of ["writer-practices", "karpathy-guidelines", "picked-skill"]) {
+        expect(vkPolicyAllows(policy.skills, name), name).toBe(true);
+      }
+      expect(vkPolicyAllows(policy.skills, "pm-skill-a")).toBe(false);
+      expect(policy.mcpServers).toBeUndefined();
+    } finally {
+      db.$client.close();
+    }
+  });
+
+  it("inherits a compiled parent's explicit request as the ceiling, not its agent selection", () => {
+    const { db, spawn } = setup();
+    try {
+      const sourceBody = {
+        id: "pm",
+        sourceVersion: "lp-owned-1",
+        description: "PM",
+        prompt: "Manage the run.",
+        skills: ["pm-skill-a"],
+      };
+      const parent = spawn(
+        { skills: { mode: "allow", names: ["ceiling-skill"] }, projectInstructions: false },
+        {},
+        "claude-code",
+        { ...sourceBody, sourceHash: digestVkCompiledMainAgentSource(sourceBody) },
+      );
+      const child = spawn(
+        { skills: { mode: "allow", names: ["ceiling-skill", "other-skill"] } },
+        { parentThreadId: parent.id },
+      );
+      const policy = readVkRequiredSessionPolicy(db, child.id)!.policy;
+      expect(vkPolicyAllows(policy.skills, "ceiling-skill")).toBe(true);
+      expect(vkPolicyAllows(policy.skills, "other-skill")).toBe(false);
+      expect(vkPolicyAllows(policy.skills, "pm-skill-a")).toBe(false);
+      expect(policy.projectInstructions).toBe(false);
+    } finally {
+      db.$client.close();
+    }
+  });
+
+  it("reads a pre-ceiling compiled parent's row as its own policy, not as a ceiling", () => {
+    const { db, spawn } = setup();
+    try {
+      const sourceBody = {
+        id: "pm",
+        sourceVersion: "lp-owned-1",
+        description: "PM",
+        prompt: "Manage the run.",
+        skills: ["pm-skill-a", "pm-skill-b"],
+        mcpServers: ["pm-server"],
+      };
+      const parent = spawn({ claudeAiSync: false }, {}, "claude-code", {
+        ...sourceBody,
+        sourceHash: digestVkCompiledMainAgentSource(sourceBody),
+      });
+      const policyRow = and(
+        eq(threadPluginMetadata.threadId, parent.id),
+        eq(threadPluginMetadata.pluginId, "__vk.required-session-policy"),
+      );
+      // The shape rows had before `ceiling` existed: explicit request ∩ agent selection in `policy`.
+      const legacy = {
+        version: 1 as const,
+        policy: {
+          claudeAiSync: false,
+          skills: { mode: "allow" as const, names: ["pm-skill-a", "pm-skill-b"] },
+          mcpServers: { mode: "allow" as const, names: ["pm-server"] },
+        },
+      };
+      db.update(threadPluginMetadata).set({ metadataJson: JSON.stringify(legacy) }).where(policyRow).run();
+      writeVkThreadMarker(db, parent.id, VK_REQUIRED_SESSION_POLICY_MARKER_ID, {
+        snapshotDigest: vkRequiredSessionPolicyDigest(legacy),
+      });
+      const child = spawn(
+        { skills: { mode: "allow", names: ["writer-practices", "pm-skill-a"] } },
+        { parentThreadId: parent.id },
+      );
+      const policy = readVkRequiredSessionPolicy(db, child.id)!.policy;
+      expect(vkPolicyAllows(policy.skills, "writer-practices")).toBe(true);
+      expect(vkPolicyAllows(policy.skills, "pm-skill-a")).toBe(true);
+      expect(policy.claudeAiSync).toBe(false);
+      expect(policy.mcpServers).toBeUndefined();
+
+      // A clause with a name outside the agent's selection may carry an explicit restriction: it stays.
+      const mixed = {
+        version: 1 as const,
+        policy: { skills: { mode: "allow" as const, names: ["pm-skill-a", "outside-skill"] } },
+      };
+      db.update(threadPluginMetadata).set({ metadataJson: JSON.stringify(mixed) }).where(policyRow).run();
+      writeVkThreadMarker(db, parent.id, VK_REQUIRED_SESSION_POLICY_MARKER_ID, {
+        snapshotDigest: vkRequiredSessionPolicyDigest(mixed),
+      });
+      const restricted = spawn(
+        { skills: { mode: "allow", names: ["outside-skill", "other-skill"] } },
+        { parentThreadId: parent.id },
+      );
+      const restrictedPolicy = readVkRequiredSessionPolicy(db, restricted.id)!.policy;
+      expect(vkPolicyAllows(restrictedPolicy.skills, "outside-skill")).toBe(true);
+      expect(vkPolicyAllows(restrictedPolicy.skills, "other-skill")).toBe(false);
+    } finally {
+      db.$client.close();
+    }
+  });
 
   it("still rejects an explicitly selected compiled MAIN role on an unsupported provider", () => {
     const { db, spawn } = setup();
