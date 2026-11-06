@@ -15,7 +15,6 @@ import {
 
 export interface WorkspaceAgentContext {
   agentInstructions: string | null;
-  claudeMdInstructions: string | null;
   projectSkillSources: ProjectInjectedSkillSource[];
   sharedSkills: ResolvedSharedSkills;
 }
@@ -86,7 +85,6 @@ export async function readWorkspaceAgentContext(
   }
   return {
     agentInstructions: result.agentInstructions,
-    claudeMdInstructions: result.claudeMdInstructions ?? null,
     projectSkillSources,
     sharedSkills: toResolvedSharedSkills(deps, result.sharedSkills),
   };
