@@ -811,10 +811,14 @@ Project instructions no longer arrive twice.
 
 `vkProjectInstructionsAllowed(policy, providerId)` also answers for the
 provider: CLIs that read `<workspace>/AGENTS.md` from the cwd themselves
-(codex, claude-code, acp-opencode, opencode2, acp-cursor, devin — evidence
+(codex, acp-opencode, opencode2, acp-cursor, devin — evidence
 in `VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS`) get no inlined copy, so the
-file reaches them once. zcode and acp-antigravity have no verified native
-read and keep the inline. A `projectInstructions: false` policy still wins.
+file reaches them once. claude-code is conditional: it reads CLAUDE.md, not
+AGENTS.md, so the inline stays unless `<workspace>/CLAUDE.md` imports the
+file with an `@AGENTS.md` line (`vkClaudeMdImportsAgents`, checked through
+`host.paths_exist` + `host.read_file`). zcode and acp-antigravity have no
+verified native read and keep the inline. A `projectInstructions: false`
+policy still wins.
 
 The Devin half of the dedupe — skipping the "Available bb skills" text block
 because Devin's own scan of `~/.agents/skills` listed the same catalog — was
@@ -824,7 +828,9 @@ filtered BB list must keep reaching Devin through the bridge.
 
 | File | What |
 | --- | --- |
-| `apps/server/src/services/threads/thread-runtime-config.ts` | the existing `vkProjectInstructionsAllowed` call passes `args.thread.providerId` |
+| `apps/server/src/services/threads/thread-runtime-config.ts` | the existing `vkProjectInstructionsAllowed` call passes `args.thread.providerId` and `await vkClaudeMdImportsAgents(...)` |
 
 Same file, extended: `apps/server/src/services/threads/vk-session-policy.ts`;
-test in `apps/server/test/threads/thread-runtime-config.test.ts`.
+tests in `apps/server/test/threads/thread-runtime-config.test.ts` and the
+`host.paths_exist` / `host.read_file` responders in
+`apps/server/test/helpers/commands.ts`.
