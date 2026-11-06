@@ -30,9 +30,13 @@ export interface VkStoredSessionPolicy extends VkRequiredSessionPolicy {
 // parent holds the explicit request intersected with the agent's own selection, and the two can no longer
 // be told apart. For such a parent a group filter counts as agent-derived — and is left out — only when
 // every clause stays inside the agent's stored selection: it then cannot carry an explicit restriction the
-// agent did not already allow. Everything else (deny clauses, names outside the agent's lists, the other
-// groups and the switches) still narrows children, so a legacy row errs toward restricting, never toward
-// widening past the stored ceiling.
+// agent did not already allow. An allow clause with zero names is never treated as agent-derived — it is
+// an explicit "nothing" ceiling (`[].every` would pass vacuously). Everything else (deny clauses, names
+// outside the agent's lists, the other groups and the switches) still narrows children, so a legacy row
+// errs toward restricting, never toward widening past the stored ceiling.
+// ponytail: the legacy heuristic cannot tell the agent's working set from an owner ceiling that happens to
+// equal it (it may free an explicit restriction inside that set, never anything wider). New rows carry
+// `ceiling`; drop the heuristic once no legacy compiled rows remain.
 export function vkSessionPolicyCeiling(
   snapshot: VkStoredSessionPolicy,
   compiledAgentProfile: Pick<VkCompiledMainAgent, "skills" | "mcpServers"> | null,
@@ -46,7 +50,7 @@ export function vkSessionPolicyCeiling(
     const filter = ceiling[key];
     if (filter === undefined || allowed === undefined || filter.mode !== "allow") continue;
     const clauses = [{ mode: filter.mode, names: filter.names }, ...(filter.allOf ?? [])];
-    if (clauses.every((clause) => clause.mode === "allow" && clause.names.every((name) => allowed.includes(name)))) {
+    if (clauses.every((clause) => clause.mode === "allow" && clause.names.length > 0 && clause.names.every((name) => allowed.includes(name)))) {
       delete ceiling[key];
     }
   }

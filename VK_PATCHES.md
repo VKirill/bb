@@ -226,7 +226,14 @@ resolves them at inheritance time: on a compiled-MAIN parent a `skills` or
 `mcpServers` allow filter counts as agent-derived — and is left out — only
 when every clause stays inside the agent's stored selection; deny clauses,
 names outside the agent's lists, the other groups and the switches still
-narrow children, so a legacy row errs toward restricting.
+narrow children, so a legacy row errs toward restricting. An allow clause
+with zero names is never agent-derived — it is an explicit "nothing" ceiling
+(`[].every` would pass vacuously). The heuristic cannot tell the agent's
+working set from an owner ceiling equal to it: it may free an explicit
+restriction inside that set, never anything wider; drop it once no legacy
+compiled rows remain (hub 2026-11-06: 153 legacy compiled rows, every
+allow filter inside the agent's list — all widened, none keeps a stray
+ceiling).
 
 Consumer: plugin `lane-pilot` (helper context «selected» / «none», PM profile).
 

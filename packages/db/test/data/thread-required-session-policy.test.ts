@@ -245,6 +245,22 @@ describe("required policy persistence", () => {
       const restrictedPolicy = readVkRequiredSessionPolicy(db, restricted.id)!.policy;
       expect(vkPolicyAllows(restrictedPolicy.skills, "outside-skill")).toBe(true);
       expect(vkPolicyAllows(restrictedPolicy.skills, "other-skill")).toBe(false);
+
+      // An allow clause with zero names is an explicit "nothing" ceiling, never agent-derived: it stays.
+      const none = {
+        version: 1 as const,
+        policy: { skills: { mode: "allow" as const, names: [] as string[] } },
+      };
+      db.update(threadPluginMetadata).set({ metadataJson: JSON.stringify(none) }).where(policyRow).run();
+      writeVkThreadMarker(db, parent.id, VK_REQUIRED_SESSION_POLICY_MARKER_ID, {
+        snapshotDigest: vkRequiredSessionPolicyDigest(none),
+      });
+      const denied = spawn(
+        { skills: { mode: "allow", names: ["writer-practices"] } },
+        { parentThreadId: parent.id },
+      );
+      const deniedPolicy = readVkRequiredSessionPolicy(db, denied.id)!.policy;
+      expect(vkPolicyAllows(deniedPolicy.skills, "writer-practices")).toBe(false);
     } finally {
       db.$client.close();
     }
