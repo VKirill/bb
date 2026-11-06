@@ -826,3 +826,34 @@ inside the event it already receives.
 
 New files: `apps/server/src/services/plugins/vk-idle-payload.ts`,
 `apps/server/test/internal/vk-idle-payload.test.ts`.
+
+## Context dedupe (`context-dedupe`)
+
+Project instructions and the BB skill catalog no longer arrive twice.
+
+`vkProjectInstructionsAllowed(policy, providerId)` also answers for the
+provider: CLIs that read `<workspace>/AGENTS.md` from the cwd themselves
+(codex, claude-code, acp-opencode, opencode2, acp-cursor, devin — evidence
+in `VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS`) get no inlined copy, so the
+file reaches them once. zcode and acp-antigravity have no verified native
+read and keep the inline. A `projectInstructions: false` policy still wins.
+
+`vkFilterAcpSkillRoots(skillRoots, policy, agent)` skips the "Available bb
+skills" text block for agents that enumerate installed skills natively
+(`vkAcpAgentListsSkillsNatively` — Devin, via its binary or the
+bb-plugin-devin shim) when no skill is denied; bb installs the same catalog
+into `~/.agents/skills` that Devin scans itself, so the text was a verbatim
+second copy (~175 KB measured on a Lane Pilot writer's first message,
+`sessions.db` 2026-11-06). When a policy denies skills the filtered list
+stays — it is the only place the allowed names survive, since Devin's own
+scan has no per-session switch.
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/threads/thread-runtime-config.ts` | the existing `vkProjectInstructionsAllowed` call passes `args.thread.providerId` |
+| `packages/provider-bridge-acp/src/bridge/bridge.ts` | the existing `vkFilterAcpSkillRoots` call passes `{ dialectId, launchSpec }` |
+
+Same files, extended: `apps/server/src/services/threads/vk-session-policy.ts`,
+`packages/provider-bridge-acp/src/vk-session-policy.ts`; tests in
+`apps/server/test/threads/thread-runtime-config.test.ts` and
+`packages/provider-bridge-acp/src/vk-session-policy.test.ts`.

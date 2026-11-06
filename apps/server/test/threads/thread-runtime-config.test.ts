@@ -963,6 +963,7 @@ describe("thread runtime config", () => {
       const thread = seedThread(harness.deps, {
         environmentId: environment.id,
         projectId: project.id,
+        providerId: "zcode",
       });
 
       const runtimeConfig = await resolveThreadRuntimeCommandConfig(
@@ -1188,6 +1189,64 @@ describe("thread runtime config", () => {
     );
   });
 
+  it.each([
+    { providerId: "codex", inlined: false },
+    { providerId: "claude-code", inlined: false },
+    { providerId: "devin", inlined: false },
+    { providerId: "acp-cursor", inlined: false },
+    { providerId: "zcode", inlined: true },
+    { providerId: "acp-antigravity", inlined: true },
+  ])(
+    "inlines workspace AGENTS.md for $providerId only when the CLI does not read it itself",
+    async ({ providerId, inlined }) => {
+      await withTestHarness(async (harness) => {
+        const hostId = `host-runtime-dedupe-${providerId}`;
+        seedHostSession(harness.deps, { id: hostId });
+        const workspacePath = path.join(
+          harness.config.dataDir,
+          `dedupe-workspace-${providerId}`,
+        );
+        const { project } = seedProjectWithSource(harness.deps, {
+          hostId,
+          path: workspacePath,
+        });
+        const environment = seedEnvironment(harness.deps, {
+          hostId,
+          projectId: project.id,
+          path: workspacePath,
+        });
+        const thread = seedThread(harness.deps, {
+          projectId: project.id,
+          environmentId: environment.id,
+          providerId,
+        });
+        await writeWorkspaceAgentInstructions({
+          content: "# Project Rules\n\nRun the dedupe check.\n",
+          workspacePath,
+        });
+
+        const runtimeConfig = await resolveThreadRuntimeCommandConfig(
+          harness.deps,
+          {
+            thread,
+            model: "test-model",
+            environment: {
+              hostId: environment.hostId,
+              id: environment.id,
+              path: environment.path,
+              status: environment.status,
+            },
+          },
+        );
+
+        const assertion = inlined
+          ? expect(runtimeConfig.instructions)
+          : expect(runtimeConfig.instructions).not;
+        assertion.toContain("Run the dedupe check.");
+      });
+    },
+  );
+
   it("appends data-dir AGENTS.md instructions before workspace instructions", async () => {
     await withTestHarness(async (harness) => {
       const hostId = "host-runtime-data-dir-agents-md";
@@ -1208,7 +1267,7 @@ describe("thread runtime config", () => {
       const thread = seedThread(harness.deps, {
         projectId: project.id,
         environmentId: environment.id,
-        providerId: "codex",
+        providerId: "zcode",
       });
       await writeDataDirAgentInstructions({
         content: "# User Rules\n\nPrefer concise progress updates.\n",
