@@ -1609,6 +1609,53 @@ describe("thread runtime config", () => {
     },
   );
 
+  it("keeps the inline copy for claude-code when the daemon predates claudeMdInstructions", async () => {
+    await withTestHarness(async (harness) => {
+      const { host: primary } = seedHostSession(harness.deps, {
+        id: "host-runtime-claude-legacy-primary",
+      });
+      const { host, session } = seedHostSession(harness.deps, {
+        id: "host-runtime-claude-legacy-remote",
+      });
+      seedPrimaryHost(harness.deps, primary.id);
+      setExperiments(harness.db, { ...defaultExperiments });
+      const workspacePath = "/remote/claude-legacy-workspace";
+      registerRemoteRuntimeFileResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        files: new Map([
+          [
+            path.posix.join(workspacePath, ".bb", "AGENTS.md"),
+            "# Remote Rules\n\nOld daemon keeps me inline.\n",
+          ],
+        ]),
+      });
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: workspacePath,
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+        path: workspacePath,
+      });
+      const thread = seedThread(harness.deps, {
+        environmentId: environment.id,
+        projectId: project.id,
+        providerId: "claude-code",
+      });
+
+      const runtimeConfig = await resolveThreadRuntimeCommandConfig(
+        harness.deps,
+        { thread, environment, model: "test-model" },
+      );
+
+      expect(runtimeConfig.instructions).toContain(
+        "Old daemon keeps me inline.",
+      );
+    });
+  });
+
   it("appends data-dir AGENTS.md instructions before workspace instructions", async () => {
     await withTestHarness(async (harness) => {
       const hostId = "host-runtime-data-dir-agents-md";
