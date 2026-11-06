@@ -101,11 +101,11 @@ describe("Cursor and BB skills", () => {
   });
 });
 
-describe("ACP provider plugins (Devin, ZCode) under a required policy", () => {
+describe("ACP provider plugins (Devin, ZCode, Antigravity) under a required policy", () => {
   it("are held to the Cursor rules instead of being refused as unknown", async () => {
     // 2026-10-30: a Lane Pilot writer thread on devin under a PM chat got vk_required_session_policy_unsupported_provider.
     const { assertVkRequiredPolicyProvider } = await import("../src/vk-session-policy.js");
-    for (const provider of ["devin", "zcode"]) {
+    for (const provider of ["devin", "zcode", "acp-antigravity"]) {
       expect(() => assertVkRequiredPolicyProvider(provider, { skills: { mode: "allow", names: ["writer-practices"] }, claudeAiSync: false })).not.toThrow();
       expect(() => assertVkRequiredPolicyProvider(provider, { nativePlugins: { mode: "allow", names: [] } })).toThrow(/native_plugins/);
       expect(() => assertVkRequiredPolicyProvider(provider, { projectInstructions: false })).toThrow(/cursor/);
@@ -120,6 +120,7 @@ describe("OpenCode v2 required policy", () => {
       "../src/vk-session-policy.js"
     );
     expect(Object.keys(capability.providerGroups).sort()).toEqual([
+      "acp-antigravity",
       "acp-cursor",
       "acp-opencode",
       "claude-code",

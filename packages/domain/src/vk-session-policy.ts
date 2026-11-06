@@ -256,7 +256,13 @@ export function vkProviderEnforcesPolicyInCore(providerId: string): boolean {
  * a required policy holds for them exactly as for Cursor; nothing else (native plugins, a project-instruction switch) exists
  * on their side. Without this entry a Lane Pilot writer thread under a PM chat was refused (2026-10-30, devin).
  */
-export const VK_ACP_PLUGIN_POLICY_PROVIDERS: readonly string[] = ["devin", "zcode"];
+export const VK_ACP_PLUGIN_POLICY_PROVIDERS: readonly string[] = [
+  "devin",
+  "zcode",
+  // Antigravity, a registry agent of the ACP provider plugin on the same bridge: without a policy its first prompt carried every BB
+  // plugin's instructions and the whole skill list, and the agent cut the message at ~12 KB, the task with it (2026-11-06).
+  "acp-antigravity",
+];
 
 function vkAcpLikeProvider(providerId: string): boolean {
   return providerId === "acp-cursor" || VK_ACP_PLUGIN_POLICY_PROVIDERS.includes(providerId);
@@ -325,6 +331,7 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     "acp-cursor": ["bbPlugins", "skills", "mcpServers"],
     devin: ["bbPlugins", "skills", "mcpServers"],
     zcode: ["bbPlugins", "skills", "mcpServers"],
+    "acp-antigravity": ["bbPlugins", "skills", "mcpServers"],
     opencode2: ["bbPlugins", "skills", "mcpServers"],
   },
   instructionSwitches: {
@@ -334,6 +341,7 @@ export const VK_REQUIRED_SESSION_POLICY_CAPABILITY = {
     "acp-cursor": ["userInstructions"],
     devin: ["userInstructions"],
     zcode: ["userInstructions"],
+    "acp-antigravity": ["userInstructions"],
     opencode2: ["userInstructions"],
   },
   mandatoryBbPlugins: VK_REQUIRED_PLUGIN_IDS,

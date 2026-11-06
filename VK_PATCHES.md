@@ -220,7 +220,10 @@ on `packages/provider-bridge-acp` (dialect `generic`), whose handshake and BB
 skill-list narrowing hold for any ACP agent, so `assertVkRequiredPolicyProvider`
 holds them to the Cursor rules (`VK_ACP_PLUGIN_POLICY_PROVIDERS`) and the
 capability lists them. Before 2026-11-01 a Lane Pilot writer on devin under a PM
-chat was refused as an unknown provider.
+chat was refused as an unknown provider. `acp-antigravity` (a registry agent of
+`plugins/provider-acp`, same bridge) joined the list 2026-11-06: without a policy
+its first prompt carried every plugin's instructions and the whole skill list, and
+Antigravity cut the message at ~12 KB, the task with it.
 
 ### Hook points in upstream files
 
