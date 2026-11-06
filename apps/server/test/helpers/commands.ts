@@ -1,5 +1,11 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { hostDaemonSessions } from "@bb/db";
@@ -180,6 +186,58 @@ function respondToRuntimeWorkspaceFileCommand(
   message: HostDaemonOnlineRpcRequestMessage,
 ): boolean {
   const command = message.command;
+  if (command.type === "host.paths_exist") {
+    deps.hub.recordHostOnlineRpcResponse({
+      message: hostDaemonOnlineRpcResponseMessageSchema.parse({
+        type: "host-rpc.response",
+        requestId: message.requestId,
+        commandType: command.type,
+        ok: true,
+        result: {
+          existence: Object.fromEntries(
+            command.paths.map((entry) => [entry, existsSync(entry)] as const),
+          ),
+        },
+      }),
+      sessionId: args.sessionId,
+    });
+    return true;
+  }
+  if (command.type === "host.read_file") {
+    try {
+      const content = readFileSync(command.path);
+      deps.hub.recordHostOnlineRpcResponse({
+        message: hostDaemonOnlineRpcResponseMessageSchema.parse({
+          type: "host-rpc.response",
+          requestId: message.requestId,
+          commandType: command.type,
+          ok: true,
+          result: {
+            path: command.path,
+            content: content.toString("base64"),
+            contentEncoding: "base64",
+            sha256: createHash("sha256").update(content).digest("hex"),
+            sizeBytes: content.byteLength,
+          },
+        }),
+        sessionId: args.sessionId,
+      });
+    } catch (error) {
+      deps.hub.recordHostOnlineRpcResponse({
+        message: hostDaemonOnlineRpcResponseMessageSchema.parse({
+          type: "host-rpc.response",
+          requestId: message.requestId,
+          commandType: command.type,
+          ok: false,
+          errorCode: "invalid_path",
+          errorMessage:
+            error instanceof Error ? error.message : String(error),
+        }),
+        sessionId: args.sessionId,
+      });
+    }
+    return true;
+  }
   if (command.type !== "host.read_workspace_agent_context") return false;
   deps.hub.recordHostOnlineRpcResponse({
     message: hostDaemonOnlineRpcResponseMessageSchema.parse({

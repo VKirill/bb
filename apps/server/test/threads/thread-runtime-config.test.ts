@@ -1191,7 +1191,6 @@ describe("thread runtime config", () => {
 
   it.each([
     { providerId: "codex", inlined: false },
-    { providerId: "claude-code", inlined: false },
     { providerId: "devin", inlined: false },
     { providerId: "acp-cursor", inlined: false },
     { providerId: "zcode", inlined: true },
@@ -1224,6 +1223,65 @@ describe("thread runtime config", () => {
           content: "# Project Rules\n\nRun the dedupe check.\n",
           workspacePath,
         });
+
+        const runtimeConfig = await resolveThreadRuntimeCommandConfig(
+          harness.deps,
+          {
+            thread,
+            model: "test-model",
+            environment: {
+              hostId: environment.hostId,
+              id: environment.id,
+              path: environment.path,
+              status: environment.status,
+            },
+          },
+        );
+
+        const assertion = inlined
+          ? expect(runtimeConfig.instructions)
+          : expect(runtimeConfig.instructions).not;
+        assertion.toContain("Run the dedupe check.");
+      });
+    },
+  );
+
+  it.each([
+    { claudeMd: "# Claude Rules\n@AGENTS.md\n", inlined: false },
+    { claudeMd: "# Claude Rules\nNo import here.\n", inlined: true },
+    { claudeMd: null, inlined: true },
+  ])(
+    "inlines workspace AGENTS.md for claude-code only without an @AGENTS.md import (claudeMd=$claudeMd)",
+    async ({ claudeMd, inlined }) => {
+      await withTestHarness(async (harness) => {
+        const hostId = `host-runtime-claude-dedupe-${inlined}`;
+        seedHostSession(harness.deps, { id: hostId });
+        const workspacePath = path.join(
+          harness.config.dataDir,
+          `claude-dedupe-workspace-${inlined}-${claudeMd === null}`,
+        );
+        const { project } = seedProjectWithSource(harness.deps, {
+          hostId,
+          path: workspacePath,
+        });
+        const environment = seedEnvironment(harness.deps, {
+          hostId,
+          projectId: project.id,
+          path: workspacePath,
+        });
+        const thread = seedThread(harness.deps, {
+          projectId: project.id,
+          environmentId: environment.id,
+          providerId: "claude-code",
+        });
+        await writeWorkspaceAgentInstructions({
+          content: "# Project Rules\n\nRun the dedupe check.\n",
+          workspacePath,
+        });
+        if (claudeMd !== null) {
+          await mkdir(workspacePath, { recursive: true });
+          await writeFile(path.join(workspacePath, "CLAUDE.md"), claudeMd);
+        }
 
         const runtimeConfig = await resolveThreadRuntimeCommandConfig(
           harness.deps,
