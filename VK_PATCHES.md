@@ -829,7 +829,7 @@ New files: `apps/server/src/services/plugins/vk-idle-payload.ts`,
 
 ## Context dedupe (`context-dedupe`)
 
-Project instructions and the BB skill catalog no longer arrive twice.
+Project instructions no longer arrive twice.
 
 `vkProjectInstructionsAllowed(policy, providerId)` also answers for the
 provider: CLIs that read `<workspace>/AGENTS.md` from the cwd themselves
@@ -838,22 +838,15 @@ in `VK_PROVIDERS_READING_WORKSPACE_INSTRUCTIONS`) get no inlined copy, so the
 file reaches them once. zcode and acp-antigravity have no verified native
 read and keep the inline. A `projectInstructions: false` policy still wins.
 
-`vkFilterAcpSkillRoots(skillRoots, policy, agent)` skips the "Available bb
-skills" text block for agents that enumerate installed skills natively
-(`vkAcpAgentListsSkillsNatively` — Devin, via its binary or the
-bb-plugin-devin shim) when no skill is denied; bb installs the same catalog
-into `~/.agents/skills` that Devin scans itself, so the text was a verbatim
-second copy (~175 KB measured on a Lane Pilot writer's first message,
-`sessions.db` 2026-11-06). When a policy denies skills the filtered list
-stays — it is the only place the allowed names survive, since Devin's own
-scan has no per-session switch.
+The Devin half of the dedupe — skipping the "Available bb skills" text block
+because Devin's own scan of `~/.agents/skills` listed the same catalog — was
+reverted on the owner's call (2026-11-06): the machine skill folders are
+being emptied on every machine, the hub catalog is the canon, so the
+filtered BB list must keep reaching Devin through the bridge.
 
 | File | What |
 | --- | --- |
 | `apps/server/src/services/threads/thread-runtime-config.ts` | the existing `vkProjectInstructionsAllowed` call passes `args.thread.providerId` |
-| `packages/provider-bridge-acp/src/bridge/bridge.ts` | the existing `vkFilterAcpSkillRoots` call passes `{ dialectId, launchSpec }` |
 
-Same files, extended: `apps/server/src/services/threads/vk-session-policy.ts`,
-`packages/provider-bridge-acp/src/vk-session-policy.ts`; tests in
-`apps/server/test/threads/thread-runtime-config.test.ts` and
-`packages/provider-bridge-acp/src/vk-session-policy.test.ts`.
+Same file, extended: `apps/server/src/services/threads/vk-session-policy.ts`;
+test in `apps/server/test/threads/thread-runtime-config.test.ts`.

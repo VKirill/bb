@@ -4098,10 +4098,7 @@ async function handleRequest(
           ...(Object.keys(vkEnv).length > 0
             ? { envVars: { ...(params.options.envVars ?? {}), ...vkEnv } }
             : {}),
-          skillRoots: vkFilterAcpSkillRoots(configuredSkillRoots, vkPolicy, {
-            dialectId: vkDialectId,
-            launchSpec,
-          }),
+          skillRoots: vkFilterAcpSkillRoots(configuredSkillRoots, vkPolicy),
         },
         parameterizedModelPicker: modelPicker.parameterizedModelPicker,
         launchSpec,
