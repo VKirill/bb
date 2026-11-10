@@ -87,6 +87,10 @@ export function buildClaudeVkSessionOptions(args: {
       args.home ?? homedir(),
     );
   }
+  // VK EXPERIMENTAL: a required policy marks a worker a plugin spawned. The user's auto-memory of the project
+  // (~/.claude/projects/<cwd>/memory/MEMORY.md) is their own chats' notebook: a worker neither reads it at start
+  // nor writes into it. The provider setting `memoryEnabled` keeps deciding for every session without a required policy.
+  if (args.policy.required === true) flags.autoMemoryEnabled = false;
   if (args.policy.claudeAiSync === false) {
     flags.syncClaudeAiSkills = false;
     flags.syncClaudeAiPlugins = false;

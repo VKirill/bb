@@ -225,10 +225,10 @@ export class SdkSession {
     effort: ClaudeSdkReasoningEffort | undefined;
     settings: ClaudeMutableFlagSettings;
   }): Promise<void> {
-    // The flag layer is replaced wholesale; keep the session policy in it.
+    // The flag layer is replaced wholesale; keep the session policy in it, last, so it still narrows.
     await this.query?.applyFlagSettings({
-      ...(this.options.vkFlagSettings ?? {}),
       ...args.settings,
+      ...(this.options.vkFlagSettings ?? {}),
     });
     this.options.effort = args.effort;
     const { effortLevel: _effortLevel, ...sessionSettings } = args.settings;
@@ -237,6 +237,7 @@ export class SdkSession {
     this.options.settings = {
       ...currentSettings,
       ...sessionSettings,
+      ...(this.options.vkFlagSettings ?? {}),
     };
   }
 

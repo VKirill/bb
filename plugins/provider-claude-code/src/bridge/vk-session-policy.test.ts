@@ -212,5 +212,17 @@ describe("buildClaudeVkSessionOptions", () => {
     expect(flags.claudeMdExcludes).toEqual(claudeMdExcludePatterns(cwd, home));
     expect(flags.syncClaudeAiSkills).toBe(false);
     expect(flags.syncClaudeAiPlugins).toBe(false);
+    expect("autoMemoryEnabled" in flags).toBe(false);
+  });
+
+  it("turns the user's auto-memory off for a worker under a required policy", () => {
+    const { home, cwd } = fixture();
+    const flags = buildClaudeVkSessionOptions({
+      bbSkillNames: [],
+      cwd,
+      home,
+      policy: { version: 1, required: true },
+    }).flagSettings as Record<string, unknown>;
+    expect(flags.autoMemoryEnabled).toBe(false);
   });
 });

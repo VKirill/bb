@@ -267,9 +267,10 @@ export function buildSessionOptions(
         policy: params.vkSessionPolicy,
       })
     : null;
+  // The session policy narrows the provider's own flags, so it is spread last (its `autoMemoryEnabled: false` wins).
   const flagSettings = {
-    ...(vk?.flagSettings ?? {}),
     ...buildFlagSettings(params),
+    ...(vk?.flagSettings ?? {}),
   };
   const effort =
     params.reasoningLevel === undefined
