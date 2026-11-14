@@ -7,6 +7,10 @@ import {
   VK_COMPILED_MAIN_AGENT_PROVIDER_OPTION,
   type VkCompiledMainAgent,
 } from "@bb/domain/vk-compiled-main-agent";
+import {
+  VK_LAUNCH_TUNING_PROVIDER_OPTION,
+  type VkLaunchTuning,
+} from "@bb/domain/vk-launch-tuning"; // VK EXPERIMENTAL
 import { and, eq, isNull } from "drizzle-orm";
 import {
   PromptInput,
@@ -147,6 +151,8 @@ interface RuntimeExecutionOptionsArgs {
   /** VK EXPERIMENTAL: travels to the bridge as the `vkSessionPolicy` option. */
   vkSessionPolicy?: VkRuntimeSessionPolicy | null;
   vkCompiledMainAgent?: VkCompiledMainAgent | null;
+  /** VK EXPERIMENTAL: travels to the bridge as the `vkLaunchTuning` option. */
+  vkLaunchTuning?: VkLaunchTuning | null;
 }
 
 interface BuildExecutionOptionsArgs {
@@ -265,6 +271,12 @@ function toRuntimeExecutionOptions(
   if (args.vkSessionPolicy?.required) {
     providerOptions = { ...providerOptions, vkRequiredSessionPolicy: 1 };
   }
+  if (args.vkLaunchTuning) {
+    providerOptions = {
+      ...providerOptions,
+      [VK_LAUNCH_TUNING_PROVIDER_OPTION]: args.vkLaunchTuning,
+    };
+  }
   if (args.vkCompiledMainAgent) {
     if (args.providerId !== "claude-code")
       throw new Error("vk_compiled_main_agent_unsupported_provider");
@@ -360,6 +372,7 @@ export async function buildThreadStartCommand(
       threadId: args.thread.id,
       vkSessionPolicy: runtimeContext.vkSessionPolicy,
       vkCompiledMainAgent: runtimeContext.vkCompiledMainAgent,
+      vkLaunchTuning: runtimeContext.vkLaunchTuning,
     }),
     instructions: runtimeContext.instructions,
     dynamicTools: runtimeContext.dynamicTools,
@@ -395,6 +408,7 @@ function buildPreparedTurnSubmitCommandPayload(
       workspacePath: args.runtimeContext.workspacePath,
       vkSessionPolicy: args.runtimeContext.vkSessionPolicy,
       vkCompiledMainAgent: args.runtimeContext.vkCompiledMainAgent,
+      vkLaunchTuning: args.runtimeContext.vkLaunchTuning,
     }),
     target: args.target,
     resumeContext: {

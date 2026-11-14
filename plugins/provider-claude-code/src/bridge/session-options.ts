@@ -9,7 +9,10 @@ import { accessSync, constants, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import type { ClaudePermissionMode } from "../interactive-contract.js";
-import type { VkRuntimeSessionPolicy } from "@get-bb/plugin-sdk/provider-bridge";
+import type {
+  VkLaunchTuning,
+  VkRuntimeSessionPolicy,
+} from "@get-bb/plugin-sdk/provider-bridge";
 import { vkPolicyAllows } from "@get-bb/plugin-sdk/provider-bridge";
 import {
   buildClaudeVkSessionOptions,
@@ -41,6 +44,8 @@ export interface BuildSessionOptionsArgs {
   memoryEnabled?: boolean;
   /** VK EXPERIMENTAL: the bridge half of a session policy. */
   vkSessionPolicy?: VkRuntimeSessionPolicy;
+  /** VK EXPERIMENTAL: launch tuning a plugin set for this thread (`claude` half). */
+  vkLaunchTuning?: VkLaunchTuning;
   vkCompiledMainAgent?: {
     id: string;
     sourceVersion: string;
@@ -276,11 +281,20 @@ export function buildSessionOptions(
     params.reasoningLevel === undefined
       ? undefined
       : toSdkEffort(params.reasoningLevel);
-  const extraArgs = buildChromeExtraArgs(params.chromeEnabled);
-  // VK EXPERIMENTAL: the bridge-level tool denials of a compiled MAIN agent and a session policy.
+  // VK EXPERIMENTAL: launch tuning (a plugin narrows how this session starts): `--disable-slash-commands` drops every skill and built-in command.
+  const vkClaudeTuning = params.vkLaunchTuning?.claude;
+  const chromeArgs = buildChromeExtraArgs(params.chromeEnabled);
+  const extraArgs =
+    vkClaudeTuning?.disableSlashCommands === true
+      ? { ...chromeArgs, "disable-slash-commands": null }
+      : chromeArgs;
+  // VK EXPERIMENTAL: the bridge-level tool denials of a compiled MAIN agent, a session policy and launch tuning.
   const vkDisallowedTools = [
-    ...(params.vkCompiledMainAgent?.disallowedTools ?? []),
-    ...(vk?.disallowedTools ?? []),
+    ...new Set([
+      ...(params.vkCompiledMainAgent?.disallowedTools ?? []),
+      ...(vk?.disallowedTools ?? []),
+      ...(vkClaudeTuning?.disallowedTools ?? []),
+    ]),
   ];
 
   return {

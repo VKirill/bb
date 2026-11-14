@@ -253,6 +253,17 @@ export {
   VK_COMPILED_MAIN_AGENT_PROVIDER_OPTION,
 } from "@bb/domain/vk-compiled-main-agent";
 export type { VkCompiledMainAgent } from "@bb/domain/vk-compiled-main-agent";
+// VK EXPERIMENTAL: launch tuning (what core hands a bridge as the `vkLaunchTuning` provider option).
+export {
+  readVkLaunchTuning,
+  sanitizeVkAcpLaunch,
+  vkLaunchTuningSchema,
+  VK_LAUNCH_TUNING_PROVIDER_OPTION,
+} from "@bb/domain/vk-launch-tuning";
+export type {
+  VkAcpLaunch,
+  VkLaunchTuning,
+} from "@bb/domain/vk-launch-tuning";
 export type {
   BoundedLineReaderArgs,
   BridgeJsonRpcResponse,
