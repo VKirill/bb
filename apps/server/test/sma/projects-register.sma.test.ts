@@ -61,6 +61,102 @@ describe("projects register (core)", () => {
     });
   });
 
+  it("[sma:m_pj_default] a project made without a choice of folder gets its folder as the default source", async () => {
+    await withTestHarness(async (harness) => {
+      const host = seedHost(harness.deps, { id: "host-default-source" });
+      seedPrimaryHost(harness.deps, host.id);
+      const created = await harness.app.request("/api/v1/projects", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Defaulted",
+          source: {
+            type: "local_path",
+            hostId: host.id,
+            path: "/tmp/default-source",
+          },
+        }),
+      });
+      expect(created.status).toBe(201);
+      const body = z
+        .object({
+          id: z.string(),
+          sources: z.array(
+            z.object({
+              path: z.string().nullable(),
+              isDefault: z.boolean(),
+              hostId: z.string().nullable().optional(),
+            }),
+          ),
+        })
+        .parse(await readJson(created));
+      expect(body.sources).toHaveLength(1);
+      expect(body.sources[0]).toMatchObject({
+        path: "/tmp/default-source",
+        isDefault: true,
+      });
+      const read = await harness.app.request(`/api/v1/projects/${body.id}`);
+      expect(
+        (
+          (await readJson(read)) as {
+            sources: Array<{ isDefault: boolean }>;
+          }
+        ).sources.map((source) => source.isDefault),
+      ).toEqual([true]);
+    });
+  });
+
+  it("[sma:m_pj_select] every thread is bound to its own project, and the project list never mixes them: there is no switch to move the work", async () => {
+    await withTestHarness(async (harness) => {
+      const host = seedHost(harness.deps, { id: "host-bound-projects" });
+      seedPrimaryHost(harness.deps, host.id);
+      const make = async (name: string, path: string) =>
+        projectSchema.parse(
+          await readJson(
+            await harness.app.request("/api/v1/projects", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name,
+                source: { type: "local_path", hostId: host.id, path },
+              }),
+            }),
+          ),
+        );
+      const left = await make("Left", "/tmp/bound-left");
+      const right = await make("Right", "/tmp/bound-right");
+      const threadIn = (project: { id: string }, path: string) =>
+        seedThread(harness.deps, {
+          environmentId: seedEnvironment(harness.deps, {
+            hostId: host.id,
+            projectId: project.id,
+            path,
+          }).id,
+          projectId: project.id,
+          status: "idle",
+        });
+      const leftThread = threadIn(left, "/tmp/bound-left");
+      const rightThread = threadIn(right, "/tmp/bound-right");
+
+      const listed = z
+        .array(
+          z.object({
+            id: z.string(),
+            threads: z.array(z.object({ id: z.string() })),
+          }),
+        )
+        .parse(
+          await readJson(
+            await harness.app.request("/api/v1/projects?include=threads"),
+          ),
+        );
+      const threadsOf = (id: string) =>
+        listed.find((project) => project.id === id)?.threads.map((t) => t.id);
+      expect(threadsOf(left.id)).toEqual([leftThread.id]);
+      expect(threadsOf(right.id)).toEqual([rightThread.id]);
+    });
+  });
+
   it("[sma:m_pj_rename] renaming changes the name and never the id, because threads and sources reference the id", async () => {
     await withTestHarness(async (harness) => {
       const host = seedHost(harness.deps, { id: "host-rename-project" });
