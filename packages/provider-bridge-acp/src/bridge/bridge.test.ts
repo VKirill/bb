@@ -295,6 +295,8 @@ interface StartThreadArgs extends AgentLaunchArgs {
   reasoningLevel?: ReasoningLevel;
   serviceTier?: "default" | "fast";
   additionalWorkspaceWriteRoots?: string[];
+  /** VK EXPERIMENTAL: the `vkLaunchTuning` provider option core hands the bridge. */
+  vkLaunchTuning?: Record<string, unknown>;
 }
 
 async function startThread(args?: StartThreadArgs): Promise<{
@@ -315,6 +317,9 @@ async function startThread(args?: StartThreadArgs): Promise<{
           ? {
               additionalWorkspaceWriteRoots: args.additionalWorkspaceWriteRoots,
             }
+          : {}),
+        ...(args?.vkLaunchTuning
+          ? { vkLaunchTuning: args.vkLaunchTuning }
           : {}),
       },
     }),
@@ -6180,6 +6185,126 @@ describe("acp bridge: live session state", () => {
     });
     expect(threadStates("bb/session-options").at(-1)).toMatchObject({
       options: [{ id: "approach", value: "build" }, { id: "web" }],
+    });
+  });
+
+  // VK EXPERIMENTAL: launch tuning a plugin asked for (mode, narrowing flags and env).
+  describe("VK launch tuning", () => {
+    const tuning = (acp: Record<string, unknown>) => ({ version: 1, acp });
+    const methodsOf = (requestLog: string, method: string) =>
+      loggedAcpRequests(requestLog)
+        .filter((request) => request.method === method)
+        .map((request) => request.params);
+
+    it("switches the agent to the requested mode through session/set_mode before the first prompt", async () => {
+      const requestLog = join(workspaceDir, "requests.log");
+      const { providerThreadId } = await startThread({
+        envVars: { FAKE_ACP_MODES: "agent,ask,plan", FAKE_ACP_REQUEST_LOG: requestLog },
+        vkLaunchTuning: tuning({ mode: "ask" }),
+      });
+      expect(methodsOf(requestLog, "session/set_mode")).toEqual([
+        { sessionId: providerThreadId, modeId: "ask" },
+      ]);
+      expect(loggedAcpRequests(requestLog).map((r) => r.method)).not.toContain("session/prompt");
+      expect(threadStates("bb/session-options").at(-1)).toMatchObject({
+        options: [{ id: "_bb/legacy-mode", value: "ask" }],
+      });
+      expect(threadEventsOfType("provider/warning")).toEqual([]);
+    });
+
+    it("uses the agent's own mode config option when it has one", async () => {
+      const requestLog = join(workspaceDir, "requests.log");
+      const { providerThreadId } = await startThread({
+        envVars: { FAKE_ACP_MODES: "agent,ask", FAKE_ACP_MODE_CONFIG: "1", FAKE_ACP_REQUEST_LOG: requestLog },
+        vkLaunchTuning: tuning({ mode: "ask" }),
+      });
+      expect(methodsOf(requestLog, "session/set_mode")).toEqual([]);
+      expect(setConfigRequests(requestLog)).toEqual([
+        { sessionId: providerThreadId, configId: "mode", value: "ask" },
+      ]);
+    });
+
+    it("leaves the mode alone when the agent already runs in it", async () => {
+      const requestLog = join(workspaceDir, "requests.log");
+      await startThread({
+        envVars: { FAKE_ACP_MODES: "ask,agent", FAKE_ACP_REQUEST_LOG: requestLog },
+        vkLaunchTuning: tuning({ mode: "ask" }),
+      });
+      expect(methodsOf(requestLog, "session/set_mode")).toEqual([]);
+    });
+
+    it("warns, and still starts the thread, when the agent does not offer the mode", async () => {
+      const requestLog = join(workspaceDir, "requests.log");
+      await startThread({
+        envVars: { FAKE_ACP_MODES: "agent,ask", FAKE_ACP_REQUEST_LOG: requestLog },
+        vkLaunchTuning: tuning({ mode: "plan" }),
+      });
+      expect(methodsOf(requestLog, "session/set_mode")).toEqual([]);
+      expect(threadEventsOfType("provider/warning").at(-1)).toMatchObject({
+        summary: 'Launch tuning asked for mode "plan", which the agent does not offer',
+        details: "Offered: agent, ask",
+      });
+    });
+
+    it("warns, and still starts the thread, when the agent has no mode switch at all", async () => {
+      await startThread({ vkLaunchTuning: tuning({ mode: "ask" }) });
+      expect(threadEventsOfType("provider/warning").at(-1)).toMatchObject({
+        summary: 'Launch tuning asked for mode "ask", but the agent has no mode switch',
+      });
+    });
+
+    it("warns when the agent refuses the switch", async () => {
+      const { providerThreadId } = await startThread({
+        envVars: { FAKE_ACP_MODES: "agent,ask", FAKE_ACP_MODE_REJECT: "1" },
+        vkLaunchTuning: tuning({ mode: "ask" }),
+      });
+      expect(providerThreadId).not.toBe("");
+      const summaries = threadEventsOfType("provider/warning").map(
+        (event) => (event as { summary?: string }).summary,
+      );
+      expect(summaries).toContain("The agent did not apply Mode");
+      expect(summaries).toContain('The agent did not switch to mode "ask"');
+    });
+
+    it("never switches to a mode that is not on the narrowing allow-list, even when the agent offers it", async () => {
+      const requestLog = join(workspaceDir, "requests.log");
+      await startThread({
+        envVars: { FAKE_ACP_MODES: "ask,bypass", FAKE_ACP_REQUEST_LOG: requestLog },
+        vkLaunchTuning: tuning({ mode: "bypass" }),
+      });
+      expect(methodsOf(requestLog, "session/set_mode")).toEqual([]);
+      expect(threadEventsOfType("provider/warning")).toEqual([]);
+    });
+
+    it("appends allow-listed flags to the agent command and drops the rest", async () => {
+      const argsLog = join(workspaceDir, "args.log");
+      await startThread({
+        envVars: { FAKE_ACP_ARGS_LOG: argsLog },
+        vkLaunchTuning: tuning({
+          args: ["--sandbox", "--dangerously-skip-permissions"],
+        }),
+      });
+      const launches = readFileSync(argsLog, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { args: string[] });
+      expect(launches).toEqual([
+        { args: ["--sandbox"] },
+      ]);
+    });
+
+    it("launches exactly as before without a tuning, and with an invalid one", async () => {
+      const argsLog = join(workspaceDir, "args.log");
+      const requestLog = join(workspaceDir, "requests.log");
+      const envVars = { FAKE_ACP_MODES: "agent,ask", FAKE_ACP_ARGS_LOG: argsLog, FAKE_ACP_REQUEST_LOG: requestLog };
+      await startThread({ envVars });
+      await startThread({ envVars, vkLaunchTuning: { version: 9, acp: { mode: "ask", args: ["--sandbox"] } } });
+      const launches = readFileSync(argsLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+      expect(launches).toEqual([
+        { args: [] },
+        { args: [] },
+      ]);
+      expect(methodsOf(requestLog, "session/set_mode")).toEqual([]);
     });
   });
 

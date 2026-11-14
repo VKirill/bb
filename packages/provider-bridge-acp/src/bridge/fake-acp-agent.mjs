@@ -46,6 +46,14 @@
  * - FAKE_ACP_CURSOR_PARAMETERIZED_MODELS=1
  *                            → mirror Cursor compatibility-vs-parameterized
  *                              model/config-option responses
+ * - FAKE_ACP_MODES=<csv>     → advertise legacy ACP `modes` (first one current)
+ *                              and accept session/set_mode for them
+ * - FAKE_ACP_MODE_CONFIG=1   → with FAKE_ACP_MODES: advertise the modes as a
+ *                              native `mode` configOption, set through
+ *                              session/set_config_option (no legacy `modes`)
+ * - FAKE_ACP_MODE_REJECT=1   → fail every mode switch
+ * - FAKE_ACP_ARGS_LOG        → append one JSON line per launch with the
+ *                              command-line args
  * - FAKE_ACP_REQUEST_LOG     → append each client request as JSON
  * - FAKE_ACP_MODEL_COUNT=<n> → pad the catalog to n reasoning-capable models
  *                              (exercises large-catalog reasoning discovery)
@@ -143,6 +151,12 @@ const acceptNativeReasoning =
 const sessionOptionsConfig = process.env.FAKE_ACP_SESSION_OPTIONS === "1";
 const sessionOptionRejectedValue =
   process.env.FAKE_ACP_SESSION_OPTION_REJECTED_VALUE;
+const fakeModes = (process.env.FAKE_ACP_MODES ?? "")
+  .split(",")
+  .filter(Boolean);
+const modeConfig = process.env.FAKE_ACP_MODE_CONFIG === "1";
+const modeReject = process.env.FAKE_ACP_MODE_REJECT === "1";
+let currentMode = fakeModes[0];
 let selectedApproach = "build";
 let webSearchEnabled = false;
 const setConfigModelError = process.env.FAKE_ACP_SET_CONFIG_MODEL_ERROR === "1";
@@ -279,6 +293,13 @@ if (process.env.FAKE_ACP_READY_FILE) {
   const readyFile = process.env.FAKE_ACP_READY_FILE;
   writeFileSync(readyFile + ".tmp", String(process.pid));
   renameSync(readyFile + ".tmp", readyFile);
+}
+
+if (process.env.FAKE_ACP_ARGS_LOG) {
+  appendFileSync(
+    process.env.FAKE_ACP_ARGS_LOG,
+    `${JSON.stringify({ args: process.argv.slice(2) })}\n`,
+  );
 }
 
 if (process.env.FAKE_ACP_LAUNCH_LOG) {
@@ -424,7 +445,21 @@ function sessionOptionConfigOptions() {
   ];
 }
 
+function modeConfigOption() {
+  return {
+    id: "mode",
+    name: "Mode",
+    category: "mode",
+    type: "select",
+    currentValue: currentMode,
+    options: fakeModes.map((id) => ({ value: id, name: id })),
+  };
+}
+
 function configOptions() {
+  if (fakeModes.length > 0 && modeConfig) {
+    return [modeConfigOption()];
+  }
   if (cursorParameterizedModels) {
     return cursorConfigOptions();
   }
@@ -478,6 +513,12 @@ function configState() {
         name: model.name,
         ...(grokContext ? { _meta: { totalContextTokens: 500_000 } } : {}),
       })),
+    };
+  }
+  if (fakeModes.length > 0 && !modeConfig) {
+    state.modes = {
+      currentModeId: currentMode,
+      availableModes: fakeModes.map((id) => ({ id, name: id })),
     };
   }
   return state;
@@ -1181,9 +1222,36 @@ async function handleMessage(message) {
       });
       return;
     }
+    case "session/set_mode": {
+      const modeId = message.params?.modeId;
+      if (modeReject || !fakeModes.includes(modeId)) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          error: { code: -32602, message: `mode unavailable: ${modeId}` },
+        });
+        return;
+      }
+      currentMode = modeId;
+      send({ jsonrpc: "2.0", id: message.id, result: {} });
+      return;
+    }
     case "session/set_config_option": {
       const configId = message.params?.configId;
       const value = message.params?.value;
+      if (configId === "mode" && fakeModes.length > 0 && modeConfig) {
+        if (modeReject || !fakeModes.includes(value)) {
+          send({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: { code: -32602, message: `mode unavailable: ${value}` },
+          });
+          return;
+        }
+        currentMode = value;
+        send({ jsonrpc: "2.0", id: message.id, result: configState() });
+        return;
+      }
       if (configId === "model") {
         if (setConfigModelError || value === setConfigModelErrorValue) {
           send({

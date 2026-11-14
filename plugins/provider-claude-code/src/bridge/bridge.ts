@@ -1089,6 +1089,9 @@ function toSessionConstructionConfig(
       ...(params.vkCompiledMainAgent
         ? { vkCompiledMainAgent: params.vkCompiledMainAgent }
         : {}),
+      ...(params.vkLaunchTuning
+        ? { vkLaunchTuning: params.vkLaunchTuning }
+        : {}),
     },
   };
 }

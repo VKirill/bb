@@ -47,3 +47,4 @@ export * from "./ui-preferences.js";
 export * from "./vk-quiet-child.js";
 export * from "./vk-thread-keys.js";
 export * from "./vk-child-told-parent.js";
+export * from "./vk-launch-tuning.js";

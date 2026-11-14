@@ -22,6 +22,7 @@ import {
 } from "@get-bb/plugin-sdk/provider-bridge";
 import {
   vkCompiledMainAgentSchema,
+  vkLaunchTuningSchema,
   vkRuntimeSessionPolicySchema,
 } from "@get-bb/plugin-sdk/provider-bridge";
 import { z } from "zod";
@@ -73,6 +74,8 @@ export const claudeThreadStartParamsSchema = z.object({
   vkSessionPolicy: vkRuntimeSessionPolicySchema.optional(),
   /** VK EXPERIMENTAL: immutable compiled MAIN AgentDefinition snapshot. */
   vkCompiledMainAgent: vkCompiledMainAgentSchema.optional(),
+  /** VK EXPERIMENTAL: launch tuning a plugin set for this thread (`claude` half). */
+  vkLaunchTuning: vkLaunchTuningSchema.optional(),
 });
 
 export const claudeThreadResumeParamsSchema =

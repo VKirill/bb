@@ -861,3 +861,54 @@ inside the event it already receives.
 
 New files: `apps/server/src/services/plugins/vk-idle-payload.ts`,
 `apps/server/test/internal/vk-idle-payload.test.ts`.
+
+## Launch tuning (`launch-tuning`, off unless a plugin sets it)
+
+A plugin that starts a helper session narrows how that one agent is LAUNCHED,
+which the session policy (what the session loads) does not reach: ACP agents
+(Cursor, Devin, Antigravity) cannot be given CLI flags such as `--mode` through
+the plugin, and Claude Code cannot get `--disallowedTools` or
+`--disable-slash-commands` outside the skills deny policy. The plugin passes
+`pluginMetadata: { experimental_vkLaunchTuning: { version: 1, acp?: { mode?, args? }, claude?: { disallowedTools?, disableSlashCommands? } } }`
+to `threads.spawn`. No table, no migration: the value sits in the plugin's own
+metadata row. Core reads it at every thread start and turn and hands the
+sanitized result to the bridge as the `vkLaunchTuning` provider option. No
+tuning, an invalid one or a read failure is a no-op (nothing changes).
+
+The layer only narrows. ACP `mode` and `args` pass allow-lists
+(`VK_ACP_NARROW_MODES`, `VK_ACP_ARG_RULES`); `agent`, `bypass`, `auto` and any
+other flag are dropped with a stderr line. A mode the agent does not offer, or
+refuses, leaves the session as it was and shows a `provider/warning` in the thread.
+
+Measured on this host (a write by shell inside the sandbox dir, permissions auto-allowed):
+
+| Agent | Result |
+| --- | --- |
+| Cursor `ask`, `plan` | no write, no shell |
+| Devin `ask` | no write, "shell execution is unavailable in Ask mode" |
+| Devin `plan` | **writes** (inside and outside the workspace): do not use it as read-only |
+| Devin `acp --agent-type review` | no write ("review mode prohibits file modifications"); help says read-only + shell tools |
+| `DEVIN_SANDBOX=true` under `devin acp` | **no effect** (both files written); that is why there is no `env` knob |
+| Antigravity `plan` | `run_command` withheld, even for an "owner pre-approved, do not plan" prompt (2 runs); agent-level, not a sandbox |
+| Antigravity `acp --sandbox` | workspace read-only for its terminal, a write outside the workspace still succeeds |
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/threads/thread-runtime-config.ts` | the thread's tuning is read with the runtime context (`readVkLaunchTuningForThread`) |
+| `apps/server/src/services/threads/thread-commands.ts` | the tuning goes to the bridge as the `vkLaunchTuning` provider option |
+| `packages/db/src/data/index.ts` | export of `readVkLaunchTuningForThread` |
+| `packages/domain/package.json` | export `./vk-launch-tuning` |
+| `packages/plugin-sdk/src/provider-bridge.ts` | re-exports for bridges (`readVkLaunchTuning`, `sanitizeVkAcpLaunch`, schema, types) |
+| `packages/provider-bridge-acp/src/bridge/bridge.ts` | ACP: extra args on the agent command; `session/set_mode` (or the `mode` config option) right after the session exists |
+| `packages/provider-bridge-acp/src/session-params.ts` | `vkAcpMode` session param |
+| `plugins/provider-claude-code/src/bridge/{bridge,commands,session-options}.ts`, `src/session-params.ts` | Claude Code: `claude.disallowedTools` merged into `disallowedTools`; `--disable-slash-commands` |
+| `plugins/bb-guide/skills/bb-plugin-authoring/references/provider-bridge-api-index.md` | SDK exports reference |
+
+New files: `packages/domain/src/vk-launch-tuning.ts`,
+`packages/db/src/data/vk-launch-tuning.ts`,
+`packages/provider-bridge-acp/src/vk-launch-tuning.ts`, and their tests
+(`packages/domain/test/`, `packages/db/test/data/`,
+`apps/server/test/threads/vk-launch-tuning.test.ts`,
+`plugins/provider-claude-code/src/bridge/vk-launch-tuning.test.ts`, the
+`VK launch tuning` block in `packages/provider-bridge-acp/src/bridge/bridge.test.ts`,
+the mode and args log in `fake-acp-agent.mjs`).
