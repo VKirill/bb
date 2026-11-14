@@ -36,7 +36,9 @@ describe("bb owner login --print (core: apps/cli owner)", () => {
 
   const register: CommandRegistrar = (program) => registerOwnerCommands(program, () => "http://server");
 
-  it.skipIf(process.platform === "darwin")("[sma:m_entry_link] the sign-in link with its one-time ticket is printed to the person's console, once, and is sent nowhere", async () => {
+  it("[sma:m_entry_link] the sign-in link with its one-time ticket is printed to the person's console, once, and is sent nowhere", async (context) => {
+    // macOS keeps the owner key in the Keychain; the file store this test points at is the store on Linux and Windows.
+    if (process.platform === "darwin") context.skip();
     const key = createOwnerKey(createFileStore(ownerKeyFilePath(undefined, configHome)));
 
     await runCommand(["owner", "login", "--print", "--url", "https://hub.example/"], register);
