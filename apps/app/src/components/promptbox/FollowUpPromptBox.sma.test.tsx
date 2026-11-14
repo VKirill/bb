@@ -43,10 +43,12 @@ vi.mock("@/components/promptbox/ComposerBox", () => ({
   DEFAULT_COMPOSER_SCOPE: { kind: "new-thread", projectId: null },
   ComposerBox: function ComposerBox({
     executionControls,
+    compactBeforeSend,
     onSubmit,
     submission,
   }: {
     executionControls?: ReactNode;
+    compactBeforeSend?: ReactNode;
     onSubmit: () => void;
     submission?: CapturedSubmission;
   }) {
@@ -54,6 +56,7 @@ vi.mock("@/components/promptbox/ComposerBox", () => ({
     return (
       <div data-testid="prompt-box">
         {executionControls}
+        {compactBeforeSend}
         <input aria-label="Follow-up prompt" />
         <button type="button" onClick={() => onSubmit()}>
           Submit
@@ -279,4 +282,44 @@ it("[sma:m_sw_composer] the agent and model choice is locked while the chat is r
   expect(
     screen.getByTestId("execution-controls").getAttribute("data-disabled"),
   ).toBe("false");
+});
+
+it("[sma:m_sw_context_notice] when the history is large the box offers the compaction line: it names the tokens, toggles on press, and the send button says it compacts first", () => {
+  const onCompactFirstChange = vi.fn();
+  const p = props({ kind: "ready" });
+  const first = render(
+    <FollowUpPromptBox
+      {...p}
+      compactBeforeSend={{
+        compactFirst: true,
+        tokens: 120_000,
+        onCompactFirstChange,
+      }}
+    />,
+  );
+  const chip = screen.getByRole("button", {
+    name: "Compact 120k tokens before sending",
+  });
+  expect(chip.getAttribute("aria-pressed")).toBe("true");
+  expect(submission().title).toBe("Compact 120k tokens, then send (Enter)");
+  fireEvent.click(chip);
+  expect(onCompactFirstChange).toHaveBeenCalledWith(false);
+  first.unmount();
+
+  render(
+    <FollowUpPromptBox
+      {...props({ kind: "ready" })}
+      compactBeforeSend={{
+        compactFirst: false,
+        tokens: 120_000,
+        onCompactFirstChange,
+      }}
+    />,
+  );
+  expect(
+    screen
+      .getByRole("button", { name: "Keep all 120k tokens of history" })
+      .getAttribute("aria-pressed"),
+  ).toBe("false");
+  expect(submission().title).toBe("Submit (Enter)");
 });
