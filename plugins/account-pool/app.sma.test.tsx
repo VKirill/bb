@@ -129,6 +129,10 @@ describe("accounts page (SMA proofs)", () => {
     expect(slot.getByText("21%")).toBeTruthy();
     expect(slot.getByText("40%")).toBeTruthy();
     expect(slot.getByText("61%")).toBeTruthy();
+    const sectionOf = (text: string) =>
+      slot.getByText(text).closest("section")?.querySelector("h2")?.textContent;
+    expect(sectionOf("person@example.com")).toBe("Claude");
+    expect(sectionOf("pro@example.com")).toBe("Codex");
     slot.unmount();
 
     const onlyCodex = render([codex]);
