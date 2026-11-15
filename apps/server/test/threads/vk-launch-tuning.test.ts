@@ -50,6 +50,7 @@ async function startOptions(harness: TestAppHarness, seeded: Awaited<ReturnType<
     projectId: seeded.project.id,
     providerId: seeded.thread.providerId,
     requestId: encodeClientTurnRequestIdNumber({ value: 1 }),
+    syncGeneratedTitle: false,
     thread: seeded.thread,
   });
   return command.options.providerOptions ?? {};
