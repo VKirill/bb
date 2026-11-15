@@ -1,7 +1,9 @@
 import {
   readVkRequiredSessionPolicy,
   narrowVkRequiredSessionPolicy,
+  readVkLaunchTuningForThread, // VK EXPERIMENTAL
 } from "@bb/db";
+import type { VkLaunchTuning } from "@bb/domain/vk-launch-tuning"; // VK EXPERIMENTAL
 import { assertVkRequiredPolicyProvider } from "@bb/domain/vk-session-policy";
 import {
   resolveHostEnvironment,
@@ -99,6 +101,8 @@ export interface ResolvedThreadRuntimeCommandConfig {
   /** VK EXPERIMENTAL: the bridge half of the thread's session policy. */
   vkSessionPolicy: VkRuntimeSessionPolicy | null;
   vkCompiledMainAgent: VkCompiledMainAgent | null;
+  /** VK EXPERIMENTAL: the launch tuning the spawning plugin put into its thread metadata. */
+  vkLaunchTuning: VkLaunchTuning | null;
   workspacePath: string;
 }
 
@@ -395,6 +399,8 @@ export async function resolveThreadRuntimeCommandConfig(
     threadStoragePath,
     vkSessionPolicy,
     vkCompiledMainAgent,
+    // VK EXPERIMENTAL: the plugin metadata key `experimental_vkLaunchTuning` (a plugin narrows how this thread is launched).
+    vkLaunchTuning: readVkLaunchTuningForThread(deps.db, args.thread.id),
     workspacePath,
   };
 }

@@ -2,6 +2,7 @@ import {
   buildShellEnvOverrides,
   jsonValueSchema,
   readVkCompiledMainAgent,
+  readVkLaunchTuning,
   readVkRuntimeSessionPolicy,
   removeCommandMentionsFromPromptInput,
   type DynamicTool,
@@ -11,6 +12,7 @@ import {
   type ServiceTier,
   type RuntimePermissionPolicy,
   type VkCompiledMainAgent,
+  type VkLaunchTuning,
   type VkRuntimeSessionPolicy,
 } from "@get-bb/plugin-sdk/provider-bridge";
 import { z } from "zod";
@@ -88,6 +90,7 @@ export type ClaudeSessionExecutionOptions = RuntimePermissionPolicy & {
   skillRoots?: readonly ClaudeCodeSkillRoot[] | undefined;
   vkSessionPolicy?: VkRuntimeSessionPolicy | null | undefined;
   vkCompiledMainAgent?: VkCompiledMainAgent | null | undefined;
+  vkLaunchTuning?: VkLaunchTuning | null | undefined;
 };
 
 function resolveClaudeSessionPermissionMode(
@@ -160,6 +163,9 @@ function buildInternalSessionParams(
     ...(args.options.vkCompiledMainAgent
       ? { vkCompiledMainAgent: args.options.vkCompiledMainAgent }
       : {}),
+    ...(args.options.vkLaunchTuning
+      ? { vkLaunchTuning: args.options.vkLaunchTuning }
+      : {}),
   };
 }
 
@@ -217,6 +223,7 @@ export function buildClaudeSessionParams(
       vkCompiledMainAgent: readVkCompiledMainAgent(
         args.options.providerOptions,
       ),
+      vkLaunchTuning: readVkLaunchTuning(args.options.providerOptions),
       claudeCodePermissionMode: providerOptions.claudeCodePermissionMode,
       workflowsEnabled: providerOptions.workflowsEnabled ?? false,
       chromeEnabled: providerOptions.chromeEnabled ?? false,

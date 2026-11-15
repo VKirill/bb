@@ -445,3 +445,9 @@ Feature-test before use; stock bb has none of these.
 - `parseVkCompiledMainAgent` — validate a stored compiled MAIN agent profile; null when incomplete
 - `vkCompiledMainAgentSchema` — the zod schema of that profile
 - `VkCompiledMainAgent`
+- `VK_LAUNCH_TUNING_PROVIDER_OPTION` — the provider option key (`vkLaunchTuning`) under which core hands a thread's launch tuning to a bridge
+- `readVkLaunchTuning` — the launch tuning (`acp` mode/args, `claude` disallowedTools/disableSlashCommands) from provider options, or null
+- `sanitizeVkAcpLaunch` — the part of an ACP launch tuning that passes the allow-lists of narrowing modes, flags
+- `vkLaunchTuningSchema` — the zod schema of the tuning
+- `VkLaunchTuning`
+- `VkAcpLaunch`

@@ -104,6 +104,11 @@
       "types": "./src/vk-session-policy.ts",
       "default": "./src/vk-session-policy.ts"
     },
+    "./vk-launch-tuning": {
+      "source": "./src/vk-launch-tuning.ts",
+      "types": "./src/vk-launch-tuning.ts",
+      "default": "./src/vk-launch-tuning.ts"
+    },
     "./vk-compiled-main-agent": {
       "source": "./src/vk-compiled-main-agent.ts",
       "types": "./src/vk-compiled-main-agent.ts",

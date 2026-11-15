@@ -79,6 +79,8 @@ export interface AcpSessionParams {
   envVars?: Record<string, string>;
   instructions?: string;
   dynamicTools?: readonly DynamicTool[];
+  /** VK EXPERIMENTAL: the ACP mode a plugin's launch tuning asks for; applied once the session exists. */
+  vkAcpMode?: string;
 }
 
 function sanitizeAcpSkillDescription(description: string): string {

@@ -17,6 +17,7 @@ import type {
 } from "@bb/domain";
 import { readVkRuntimeSessionPolicy } from "@bb/domain/vk-session-policy";
 import { buildAcpVkEnv, vkFilterAcpSkillRoots } from "../vk-session-policy.js";
+import { vkAcpLaunchFromOptions, vkApplyLaunchMode } from "../vk-launch-tuning.js";
 import { acpLaunchSpecSchema, type AcpLaunchSpec } from "../launch-spec.js";
 import {
   BRIDGE_INBOUND_REQUEST_METHODS,
@@ -2670,6 +2671,20 @@ async function startAgentSession(
       }
     }
     deferredEmits.length = 0;
+    // VK EXPERIMENTAL: launch tuning asks for a mode (Cursor `ask`, Devin `ask`, ...): switch the agent to it before the first prompt.
+    if (params.vkAcpMode !== undefined) {
+      await vkApplyLaunchMode(params.vkAcpMode, {
+        options: () => session.model.snapshot().configOptions,
+        select: (optionId, value) =>
+          applySessionOptionSelections(session, { [optionId]: value }),
+        warn: (summary, details) =>
+          emitForSession(session, ACP_WARNING_METHOD, {
+            threadId: session.bbThreadId,
+            summary,
+            ...(details !== undefined ? { details } : {}),
+          }),
+      });
+    }
     return session;
   } catch (error) {
     session.stopping = true;
@@ -3284,6 +3299,7 @@ function reconcileExecutionSettings(
             launchCommand: session.construction.agent.command,
             options,
           }),
+          ...vkAcpLaunchFromOptions(options.providerOptions).env,
         }
       : session.construction.envVars;
   const workspaceWriteRoots =
@@ -3973,6 +3989,8 @@ async function handleRequest(
         launchCommand: launchSpec.command,
         options: params.options,
       });
+      // VK EXPERIMENTAL: launch tuning (mode, narrowing flags and env a plugin asked for); a no-op without it.
+      const vkLaunch = vkAcpLaunchFromOptions(params.options.providerOptions);
       const sessionParams = buildAcpSessionParams({
         additionalWorkspaceWriteRoots: decodeAdditionalWorkspaceWriteRoots(
           params.options.providerOptions,
@@ -3988,10 +4006,16 @@ async function handleRequest(
           skillRoots: vkFilterAcpSkillRoots(configuredSkillRoots, vkPolicy),
         },
         parameterizedModelPicker: modelPicker.parameterizedModelPicker,
-        launchSpec,
+        launchSpec:
+          vkLaunch.args.length > 0
+            ? { ...launchSpec, args: [...launchSpec.args, ...vkLaunch.args] }
+            : launchSpec,
         providerLabel: launchSpec.displayName,
         threadId: params.threadId,
       });
+      if (vkLaunch.mode !== undefined) {
+        sessionParams.vkAcpMode = vkLaunch.mode;
+      }
       const session = await startAgentSession(
         request.method === "thread/resume"
           ? {
