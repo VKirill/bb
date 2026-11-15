@@ -5,7 +5,7 @@ import {
   isSidebarProjectThread,
   type ProjectThreadItem,
 } from "./project-thread-groups.js";
-import { experimental_resolveThreadStatus } from "@get-bb/plugin-sdk/app";
+import { experimental_resolveThreadStatus } from "../../../../packages/plugin-sdk/src/internal/thread-status.js";
 import { buildSidebarData } from "./use-sidebar-data.js";
 
 function ids(items: readonly ProjectThreadItem[]): string[] {
