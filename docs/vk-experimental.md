@@ -19,6 +19,7 @@ This series extends the protocol-215 baseline `c02ca4246f54a94d81a0440c9a43a856b
 | Hook policy SDK contract | `packages/plugin-sdk/src/vk-hook-policy.ts` | SDK index export and optional `BbPluginApi.vk` |
 | Isolated schedules | `apps/server/src/services/plugins/vk-schedule-options.ts`, `packages/plugin-sdk/src/vk-schedule-options.ts` | `plugin-service.ts` `sweepDueSchedules` hands isolated schedules to the runner; `plugin-runtime.ts` creates it and aborts runs on dispose; `plugin-api.ts` registers `experimental_vkSchedule`; `manifest.ts` reads `vk.schedules` |
 | Native new-thread selection | `apps/app/src/components/plugin/plugin-composer-host.tsx`, `apps/app/src/components/promptbox/composer-environment-provenance.ts` | Composer context, SDK hook adapter, `RootComposeView`, `NewThreadComposer`, SDK declarations |
+| Required-session-policy inspection | `apps/server/src/services/plugins/vk-required-session-policy-inspection.ts`, `packages/plugin-sdk/src/vk-required-session-policy-inspection.ts` | `plugin-api.ts` `wrapSdkForPlugin` spreads the helper with the captured plugin identity and `assertLive`; reads go through `requirePublicThread` and `readVkRequiredSessionPolicy` |
 
 The composer extension reads BB's existing selection and environment request. It does not implement a second session creator. Native environment provisioning and thread creation remain owned by BB. Its initial commits are `5daca630a40b58cef8b1369b302c623ebb229039` and `a204375c5`; they must precede consumers of the new hook.
 

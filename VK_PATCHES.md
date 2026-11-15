@@ -393,6 +393,41 @@ New files: `packages/db/src/data/vk-thread-keys.ts`, `apps/server/src/services/p
 `packages/plugin-sdk/src/vk-thread-keys.ts`, tests `packages/db/test/data/vk-thread-keys.test.ts` and
 `apps/server/test/threads/vk-thread-keys.test.ts`.
 
+## Required-session-policy inspection (`required-session-policy-inspection`)
+
+Read-only batch inspection of the stored required-session-policy rows
+(`packages/db/src/data/thread-required-session-policy.ts`), so a plugin can verify which public threads carry a
+required session policy without touching the reserved `__vk.required-session-policy` metadata namespace itself.
+New optional method on the plugin-bound SDK (`PluginBbSdk.threads`), feature-tested with
+`typeof bb.sdk.threads.experimental_vkInspectRequiredSessionPolicies === "function"`:
+
+- `experimental_vkInspectRequiredSessionPolicies({ threadIds })` -> `{ version: 1, results }`, one result per
+  requested id in request order: `{ status: "valid", snapshot: { version: 1, policy, ceiling? } }`,
+  `{ status: "absent" }`, `{ status: "invalid", reason: "incomplete_snapshot" | "malformed_snapshot" |
+  "digest_mismatch" }` or `{ status: "unavailable" }`.
+
+Input is strict: exactly `threadIds` (1 to 200 non-empty unique strings); unknown fields — including `pluginId`,
+`namespace`, `policy`, `set`, `caller` — and duplicates reject the whole call before any database access. All
+lookups run in one synchronous read transaction: visibility through the existing `requirePublicThread` rule
+(missing thread, deleted thread or deleted project all report `unavailable` without distinguishing which), the
+stored-policy reader through the transaction. Reader outcomes map to the result union: no marker and no row ->
+`absent`; only one of marker/row -> `incomplete_snapshot`; unparseable JSON or schema failure ->
+`malformed_snapshot`; digest mismatch -> `digest_mismatch`; any other operational failure rejects the whole call
+rather than reporting partial results. The wrapper captures the plugin identity and `assertLive`, so a retained
+SDK reference rejects after the plugin is disposed; there is no caller-supplied plugin or namespace parameter.
+
+Instance-wide by design: any loaded plugin may inspect any public thread. This is not an ownership check and says
+nothing about effective runtime enforcement — `absent` means no stored requirement was found, never proof of
+unrestricted behavior; a `valid` snapshot is the stored requirement, not a guarantee the runtime applied it.
+
+New files: `packages/plugin-sdk/src/vk-required-session-policy-inspection.ts`,
+`apps/server/src/services/plugins/vk-required-session-policy-inspection.ts`, tests
+`apps/server/test/threads/vk-required-session-policy-inspection.test.ts`. Hook points:
+`packages/plugin-sdk/src/backend-contract.ts` + `index.ts` (type intersection and export),
+`apps/server/src/services/plugins/plugin-api.ts` (`wrapSdkForPlugin` takes `assertLive` and spreads the helper),
+`plugins/bb-guide/skills/bb-plugin-authoring/references/backend-api-index.md`, `docs/api_to_audit.md`. No table,
+no migration, no protocol change; stock `threads.*` methods are unchanged.
+
 ## Schedule options (`schedule-options`)
 
 `sweepDueSchedules` ran the due schedules of every plugin one after another and awaited each, so one long

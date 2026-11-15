@@ -2,8 +2,11 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
   BbPluginApi,
+  ExperimentalVkInspectRequiredSessionPoliciesArgs,
+  ExperimentalVkInspectRequiredSessionPoliciesResult,
   JsonValue,
   PluginAgentConfigurationContext,
+  PluginBbSdk,
   PluginEnvironmentProviderDeclaration,
   PluginEnvironments,
   ReadonlyJsonValue,
@@ -421,6 +424,17 @@ it("requires provider presentation fields in author-facing declarations", () => 
     description: string;
     icon: string;
   }>();
+});
+
+it("keeps required-session-policy inspection optional on the plugin SDK", () => {
+  expectTypeOf<
+    PluginBbSdk["threads"]["experimental_vkInspectRequiredSessionPolicies"]
+  >().toEqualTypeOf<
+    | ((
+        args: ExperimentalVkInspectRequiredSessionPoliciesArgs,
+      ) => Promise<ExperimentalVkInspectRequiredSessionPoliciesResult>)
+    | undefined
+  >();
 });
 
 it("gives composer attachments one owner and round-trips draft snapshots", () => {

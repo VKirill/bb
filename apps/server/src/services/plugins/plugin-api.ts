@@ -13,6 +13,7 @@ import {
 } from "@get-bb/plugin-sdk/internal/host-policy";
 import { listPluginVkContextContributions } from "./plugin-agent-contributions.js";
 import { createVkThreadKeyMethods } from "./vk-thread-keys.js";
+import { createVkRequiredSessionPolicyInspectionMethods } from "./vk-required-session-policy-inspection.js";
 import { createMachineBootstrapApi } from "../machines/bootstrap.js";
 import type { MachineEnrollments } from "../machines/enrollments.js";
 import { listServerAccessProviders } from "./plugin-server-access-registry.js";
@@ -378,6 +379,7 @@ function wrapSdkForPlugin(
   sdk: BbSdk,
   pluginId: string,
   db: DbConnection,
+  assertLive: () => void,
 ): PluginBbSdk {
   return {
     ...sdk,
@@ -434,6 +436,8 @@ function wrapSdkForPlugin(
         spawn: (args) =>
           sdk.threads.spawn(withPluginThreadAttribution(args, pluginId)),
       }),
+      // VK EXPERIMENTAL: experimental_vkInspectRequiredSessionPolicies.
+      ...createVkRequiredSessionPolicyInspectionMethods({ db, assertLive }),
     },
   };
 }
@@ -1573,6 +1577,7 @@ export function createPluginApi(options: {
         }),
         pluginId,
         db,
+        assertLive,
       );
       return wrappedSdk;
     },

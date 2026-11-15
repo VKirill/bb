@@ -313,6 +313,10 @@ Audit a function that ignores its signal (it keeps its slot until it settles), s
 
 `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey` and `experimental_vkFindByPluginMetadata` are optional methods on the plugin-bound SDK, implemented in the server `vk-thread-keys.ts`. The key is stored in the reserved `__vk.key` field of the spawning plugin's own thread plugin-metadata row, checked and inserted in the thread-create transaction; a deleted thread frees it. No table, migration or host protocol change; stock `threads.spawn` and `threads.list` are unchanged. Stabilization requires deciding whether keys should be first-class on `threads.spawn` upstream.
 
+## VK required-session-policy inspection
+
+`bb.sdk.threads.experimental_vkInspectRequiredSessionPolicies({ threadIds })` is an optional method on the plugin-bound SDK, implemented in the server `vk-required-session-policy-inspection.ts`. It reports the stored required-session-policy snapshot of up to 200 public threads per call — `valid` (with the `{ version: 1, policy, ceiling? }` snapshot), `absent`, `invalid` (`incomplete_snapshot` | `malformed_snapshot` | `digest_mismatch`) or `unavailable` — using the same marker/row consistency, strict schema and digest checks as the internal reader, inside one read transaction. Input is strict: exactly `threadIds`, no duplicates, no caller-supplied plugin id or namespace; invalid input rejects the whole call before any lookup. Visibility uses the existing `requirePublicThread` rule (missing, deleted thread or deleted project all report `unavailable`); the method is instance-wide — any loaded plugin may inspect any public thread — and says nothing about effective runtime enforcement. `absent` means no stored requirement was found, never proof of unrestricted behavior. No table, migration, HTTP route or host protocol change; the method stays optional so older hosts and upstream builds are unaffected. Stabilization requires deciding whether inspection should be owner-scoped or first-class on a thread read upstream.
+
 ## `app.commands.register`
 
 Unprefixed by explicit request. Registers frontend commands
