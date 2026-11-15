@@ -15,10 +15,8 @@ import {
 import { formatByteSize } from "@bb/shared-ui/lib/format-byte-size";
 import { canSaveFileNatively, saveFile } from "@/lib/save-file";
 import { useAttachmentOpener } from "@/components/secondary-panel/AttachmentOpenerContext";
-import type {
-  ThreadTimelineLocalFileLinkHandler,
-  UserAttachmentImageSrcResolver,
-} from "./types.js";
+import type { UserAttachmentImageSrcResolver } from "./types.js";
+import { useThreadTimelineNavigation } from "./ThreadTimelineNavigationContext";
 
 interface ConversationImageItem {
   mediaType?: "image" | "video";
@@ -34,7 +32,6 @@ export interface ConversationAttachmentItems {
 
 interface ConversationAttachmentsProps extends ConversationAttachmentItems {
   align?: "start" | "end";
-  onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   projectId?: string;
 }
 
@@ -115,9 +112,10 @@ export function ConversationAttachments({
   filePaths,
   fileDetails,
   imageItems,
-  onOpenLocalFileLink,
   projectId,
 }: ConversationAttachmentsProps) {
+  const onOpenLocalFileLink =
+    useThreadTimelineNavigation()?.onOpenLocalFileLink;
   const openAttachment = useAttachmentOpener();
   const [expandedImageIndex, setExpandedImageIndex] = useState<number | null>(
     null,

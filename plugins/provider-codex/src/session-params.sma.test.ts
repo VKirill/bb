@@ -11,12 +11,19 @@ const options = (
   permissionScope: "workspace" | "full",
   permissionEscalation: "ask" | "deny",
 ): RuntimePermissionPolicy =>
-  ({
-    permissionMode: "accept-edits",
-    permissionScope,
-    approvalReviewer: "user",
-    permissionEscalation,
-  }) satisfies RuntimePermissionPolicy;
+  permissionScope === "workspace"
+    ? {
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation,
+      }
+    : {
+        permissionMode: "full",
+        permissionScope: "full",
+        approvalReviewer: null,
+        permissionEscalation: null,
+      };
 
 describe("the Codex session's rights (core: provider-codex toCodexThreadPermissionSettings)", () => {
   it("[sma:m_ss_codex_args] each scope is a sandbox with an approval policy and no tool list: workspace-write without prompts when escalation is denied, full access never prompts", () => {

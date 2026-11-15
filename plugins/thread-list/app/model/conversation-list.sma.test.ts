@@ -5,11 +5,7 @@ import {
   isSidebarProjectThread,
   type ProjectThreadItem,
 } from "./project-thread-groups.js";
-import {
-  getThreadListIndicatorLabel,
-  resolveThreadListIndicator,
-  threadListIndicatorStateForThread,
-} from "./thread-activity.js";
+import { experimental_resolveThreadStatus } from "@get-bb/plugin-sdk/app";
 import { buildSidebarData } from "./use-sidebar-data.js";
 
 function ids(items: readonly ProjectThreadItem[]): string[] {
@@ -120,10 +116,13 @@ describe("[sma:m_sw_conv_list] running conversations are marked in the project's
       latestAttentionAt: 100,
       ...overrides,
     });
-    const kind = resolveThreadListIndicator(
-      threadListIndicatorStateForThread(thread, false),
-    );
-    return { kind, label: getThreadListIndicatorLabel(kind) };
+    const status = experimental_resolveThreadStatus({
+      thread,
+      hiddenThreads: [],
+      hasUnsubmittedDraft: false,
+      rowStatus: null,
+    });
+    return { kind: status.indicator, label: status.label };
   }
 
   it("[sma:m_sw_conv_list] a thread whose agent works is marked «Thread working»; an idle one has no mark", () => {

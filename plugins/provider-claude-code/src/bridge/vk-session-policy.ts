@@ -55,13 +55,16 @@ interface ClaudeNativeInventory {
 
 export function buildClaudeVkSessionOptions(args: {
   bbSkillNames: readonly string[];
+  configDir?: string;
   cwd: string;
   home?: string;
   policy: VkRuntimeSessionPolicy;
 }): ClaudeVkSessionOptions {
+  const home = args.home ?? homedir();
   const inventory = readClaudeNativeInventory(
     args.cwd,
-    args.home ?? homedir(),
+    home,
+    args.configDir ?? join(home, ".claude"),
     args.policy.required === true,
   );
   const options: ClaudeVkSessionOptions = {
@@ -82,10 +85,7 @@ export function buildClaudeVkSessionOptions(args: {
   // Keys newer than the SDK's Settings type; the user's CLI reads them.
   const flags = options.flagSettings as Record<string, unknown>;
   if (args.policy.projectInstructions === false) {
-    flags.claudeMdExcludes = claudeMdExcludePatterns(
-      args.cwd,
-      args.home ?? homedir(),
-    );
+    flags.claudeMdExcludes = claudeMdExcludePatterns(args.cwd, home);
   }
   // VK EXPERIMENTAL: a required policy marks a worker a plugin spawned. The user's auto-memory of the project
   // (~/.claude/projects/<cwd>/memory/MEMORY.md) is their own chats' notebook: a worker neither reads it at start
@@ -227,6 +227,7 @@ function bareSkillName(name: string): string {
 function readClaudeNativeInventory(
   cwd: string,
   home: string,
+  claudeDir: string,
   required: boolean,
 ): ClaudeNativeInventory {
   const readJson = (file: string) => readJsonObject(file, required);
@@ -244,7 +245,7 @@ function readClaudeNativeInventory(
   addMcpServers(inventory, asObject(projects?.[cwd])?.mcpServers);
 
   for (const dir of [
-    join(home, ".claude", "skills"),
+    join(claudeDir, "skills"),
     join(cwd, ".claude", "skills"),
   ]) {
     for (const name of listSkillDirs(dir)) {
@@ -255,7 +256,7 @@ function readClaudeNativeInventory(
 
   const enabled = {
     ...asObject(
-      readJson(join(home, ".claude", "settings.json"))?.enabledPlugins,
+      readJson(join(claudeDir, "settings.json"))?.enabledPlugins,
     ),
     ...asObject(
       readJson(join(cwd, ".claude", "settings.json"))?.enabledPlugins,
@@ -268,8 +269,7 @@ function readClaudeNativeInventory(
     ),
   );
   const installed = asObject(
-    readJson(join(home, ".claude", "plugins", "installed_plugins.json"))
-      ?.plugins,
+    readJson(join(claudeDir, "plugins", "installed_plugins.json"))?.plugins,
   );
   for (const [id, on] of Object.entries(enabled)) {
     if (on !== true) continue;

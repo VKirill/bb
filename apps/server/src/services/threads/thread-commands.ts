@@ -1,4 +1,9 @@
-import { environments, hasStoredSpawnAgentToolCall, threads } from "@bb/db";
+import {
+  environments,
+  hasStoredSpawnAgentToolCall,
+  liveThread,
+  threads,
+} from "@bb/db";
 import {
   VK_SESSION_POLICY_PROVIDER_OPTION,
   type VkRuntimeSessionPolicy,
@@ -11,11 +16,10 @@ import {
   VK_LAUNCH_TUNING_PROVIDER_OPTION,
   type VkLaunchTuning,
 } from "@bb/domain/vk-launch-tuning"; // VK EXPERIMENTAL
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   PromptInput,
   PromptMode,
-  ProjectExecutionDefaults,
   PermissionEscalation,
   ResolvedThreadExecutionOptions,
   RuntimeThreadExecutionOptions,
@@ -156,8 +160,8 @@ interface RuntimeExecutionOptionsArgs {
 }
 
 interface BuildExecutionOptionsArgs {
+  defaultModel?: string;
   hostId?: string | null;
-  projectDefaults?: ProjectExecutionDefaults | null;
   threadId: string;
 }
 
@@ -326,8 +330,8 @@ export async function buildExecutionOptions(
   args: BuildExecutionOptionsArgs,
 ): Promise<ResolvedThreadExecutionOptions> {
   const plan = await resolveExistingThreadExecutionPlan(deps, {
-    ...(args.projectDefaults !== undefined
-      ? { projectDefaults: args.projectDefaults }
+    ...(args.defaultModel !== undefined
+      ? { defaultModel: args.defaultModel }
       : {}),
     ...(args.hostId !== undefined ? { hostId: args.hostId } : {}),
     executionSource: "client/turn/requested",
@@ -494,8 +498,7 @@ function threadHasLiveChildren(
     .where(
       and(
         eq(threads.parentThreadId, threadId),
-        isNull(threads.archivedAt),
-        isNull(threads.deletedAt),
+        liveThread,
       ),
     )
     .limit(1)

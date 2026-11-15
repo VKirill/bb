@@ -1,13 +1,28 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { buildSessionOptions } from "./session-options.js";
 import {
   buildClaudeVkSessionOptions,
   claudeMdExcludePatterns,
 } from "./vk-session-policy.js";
 
 // VK EXPERIMENTAL: the Claude half of a session policy.
+
+const tmpDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tmpDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tmpDirs.push(dir);
+  return dir;
+}
 
 function skill(root: string, name: string): void {
   mkdirSync(join(root, name), { recursive: true });
@@ -63,6 +78,34 @@ function fixture(): { home: string; cwd: string } {
     }),
   );
   return { home, cwd };
+}
+
+function writeCustomProfile(root: string): void {
+  const install = join(root, "plugin-install");
+  mkdirSync(join(install, ".claude-plugin"), { recursive: true });
+  writeFileSync(
+    join(install, ".claude-plugin", "plugin.json"),
+    JSON.stringify({ name: "custom-only" }),
+  );
+  skill(join(install, "skills"), "custom-skill");
+  mkdirSync(join(root, "plugins"), { recursive: true });
+  writeFileSync(
+    join(root, "settings.json"),
+    JSON.stringify({ enabledPlugins: { "custom-only@market": true } }),
+  );
+  writeFileSync(
+    join(root, "plugins", "installed_plugins.json"),
+    JSON.stringify({
+      version: 2,
+      plugins: { "custom-only@market": [{ installPath: install }] },
+    }),
+  );
+}
+
+function customProfile(): { configDir: string } {
+  const configDir = tempDir("vk-claude-profile-");
+  writeCustomProfile(configDir);
+  return { configDir };
 }
 
 describe("buildClaudeVkSessionOptions", () => {
@@ -224,5 +267,109 @@ describe("buildClaudeVkSessionOptions", () => {
       policy: { version: 1, required: true },
     }).flagSettings as Record<string, unknown>;
     expect(flags.autoMemoryEnabled).toBe(false);
+  });
+
+  it("reads the plugin inventory from the session's Claude config directory, not only ~/.claude", () => {
+    const { home, cwd } = fixture();
+    const { configDir } = customProfile();
+    const build = (nativePlugins: {
+      mode: "allow" | "deny";
+      names: string[];
+    }) =>
+      buildClaudeVkSessionOptions({
+        bbSkillNames: [],
+        configDir,
+        cwd,
+        home,
+        policy: { version: 1, nativePlugins },
+      });
+    expect(
+      build({ mode: "deny", names: ["custom-only"] }).flagSettings
+        .enabledPlugins,
+    ).toEqual({ "custom-only@market": false });
+    expect(
+      build({ mode: "allow", names: [] }).flagSettings.enabledPlugins,
+    ).toEqual({
+      "custom-only@market": false,
+    });
+    expect(
+      build({ mode: "allow", names: ["custom-only"] }).flagSettings
+        .enabledPlugins,
+    ).toBeUndefined();
+    expect(
+      buildClaudeVkSessionOptions({
+        bbSkillNames: [],
+        configDir,
+        cwd,
+        home,
+        policy: {
+          version: 1,
+          skills: { mode: "allow", names: ["custom-only:*"] },
+        },
+      }).skills,
+    ).toEqual(["custom-only:custom-skill"]);
+  });
+});
+
+describe("buildSessionOptions Claude config directory", () => {
+  const base = {
+    instructionMode: "replace" as const,
+    permissionMode: "acceptEdits" as const,
+    permissionScope: "workspace" as const,
+    workflowsEnabled: false,
+    serviceTier: "default" as const,
+    disable1MContext: false,
+    sandboxEnabled: false,
+    chromeEnabled: false,
+    artifactsEnabled: false,
+  };
+
+  it("hands the session CLAUDE_CONFIG_DIR to the policy inventory, absolute and cwd-relative", () => {
+    const home = tempDir("vk-claude-home-");
+    const cwd = tempDir("vk-claude-session-cwd-");
+    const profileDir = join(cwd, "profile");
+    mkdirSync(profileDir, { recursive: true });
+    writeCustomProfile(profileDir);
+    const previousHome = process.env.HOME;
+    process.env.HOME = home;
+    try {
+      for (const configDir of [profileDir, "profile"]) {
+        const build = (nativePlugins: {
+          mode: "allow" | "deny";
+          names: string[];
+        }) =>
+          buildSessionOptions(
+            {
+              ...base,
+              cwd,
+              vkSessionPolicy: {
+                version: 1,
+                required: true,
+                nativePlugins,
+              },
+            },
+            { CLAUDE_CONFIG_DIR: configDir },
+          );
+        expect(
+          build({ mode: "deny", names: ["custom-only"] }).settings,
+        ).toMatchObject({
+          enabledPlugins: { "custom-only@market": false },
+        });
+        expect(
+          build({ mode: "allow", names: [] }).settings,
+        ).toMatchObject({
+          enabledPlugins: { "custom-only@market": false },
+        });
+        expect(
+          build({ mode: "allow", names: ["custom-only"] }).settings,
+        ).not.toHaveProperty("enabledPlugins");
+      }
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+    }
   });
 });

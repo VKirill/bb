@@ -32,6 +32,11 @@ environment do not thrash the runtime.
 | OpenCode (ACP) | instruction list filtered | `OPENCODE_CONFIG_CONTENT` `permission.skill` | `OPENCODE_CONFIG_CONTENT` `mcp.<n>.enabled=false` | — |
 | Cursor (ACP) | instruction list filtered | — | per-policy `CURSOR_DATA_DIR` overlay: real project folder linked, own `mcp-disabled.json` | — |
 
+The Claude inventory behind these switches (enabled plugins, their skills and
+MCP servers, personal skills) is read from the session's Claude config
+directory — `CLAUDE_CONFIG_DIR` resolved like the SDK session — so a custom
+profile is enforced the same way as `~/.claude`.
+
 ## Cursor bridge MCP (`cursor-bridge-mcp`)
 
 Cursor ACP (`cursor-agent`) does not put `session/new` MCP tools into Grok's

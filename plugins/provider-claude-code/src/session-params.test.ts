@@ -17,6 +17,7 @@ const EXECUTION_CONTEXT = {
   artifactsEnabled: true,
   sandboxEnabled: false,
   fullAccessApprovalsEnabled: true,
+  commandDescriptionsEnabled: true,
   memoryEnabled: false,
   providerSubagentsEnabled: false,
   instructions: "Session instructions",
@@ -36,6 +37,7 @@ function toCanonicalWireOptions(options: typeof EXECUTION_CONTEXT) {
     artifactsEnabled,
     sandboxEnabled,
     fullAccessApprovalsEnabled,
+    commandDescriptionsEnabled,
     memoryEnabled,
     providerSubagentsEnabled,
     ...core
@@ -50,6 +52,7 @@ function toCanonicalWireOptions(options: typeof EXECUTION_CONTEXT) {
       artifactsEnabled,
       sandboxEnabled,
       fullAccessApprovalsEnabled,
+      commandDescriptionsEnabled,
       memoryEnabled,
       providerSubagentsEnabled,
     },
@@ -98,6 +101,7 @@ describe("buildClaudeSessionParams", () => {
       artifactsEnabled: true,
       sandboxEnabled: false,
       fullAccessApprovalsEnabled: true,
+      commandDescriptionsEnabled: true,
       memoryEnabled: false,
       providerSubagentsEnabled: false,
       model: "claude-sonnet-5",
@@ -147,6 +151,7 @@ describe("buildClaudeSessionParams", () => {
       artifactsEnabled: false,
       sandboxEnabled: true,
       fullAccessApprovalsEnabled: false,
+      commandDescriptionsEnabled: false,
       permissionMode: "bypassPermissions",
       approvedPlanPermissionMode: "bypassPermissions",
       permissionEscalation: null,
@@ -452,7 +457,10 @@ describe("buildClaudeSessionParams dynamic tool presentation", () => {
   });
 
   it("makes the bridge row read the registered label, and the generic one for a tool without it", () => {
-    const translator = createClaudeDeltaTranslator({ sandboxEnabled: false });
+    const translator = createClaudeDeltaTranslator({
+      sandboxEnabled: false,
+      commandDescriptionsEnabled: false,
+    });
     translator.configureInjectedTools(
       buildTools().map((tool) => ({
         name: tool.name as string,

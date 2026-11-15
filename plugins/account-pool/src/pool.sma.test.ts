@@ -64,7 +64,7 @@ describe("account pool (SMA proofs)", () => {
     const added = accountSchema.parse(
       await host.harness.behavior.callRpc("account.add", {
         provider: "claude",
-        source: { kind: "api-key", apiKey: "sk-secret-marker-596" }, // guardian: allow
+        apiKey: "sk-secret-marker-596", // guardian: allow
         label: null,
         priority: 100,
       }),
@@ -82,14 +82,18 @@ describe("account pool (SMA proofs)", () => {
     expect(await fs.readFile(files[0] ?? "", "utf8")).toContain(
       "sk-secret-marker-596",
     );
-    await expect(
-      host.harness.behavior.callRpc("account.add", {
-        provider: "codex",
-        source: { kind: "api-key", apiKey: "sk-codex" },
-        label: null,
-        priority: 100,
-      }),
-    ).rejects.toThrow("Codex accounts can only be added with --import.");
+    const codexKey = await host.harness.behavior.runCli([
+      "account",
+      "add",
+      "--provider",
+      "codex",
+      "--api-key",
+      "sk-codex",
+    ]);
+    expect(codexKey.exitCode).toBe(1);
+    expect(codexKey.stderr).toContain(
+      "Anthropic API keys require --provider claude",
+    );
     expect(await secretFiles(dataDir)).toHaveLength(1);
   });
 
@@ -132,7 +136,7 @@ describe("account pool (SMA proofs)", () => {
     const { host } = await pool();
     await host.harness.behavior.callRpc("account.add", {
       provider: "claude",
-      source: { kind: "api-key", apiKey: "sk-secret-marker-597" }, // guardian: allow
+      apiKey: "sk-secret-marker-597", // guardian: allow
       label: null,
       priority: 100,
     });

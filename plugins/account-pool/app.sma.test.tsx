@@ -32,12 +32,26 @@ function account(overrides: Partial<AccountSummary> = {}): AccountSummary {
     lastUsedAt: Date.now() - 5 * 60_000,
     lastUsedHostId: "host-one",
     lastUsedHostName: "bee",
-    fiveHourUtilization: 0.21,
-    fiveHourResetAt: null,
-    fiveHourStatus: null,
-    sevenDayUtilization: 0.4,
-    sevenDayResetAt: null,
-    sevenDayStatus: null,
+    limitWindows: [
+      {
+        slot: "primary",
+        windowMinutes: 300,
+        utilization: 0.21,
+        resetAt: null,
+        status: null,
+        observedAt: 1,
+        source: "usage",
+      },
+      {
+        slot: "secondary",
+        windowMinutes: 10_080,
+        utilization: 0.4,
+        resetAt: null,
+        status: null,
+        observedAt: 1,
+        source: "usage",
+      },
+    ],
     representativeClaim: null,
     familyWeekly: {
       fable: null,
@@ -46,7 +60,6 @@ function account(overrides: Partial<AccountSummary> = {}): AccountSummary {
       haiku: null,
       other: null,
     },
-    limitWindows: [],
     extraUsage: null,
     usageRestriction: null,
     observedAt: 1,
@@ -107,7 +120,6 @@ const codex = account({
   email: "pro@example.com",
   subscriptionType: "Pro",
   codexAccountId: "chatgpt-account",
-  fiveHourUtilization: 0.25,
   limitWindows: [
     {
       slot: "primary",
@@ -115,6 +127,8 @@ const codex = account({
       utilization: 0.61,
       resetAt: null,
       status: null,
+      observedAt: 1,
+      source: "usage",
     },
   ],
 });
@@ -145,8 +159,26 @@ describe("accounts page (SMA proofs)", () => {
     const slot = render([
       account({
         status: "exhausted",
-        fiveHourUtilization: 0.98,
-        sevenDayUtilization: 0.35,
+        limitWindows: [
+          {
+            slot: "primary",
+            windowMinutes: 300,
+            utilization: 0.98,
+            resetAt: null,
+            status: null,
+            observedAt: 1,
+            source: "usage",
+          },
+          {
+            slot: "secondary",
+            windowMinutes: 10_080,
+            utilization: 0.35,
+            resetAt: null,
+            status: null,
+            observedAt: 1,
+            source: "usage",
+          },
+        ],
       }),
     ]);
     expect(await slot.findByText("person@example.com")).toBeTruthy();
@@ -165,7 +197,7 @@ describe("accounts page (SMA proofs)", () => {
     expect(slot.getByText("5 min ago · bee")).toBeTruthy();
   });
 
-  it("[sma:m_sw_add_account] the Claude menu offers sign-in, import from this machine and an API key; Codex offers the first two; import adds through the add operation", async () => {
+  it("[sma:m_sw_add_account] the Claude menu offers sign-in and an API key; Codex offers sign-in only; the API key goes through the add operation", async () => {
     const block = { selector: "span.block" };
     const codexMenu = render([]);
     const codexButtons = await codexMenu.findAllByRole("button", {
@@ -174,7 +206,6 @@ describe("accounts page (SMA proofs)", () => {
     expect(codexButtons).toHaveLength(2);
     fireEvent.pointerDown(codexButtons[1]!);
     expect(await codexMenu.findByText("Sign in to Codex", block)).toBeTruthy();
-    expect(codexMenu.getByText("Import from this machine", block)).toBeTruthy();
     expect(codexMenu.queryByText("Add API key…", block)).toBeNull();
     codexMenu.unmount();
 
@@ -184,14 +215,16 @@ describe("accounts page (SMA proofs)", () => {
     });
     fireEvent.pointerDown(addButtons[0]!);
     expect(await slot.findByText("Sign in to Claude", block)).toBeTruthy();
-    expect(slot.getByText("Add API key…", block)).toBeTruthy();
-    fireEvent.click(slot.getByText("Import from this machine", block));
+    fireEvent.click(slot.getByText("Add API key…", block));
+    const keyInput = await slot.findByLabelText("Anthropic API key");
+    fireEvent.change(keyInput, { target: { value: "sk-sma-ui-key" } });
+    fireEvent.click(slot.getByRole("button", { name: "Add API key" }));
     await waitFor(() =>
       expect(slot.rpcCalls).toContainEqual({
         method: "account.add",
         input: {
           provider: "claude",
-          source: { kind: "import" },
+          apiKey: "sk-sma-ui-key",
           label: null,
           priority: 100,
         },

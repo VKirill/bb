@@ -25,14 +25,15 @@ function source(
   name: string,
   kind: "workspace-path" | "host-path",
 ): HostDaemonInjectedSkillSource {
-  return {
-    kind,
-    sourceType: kind === "workspace-path" ? "project" : "shared-user",
+  const base = {
     name,
     description: `Use ${name} in the staging proof.`,
     sourceRootPath: skillRootPath,
     skillFilePath: path.join(skillRootPath, "SKILL.md"),
   };
+  return kind === "workspace-path"
+    ? { kind: "workspace-path", sourceType: "project", ...base }
+    : { kind: "host-path", sourceType: "shared-user", ...base };
 }
 
 describe("managed skills staged for every runtime (SMA proofs)", () => {
