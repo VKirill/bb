@@ -3388,7 +3388,6 @@ function reconcileExecutionSettings(
             launchCommand: session.construction.agent.command,
             options,
           }),
-          ...vkAcpLaunchFromOptions(options.providerOptions).env,
         }
       : session.construction.envVars;
   const workspaceWriteRoots =
