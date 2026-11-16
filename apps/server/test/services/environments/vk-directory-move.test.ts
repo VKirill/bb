@@ -139,6 +139,32 @@ describe("VK directory move checkpoint", () => {
       );
     }));
 
+  it("commits when another actor attaches the target after prepare", async () =>
+    withTestHarness(async (harness) => {
+      const state = fixture(harness);
+      const calls: Record<string, unknown>[] = [];
+      installHook(async (input) => {
+        calls.push(input);
+        if (input.phase === "prepare") {
+          updateThread(harness.db, harness.hub, state.thread.id, {
+            environmentId: state.target.id,
+          });
+        }
+        return { ok: true, value: { ok: true } };
+      });
+      const result = await handleUpdateEnvironmentDirectoryToolCall(
+        harness.deps,
+        {
+          currentEnvironment: state.source,
+          thread: state.thread,
+          turnId: "turn_move",
+          input: { path: state.target.path },
+        },
+      );
+      expect(result.success).toBe(true);
+      expect(calls.map((call) => call.phase)).toEqual(["prepare", "commit"]);
+    }));
+
   it("fails closed for a Lane Pilot thread when its hook is unavailable", async () =>
     withTestHarness(async (harness) => {
       const state = fixture(harness, { lanePilotRunId: "run_move" });

@@ -378,6 +378,13 @@ async function performUpdateEnvironmentDirectoryToolCall(
       `Cannot update environment directory: ${capability.reason}`,
     );
   }
+  const sourcePath =
+    capability.kind === "absent" ? null : args.currentEnvironment.path;
+  if (capability.kind !== "absent" && sourcePath === null) {
+    return toolCallFailure(
+      "Cannot update environment directory because the current environment has no resolved directory.",
+    );
+  }
 
   const existingEnvironment = findProjectEnvironmentByHostPath(
     deps.db,
@@ -423,12 +430,6 @@ async function performUpdateEnvironmentDirectoryToolCall(
 
   let moveInput: VkDirectoryMoveInput | null = null;
   if (capability.kind !== "absent") {
-    const sourcePath = args.currentEnvironment.path;
-    if (sourcePath === null) {
-      return toolCallFailure(
-        "Cannot update environment directory because the current environment has no resolved directory.",
-      );
-    }
     moveInput = {
       phase: "prepare",
       operationId: directoryMoveOperationId({
@@ -499,7 +500,7 @@ async function performUpdateEnvironmentDirectoryToolCall(
 
   switch (attachResult.kind) {
     case "attached": {
-      if (moveInput !== null && attachResult.changed) {
+      if (moveInput !== null) {
         const committed = await invokeVkDirectoryMove(hookProvider, {
           ...moveInput,
           phase: "commit",
@@ -507,16 +508,6 @@ async function performUpdateEnvironmentDirectoryToolCall(
         if (!committed.ok) {
           return toolCallFailure(
             `Environment directory attached, but rollover is pending: ${committed.error}`,
-          );
-        }
-      } else if (moveInput !== null) {
-        const aborted = await invokeVkDirectoryMove(hookProvider, {
-          ...moveInput,
-          phase: "abort",
-        });
-        if (!aborted.ok) {
-          return toolCallFailure(
-            `Directory move cleanup failed: ${aborted.error}`,
           );
         }
       }
