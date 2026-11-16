@@ -296,6 +296,10 @@ Audit multi-host partial progress, unavailable hosts, disabled-plugin removal af
 
 `vk.hookPolicy` (top-level `vk` key of the plugin package.json, parsed leniently by the server `vk-hook-policy.ts`) sets per-plugin limits for the `message.dispatch` decision box, the provider env resolver and mention `resolve`, and `bb.vk.experimental_vkOnHookTimeout(cb)` reports a timeout of a declared hook. Opt-in: a plugin without the key keeps stock limits and silent behaviour. `contributeEnv.required` turns a resolver timeout or error into a retryable 503 `vk_required_env_unavailable` before the turn starts. No wire or schema change. Audit the shape of `bb.vk` once the other VK namespaces land and whether upstream wants per-plugin limits natively.
 
+## VK directory move capability
+
+`bb.vk.experimental_vkDirectoryMove` is `true` on VK Core builds that run the pre-attach `experimental_vk_directory_move` checkpoint. Lane Pilot opts into ownership with `vk.directoryMove: true` and registers the RPC with `prepare`, `commit` and `abort` phases; Core passes the thread, project, source and target environments plus a deterministic operation token. A missing or unavailable owner RPC fails a move closed, while Core without the VK capability leaves the legacy path untouched. No host-daemon protocol or database schema change. Stabilization requires recovery evidence for interrupted commit, same-thread serialization and plugin reload/disable while a fence is retained.
+
 ## VK isolated schedules
 
 `bb.background.experimental_vkSchedule(name, cron, fn, options)` and the package.json top-level `vk.schedules.<name>` start a due schedule without awaiting it, so one slow run does not hold the other schedules of `sweepDueSchedules`. Implementation is isolated in the server and SDK `vk-schedule-options.ts` modules. One run per (plugin, name), a ceiling of 8 isolated runs, a 15-minute default timeout (6 hours at most) and an abort on dispose, reload or disable. A timeout is stored as `last_status = "error"`, not as a new status value, so the schedule status contract is unchanged.

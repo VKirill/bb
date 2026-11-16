@@ -17,6 +17,16 @@ import { resolvePluginCodeThemePath } from "../system/code-themes.js";
 import type { ExperimentalVkHookPolicy } from "@get-bb/plugin-sdk"; // VK EXPERIMENTAL
 import { readVkHookPolicyManifest } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import { readVkRpcCallerManifest } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
+
+function readVkDirectoryMoveManifest(
+  value: unknown,
+): { vkDirectoryMove: true } | Record<string, never> {
+  return typeof value === "object" &&
+    value !== null &&
+    (value as { directoryMove?: unknown }).directoryMove === true
+    ? { vkDirectoryMove: true }
+    : {};
+}
 import {
   parseVkLifecycleDrain,
   type VkLifecycleDrainDeclaration,
@@ -72,6 +82,7 @@ export interface PluginManifest {
   vk?: { hookPolicy?: ExperimentalVkHookPolicy };
   /** VK EXPERIMENTAL: package.json `vk.rpcCallerPolicy: true`, see vk-rpc-caller.ts. */
   vkRpcCallerPolicy?: true;
+  vkDirectoryMove?: true;
 }
 
 async function readSkillNames(rootPaths: string[]): Promise<string[]> {
@@ -277,5 +288,6 @@ export async function readPluginManifest(
       : { vkLifecycleDrainWarnings }),
     ...readVkHookPolicyManifest(parsed.data.vk), // VK EXPERIMENTAL
     ...readVkRpcCallerManifest(parsed.data.vk), // VK EXPERIMENTAL
+    ...readVkDirectoryMoveManifest(parsed.data.vk), // VK EXPERIMENTAL
   };
 }
