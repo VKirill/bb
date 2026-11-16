@@ -6,6 +6,7 @@ import {
   type EnvironmentRow,
   createEventId,
   findProjectEnvironmentByHostPath,
+  getThreadPluginMetadata,
   getEnvironment,
   getThread,
   updateThread,
@@ -38,6 +39,7 @@ export const ENVIRONMENT_DIRECTORY_UPDATE_OPERATION =
   "environment_directory_update";
 
 const UPDATE_ENVIRONMENT_DIRECTORY_TIMEOUT_MS = 5 * 60 * 1000;
+const LANE_PILOT_PLUGIN_ID = "lane-pilot";
 
 const updateEnvironmentDirectoryInputSchema = z
   .object({
@@ -78,6 +80,18 @@ function directoryMoveOperationId(args: {
   return `envmove_${createHash("sha256")
     .update(JSON.stringify(args))
     .digest("hex")}`;
+}
+
+function hasLanePilotRunMetadata(
+  deps: Pick<AppDeps, "db">,
+  threadId: string,
+): boolean {
+  const stored = getThreadPluginMetadata(
+    deps.db,
+    threadId,
+    LANE_PILOT_PLUGIN_ID,
+  );
+  return stored.corrupt || typeof stored.metadata.lanePilotRunId === "string";
 }
 
 export const UPDATE_ENVIRONMENT_DIRECTORY_TOOL: DynamicTool = {
@@ -351,6 +365,14 @@ async function performUpdateEnvironmentDirectoryToolCall(
 
   const hookProvider = pluginHookProvider();
   const capability = vkDirectoryMoveCapability(hookProvider);
+  if (
+    capability.kind === "absent" &&
+    hasLanePilotRunMetadata(deps, args.thread.id)
+  ) {
+    return toolCallFailure(
+      "Cannot update environment directory: Lane Pilot directory move checkpoint is unavailable.",
+    );
+  }
   if (capability.kind === "unavailable") {
     return toolCallFailure(
       `Cannot update environment directory: ${capability.reason}`,
