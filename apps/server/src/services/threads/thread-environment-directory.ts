@@ -23,6 +23,13 @@ import { appendThreadEventInTransaction } from "./thread-events.js";
 import { buildEnvironmentProvisionCommand } from "./thread-create-helpers.js";
 import { findHostDataDir } from "../lib/entity-lookup.js";
 import { suppliedWorkspacePathRefusal } from "./workspace-path-claims.js";
+import { createHash } from "node:crypto";
+import { pluginHookProvider } from "../plugins/plugin-hook-registry.js";
+import {
+  invokeVkDirectoryMove,
+  vkDirectoryMoveCapability,
+  type VkDirectoryMoveInput,
+} from "../plugins/vk-directory-move.js";
 
 export const UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME =
   "update_environment_directory";
@@ -37,6 +44,41 @@ const updateEnvironmentDirectoryInputSchema = z
     path: z.string().trim().min(1),
   })
   .strict();
+
+const threadMoveLocks = new Map<string, Promise<void>>();
+
+async function withThreadMoveLock<T>(
+  threadId: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const previous = threadMoveLocks.get(threadId) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  threadMoveLocks.set(threadId, current);
+  await previous;
+  try {
+    return await run();
+  } finally {
+    release();
+    if (threadMoveLocks.get(threadId) === current)
+      threadMoveLocks.delete(threadId);
+  }
+}
+
+function directoryMoveOperationId(args: {
+  projectId: string;
+  threadId: string;
+  sourceEnvironmentId: string;
+  sourcePath: string;
+  targetEnvironmentId: string;
+  targetPath: string;
+}): string {
+  return `envmove_${createHash("sha256")
+    .update(JSON.stringify(args))
+    .digest("hex")}`;
+}
 
 export const UPDATE_ENVIRONMENT_DIRECTORY_TOOL: DynamicTool = {
   name: UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME,
@@ -265,7 +307,7 @@ async function provisionUnmanagedEnvironmentForPath(
   return ready;
 }
 
-export async function handleUpdateEnvironmentDirectoryToolCall(
+async function performUpdateEnvironmentDirectoryToolCall(
   deps: AppDeps,
   args: HandleUpdateEnvironmentDirectoryToolCallArgs,
 ): Promise<ToolCallResponse> {
@@ -304,6 +346,14 @@ export async function handleUpdateEnvironmentDirectoryToolCall(
   ) {
     return toolCallSuccess(
       `This thread is already using ${normalizedPath} as its environment directory.`,
+    );
+  }
+
+  const hookProvider = pluginHookProvider();
+  const capability = vkDirectoryMoveCapability(hookProvider);
+  if (capability.kind === "unavailable") {
+    return toolCallFailure(
+      `Cannot update environment directory: ${capability.reason}`,
     );
   }
 
@@ -349,6 +399,45 @@ export async function handleUpdateEnvironmentDirectoryToolCall(
     createdEnvironment = true;
   }
 
+  let moveInput: VkDirectoryMoveInput | null = null;
+  if (capability.kind !== "absent") {
+    const sourcePath = args.currentEnvironment.path;
+    if (sourcePath === null) {
+      return toolCallFailure(
+        "Cannot update environment directory because the current environment has no resolved directory.",
+      );
+    }
+    moveInput = {
+      phase: "prepare",
+      operationId: directoryMoveOperationId({
+        projectId: args.thread.projectId,
+        threadId: args.thread.id,
+        sourceEnvironmentId: args.currentEnvironment.id,
+        sourcePath,
+        targetEnvironmentId: targetEnvironment.id,
+        targetPath: targetEnvironment.path,
+      }),
+      threadId: args.thread.id,
+      projectId: args.thread.projectId,
+      source: {
+        environmentId: args.currentEnvironment.id,
+        hostId: args.currentEnvironment.hostId,
+        path: sourcePath,
+      },
+      target: {
+        environmentId: targetEnvironment.id,
+        hostId: targetEnvironment.hostId ?? args.currentEnvironment.hostId,
+        path: targetEnvironment.path,
+      },
+    };
+    const prepared = await invokeVkDirectoryMove(hookProvider, moveInput);
+    if (!prepared.ok) {
+      return toolCallFailure(
+        `Cannot update environment directory: ${prepared.error}`,
+      );
+    }
+  }
+
   let attachResult: AttachEnvironmentResult;
   try {
     assertEnvironmentPathAvailable(deps, {
@@ -363,19 +452,92 @@ export async function handleUpdateEnvironmentDirectoryToolCall(
       turnId: args.turnId,
     });
   } catch (error) {
-    return toolCallFailure(
-      error instanceof Error ? error.message : String(error),
-    );
+    if (
+      moveInput !== null &&
+      getThread(deps.db, args.thread.id)?.environmentId === targetEnvironment.id
+    ) {
+      attachResult = { kind: "attached", changed: true };
+    } else {
+      if (moveInput !== null) {
+        const aborted = await invokeVkDirectoryMove(hookProvider, {
+          ...moveInput,
+          phase: "abort",
+        });
+        if (!aborted.ok) {
+          return toolCallFailure(
+            `${error instanceof Error ? error.message : String(error)}; directory move cleanup failed: ${aborted.error}`,
+          );
+        }
+      }
+      return toolCallFailure(
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   switch (attachResult.kind) {
-    case "attached":
+    case "attached": {
+      if (moveInput !== null && attachResult.changed) {
+        const committed = await invokeVkDirectoryMove(hookProvider, {
+          ...moveInput,
+          phase: "commit",
+        });
+        if (!committed.ok) {
+          return toolCallFailure(
+            `Environment directory attached, but rollover is pending: ${committed.error}`,
+          );
+        }
+      } else if (moveInput !== null) {
+        const aborted = await invokeVkDirectoryMove(hookProvider, {
+          ...moveInput,
+          phase: "abort",
+        });
+        if (!aborted.ok) {
+          return toolCallFailure(
+            `Directory move cleanup failed: ${aborted.error}`,
+          );
+        }
+      }
       return toolCallSuccess(successMessage(targetEnvironment.path));
-    case "environment_changed":
+    }
+    case "environment_changed": {
+      if (moveInput !== null) {
+        const aborted = await invokeVkDirectoryMove(hookProvider, {
+          ...moveInput,
+          phase: "abort",
+        });
+        if (!aborted.ok) {
+          return toolCallFailure(
+            `Directory move cleanup failed: ${aborted.error}`,
+          );
+        }
+      }
       return toolCallFailure(
         "Thread environment changed while preparing the new directory. Try again with the desired path.",
       );
-    case "thread_unavailable":
+    }
+    case "thread_unavailable": {
+      if (moveInput !== null) {
+        const aborted = await invokeVkDirectoryMove(hookProvider, {
+          ...moveInput,
+          phase: "abort",
+        });
+        if (!aborted.ok) {
+          return toolCallFailure(
+            `Directory move cleanup failed: ${aborted.error}`,
+          );
+        }
+      }
       return toolCallFailure(attachResult.message);
+    }
   }
+}
+
+export async function handleUpdateEnvironmentDirectoryToolCall(
+  deps: AppDeps,
+  args: HandleUpdateEnvironmentDirectoryToolCallArgs,
+): Promise<ToolCallResponse> {
+  return withThreadMoveLock(args.thread.id, () =>
+    performUpdateEnvironmentDirectoryToolCall(deps, args),
+  );
 }

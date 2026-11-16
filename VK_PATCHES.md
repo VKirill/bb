@@ -912,3 +912,25 @@ New files: `packages/domain/src/vk-launch-tuning.ts`,
 `plugins/provider-claude-code/src/bridge/vk-launch-tuning.test.ts`, the
 `VK launch tuning` block in `packages/provider-bridge-acp/src/bridge/bridge.test.ts`,
 the mode and args log in `fake-acp-agent.mjs`).
+
+## Directory move checkpoint (`directory-move`)
+
+Plugins may opt into ownership with `vk.directoryMove: true` and register
+`experimental_vk_directory_move`. Core calls `prepare` before changing the
+thread environment, `commit` after a successful attach, and `abort` only when
+the attach did not happen. Calls carry a deterministic operation token and
+source/target environment identities, paths and hosts. A missing owner handler
+fails closed; without an owner the stock move path is unchanged. Same-thread
+moves are serialized in memory. There is no host-daemon protocol or database
+schema change.
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/vk-directory-move.ts` | Input/output schema, capability and safe invocation |
+| `apps/server/src/services/plugins/plugin-hook-registry.ts` | In-process plugin hook bridge |
+| `apps/server/src/services/plugins/plugin-service.ts` | Owner manifest discovery and registered RPC invocation |
+| `apps/server/src/services/plugins/manifest.ts` | `vk.directoryMove` manifest opt-in |
+| `apps/server/src/services/threads/thread-environment-directory.ts` | Serialized prepare/attach/commit/abort integration |
+| `packages/plugin-sdk/src/vk-hook-policy.ts` | `bb.vk.experimental_vkDirectoryMove` capability |
+
+New tests: `apps/server/test/services/environments/vk-directory-move.test.ts`.

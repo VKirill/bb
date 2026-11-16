@@ -1555,6 +1555,7 @@ export function createPluginApi(options: {
         assertLive,
         onDispose: (hook) => disposeHooks.push(hook),
       }),
+      experimental_vkDirectoryMove: true,
       startReason: options.vk?.startReason ?? "boot",
       instanceId: vkInstanceId,
       get afterDrain(): boolean {

@@ -186,6 +186,10 @@ import {
   DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
   type PluginHookProvider,
 } from "./plugin-hook-registry.js";
+import {
+  VK_DIRECTORY_MOVE_RPC_METHOD,
+  type VkDirectoryMoveInput,
+} from "./vk-directory-move.js";
 import type { PluginEnvironmentProviderBridge } from "./plugin-environment-provider-registry.js";
 import { createPluginRegistration } from "./plugin-registration.js";
 import {
@@ -770,6 +774,71 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     machineEnrollments: deps.machineEnrollments ?? null,
     settingsChanged: notifyPluginsChanged,
   });
+
+  function vkDirectoryMoveCapability() {
+    const owner = [...loaded.values()].find(
+      (plugin) => plugin.manifest.vkDirectoryMove === true,
+    );
+    if (owner === undefined) return { kind: "absent" as const };
+    if (!owner.handle.rpcHandlers.has(VK_DIRECTORY_MOVE_RPC_METHOD)) {
+      return {
+        kind: "unavailable" as const,
+        pluginId: owner.pluginId,
+        reason: `plugin "${owner.pluginId}" declared directory move ownership but did not register ${VK_DIRECTORY_MOVE_RPC_METHOD}`,
+      };
+    }
+    return { kind: "available" as const, pluginId: owner.pluginId };
+  }
+
+  async function invokeVkDirectoryMove(
+    input: VkDirectoryMoveInput,
+    signal?: AbortSignal,
+  ): Promise<{ ok: true; value: unknown } | { ok: false; error: string }> {
+    const capability = vkDirectoryMoveCapability();
+    if (capability.kind !== "available") {
+      return {
+        ok: false,
+        error:
+          capability.kind === "absent"
+            ? "directory move plugin hook is unavailable"
+            : capability.reason,
+      };
+    }
+    const owner = loaded.get(capability.pluginId);
+    const handler = owner?.handle.rpcHandlers.get(VK_DIRECTORY_MOVE_RPC_METHOD);
+    if (owner === undefined || handler === undefined) {
+      return { ok: false, error: "directory move plugin hook is unavailable" };
+    }
+    const outcome = await invokeWrapped(
+      owner,
+      `rpc ${VK_DIRECTORY_MOVE_RPC_METHOD}`,
+      async (invocationSignal) => {
+        const parsedInput = await validateRpcValue(
+          handler.inputSchema,
+          input,
+          "input",
+          throwRpcBoundaryError,
+        );
+        const result = await handler.handler(parsedInput, {
+          experimental_caller: { kind: "client" },
+          experimental_signal: invocationSignal,
+          ...(owner.manifest.vkRpcCallerPolicy
+            ? { experimental_vkCaller: VK_UNKNOWN_CALLER }
+            : {}),
+        });
+        const parsedOutput = await validateRpcValue(
+          handler.outputSchema,
+          result,
+          "output",
+          throwRpcBoundaryError,
+        );
+        return normalizeRpcJsonResult(parsedOutput, throwRpcBoundaryError);
+      },
+      signal,
+    );
+    if (outcome.ok) return outcome;
+    return { ok: false, error: outcome.error };
+  }
 
   let managedValidateInstallDir!: (
     args: RegisterInstalledArgs,
@@ -1574,7 +1643,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       decisionTimeoutMs: DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
       vkHookPolicy: (pluginId) => loaded.get(pluginId)?.manifest.vk?.hookPolicy, // VK EXPERIMENTAL
       vkRpcCallerPolicyAny: () =>
-        [...loaded.values()].some((plugin) => plugin.manifest.vkRpcCallerPolicy), // VK EXPERIMENTAL
+        [...loaded.values()].some(
+          (plugin) => plugin.manifest.vkRpcCallerPolicy,
+        ), // VK EXPERIMENTAL
       // VK EXPERIMENTAL: dispatch waits here, before its decision box starts, while the plugin drains.
       vkAwaitDrain: async (pluginId) => {
         if (!vkDrainGate.isDraining(pluginId)) return undefined;
@@ -1582,6 +1653,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           loaded.get(pluginId)?.manifest.vkLifecycleDrain?.timeoutMs ?? 0;
         return { ready: await vkDrainGate.waitForEnd(pluginId), timeoutMs };
       },
+      vkDirectoryMoveCapability,
+      invokeVkDirectoryMove,
     },
 
     environmentProviders: {

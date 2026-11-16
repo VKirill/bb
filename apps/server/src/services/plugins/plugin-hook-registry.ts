@@ -4,6 +4,10 @@ import type {
   PluginHookName,
 } from "@get-bb/plugin-sdk";
 import { errorMessage } from "../lib/error-log-fields.js";
+import type {
+  VkDirectoryMoveCapability,
+  VkDirectoryMoveInput,
+} from "./vk-directory-move.js";
 
 /** One plugin's handler for one hook. */
 export interface PluginHookRegistration<K extends PluginHookName> {
@@ -80,7 +84,14 @@ export interface PluginHookProvider {
    * VK EXPERIMENTAL: holds until a draining plugin's new instance is live (bounded by its declared drain
    * timeout, reported back as `timeoutMs`). Undefined when the plugin is not draining, which is always the case without `vk.lifecycle.drain`.
    */
-  vkAwaitDrain?(pluginId: string): Promise<{ ready: boolean; timeoutMs: number } | undefined>;
+  vkAwaitDrain?(
+    pluginId: string,
+  ): Promise<{ ready: boolean; timeoutMs: number } | undefined>;
+  vkDirectoryMoveCapability?(): VkDirectoryMoveCapability;
+  invokeVkDirectoryMove?(
+    input: VkDirectoryMoveInput,
+    signal?: AbortSignal,
+  ): Promise<PluginHookInvocation<unknown>>;
 }
 
 /**

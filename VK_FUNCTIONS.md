@@ -35,6 +35,7 @@ date: 2026-09-24
 | 13 | `bb.background.experimental_vkSchedule(name, cron, fn, options)` и `vk.schedules` в package.json | API плагина (сервер), манифест | Изолированные расписания: долгий запуск не держит остальные |
 | 14 | `vk.hookPolicy` и `bb.vk.experimental_vkOnHookTimeout(cb)` | `package.json` плагина и API плагина (сервер) | Свой лимит времени для хуков плагина и видимый таймаут вместо тихой потери env |
 | 15 | `app.slots.experimental_vkImageEditor` и `useComposer().experimental_vkAttachFiles` | API плагина (интерфейс) | Редактор картинок плагина внутри просмотра картинки BB; добавление файлов в черновик композера |
+| 16 | `bb.vk.experimental_vkDirectoryMove` и `vk.directoryMove` | API плагина и `package.json` | Предварительный checkpoint Lane Pilot перед сменой каталога треда: prepare/commit/abort без host-daemon протокола |
 
 ```mermaid
 flowchart TD

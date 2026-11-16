@@ -39,6 +39,8 @@ export interface ExperimentalVkHookTimeoutEvent {
 
 /** VK extension: the `bb.vk` namespace. Absent on a core without the VK layer. */
 export interface PluginVkApi extends ExperimentalVkLifecycleInfo {
+  /** True when core exposes the experimental Lane Pilot directory relocation checkpoint. */
+  readonly experimental_vkDirectoryMove: true;
   /**
    * Called when one of this plugin's hooks, for which it declared `vk.hookPolicy`,
    * times out (only timeouts, not other errors). Errors thrown by the callback are

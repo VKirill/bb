@@ -1680,6 +1680,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "A timeout of a declared hook appends a service row to the thread timeline and calls every callback registered with bb.vk.experimental_vkOnHookTimeout",
           "contributeEnv required: true makes a timeout or error of the resolver stop the turn with a retryable 503 (vk_required_env_unavailable) instead of dropping the env silently",
           "A plugin that declares nothing keeps the stock limits and behaviour; feature-test with typeof bb.vk?.experimental_vkOnHookTimeout === \"function\"",
+          "On VK Core builds, bb.vk.experimental_vkDirectoryMove is true when Core exposes Lane Pilot's pre-attach directory move checkpoint; feature-test this member before showing relocation controls",
         ],
         apiSymbols: [
           "ExperimentalVkHookName",
@@ -1687,6 +1688,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "ExperimentalVkHookTimeoutEvent",
           "PluginVkApi",
           "PluginVkApi.experimental_vkOnHookTimeout",
+          "PluginVkApi.experimental_vkDirectoryMove",
           "BbPluginApi.vk",
         ],
       },
