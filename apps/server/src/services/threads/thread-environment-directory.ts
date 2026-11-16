@@ -430,13 +430,19 @@ async function performUpdateEnvironmentDirectoryToolCall(
 
   let moveInput: VkDirectoryMoveInput | null = null;
   if (capability.kind !== "absent") {
-    moveInput = {
+    const resolvedSourcePath = sourcePath;
+    if (resolvedSourcePath === null) {
+      return toolCallFailure(
+        "Cannot update environment directory because the current environment has no resolved directory.",
+      );
+    }
+    const checkpointInput: VkDirectoryMoveInput = {
       phase: "prepare",
       operationId: directoryMoveOperationId({
         projectId: args.thread.projectId,
         threadId: args.thread.id,
         sourceEnvironmentId: args.currentEnvironment.id,
-        sourcePath,
+        sourcePath: resolvedSourcePath,
         targetEnvironmentId: targetEnvironment.id,
         targetPath: targetEnvironment.path,
       }),
@@ -445,7 +451,7 @@ async function performUpdateEnvironmentDirectoryToolCall(
       source: {
         environmentId: args.currentEnvironment.id,
         hostId: args.currentEnvironment.hostId,
-        path: sourcePath,
+        path: resolvedSourcePath,
       },
       target: {
         environmentId: targetEnvironment.id,
@@ -453,7 +459,8 @@ async function performUpdateEnvironmentDirectoryToolCall(
         path: targetEnvironment.path,
       },
     };
-    const prepared = await invokeVkDirectoryMove(hookProvider, moveInput);
+    moveInput = checkpointInput;
+    const prepared = await invokeVkDirectoryMove(hookProvider, checkpointInput);
     if (!prepared.ok) {
       return toolCallFailure(
         `Cannot update environment directory: ${prepared.error}`,
