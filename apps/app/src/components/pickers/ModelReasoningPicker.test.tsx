@@ -1021,7 +1021,7 @@ describe("ModelReasoningPicker", () => {
     fireEvent.click(trigger);
     expect(screen.queryByRole("button", { name: "Exit handoff" })).toBeNull();
     expect(screen.queryByText("Opus 4.7")).toBeNull();
-    expect(screen.getByRole("button", { name: "5.5" })).not.toBeNull();
+    expect(screen.getByRole("option", { name: "5.5" })).not.toBeNull();
   });
 
   it("commits a handoff model directly from a provider preview", async () => {

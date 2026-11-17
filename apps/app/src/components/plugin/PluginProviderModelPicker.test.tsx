@@ -195,7 +195,7 @@ describe("PluginProviderModelPicker", () => {
       });
     });
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("button", { name: "Agent" })).toBeDefined();
+    expect(screen.getByRole("option", { name: "Agent" })).toBeDefined();
   });
 
   it("emits a reconciled tier in the first provider change", async () => {
@@ -296,7 +296,7 @@ describe("PluginProviderModelPicker", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Provider, model and reasoning" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "GPT Light" }));
+    fireEvent.click(screen.getByRole("option", { name: "GPT Light" }));
     await waitFor(() =>
       expect(onChange).toHaveBeenLastCalledWith({
         providerId: "codex",
@@ -456,7 +456,7 @@ describe("PluginProviderModelPicker", () => {
         expect.objectContaining({ providerId: "claude-code" }),
       ),
     );
-    const staleModel = screen.getByRole("button", { name: "Stale" });
+    const staleModel = screen.getByRole("option", { name: "Stale" });
     expect(staleModel.hasAttribute("disabled")).toBe(true);
     fireEvent.click(staleModel);
     expect(onChange).not.toHaveBeenCalled();
@@ -554,7 +554,7 @@ describe("PluginProviderModelPicker", () => {
       );
     });
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("button", { name: "GPT-5.5" })).toBeDefined();
+    expect(screen.getByRole("option", { name: "GPT-5.5" })).toBeDefined();
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -587,7 +587,7 @@ describe("PluginProviderModelPicker", () => {
       screen.getByRole("button", { name: "Provider, model and reasoning" }),
     );
     expect(screen.queryByTitle("Cursor")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "GPT Light" }));
+    fireEvent.click(screen.getByRole("option", { name: "GPT Light" }));
 
     expect(onChange).toHaveBeenCalledWith({
       providerId: "codex",
