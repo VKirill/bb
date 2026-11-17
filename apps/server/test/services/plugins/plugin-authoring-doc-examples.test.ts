@@ -88,6 +88,13 @@ function typeIndex(path: string): string {
     .join("");
 }
 
+const CALLABLE_ASSERTIONS = [
+  `type Callable = (...args: never[]) => unknown;`,
+  `type AssertCallable<F extends Callable | undefined> = F;`,
+  `type HasCallable<F extends Callable | undefined> = [Extract<F, Callable>] extends [never] ? false : true;`,
+  `type AssertTrue<T extends true> = T;`,
+] as const;
+
 function probeSource(
   references: readonly SdkReference[],
   fences: readonly SdkFence[],
@@ -95,12 +102,11 @@ function probeSource(
   return [
     `import type { BbPluginApi } from "@get-bb/plugin-sdk";`,
     `type Sdk = BbPluginApi["sdk"];`,
-    `type Callable = (...args: never[]) => unknown;`,
-    `type AssertCallable<F extends Callable> = F;`,
-    ...references.map(
-      (reference) =>
-        `type SdkReferenceAtLine${reference.line} = AssertCallable<Sdk${typeIndex(reference.path)}>;`,
-    ),
+    ...CALLABLE_ASSERTIONS,
+    ...references.flatMap((reference) => [
+      `type SdkReferenceAtLine${reference.line} = AssertCallable<Sdk${typeIndex(reference.path)}>;`,
+      `type SdkReferenceHasCallableAtLine${reference.line} = AssertTrue<HasCallable<Sdk${typeIndex(reference.path)}>>;`,
+    ]),
     `declare const bb: BbPluginApi;`,
     `type SpawnArgs = Parameters<Sdk["threads"]["spawn"]>[0];`,
     `declare const projectId: SpawnArgs["projectId"];`,
@@ -136,6 +142,21 @@ const PROBE_TSCONFIG = {
   files: ["probe.ts"],
 };
 
+async function compileProbe(workDir: string, source: string) {
+  await writeFile(join(workDir, "probe.ts"), `${source}\n`, "utf8");
+  await writeFile(
+    join(workDir, "tsconfig.json"),
+    `${JSON.stringify(PROBE_TSCONFIG, null, 2)}\n`,
+    "utf8",
+  );
+
+  const result = spawnSync(process.execPath, [tsrs, "--project", workDir], {
+    encoding: "utf8",
+  });
+  if (result.error !== undefined) throw result.error;
+  return result;
+}
+
 describe("bb-plugin-authoring skill examples", () => {
   let workDir: string;
 
@@ -156,23 +177,50 @@ describe("bb-plugin-authoring skill examples", () => {
       expect(references.length).toBeGreaterThan(0);
       expect(fences.length).toBeGreaterThan(0);
 
-      await writeFile(
-        join(workDir, "probe.ts"),
-        `${probeSource(references, fences)}\n`,
-        "utf8",
+      const result = await compileProbe(
+        workDir,
+        probeSource(references, fences),
       );
-      await writeFile(
-        join(workDir, "tsconfig.json"),
-        `${JSON.stringify(PROBE_TSCONFIG, null, 2)}\n`,
-        "utf8",
-      );
-
-      const result = spawnSync(process.execPath, [tsrs, "--project", workDir], {
-        encoding: "utf8",
-      });
-      if (result.error !== undefined) throw result.error;
       expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
     },
     60_000,
   );
+
+  it("accepts optional callable references while rejecting missing or invalid ones", async () => {
+    const accepted = await compileProbe(
+      workDir,
+      [
+        ...CALLABLE_ASSERTIONS,
+        `type RequiredReference = AssertCallable<() => void>;`,
+        `type OptionalReference = AssertCallable<(() => void) | undefined>;`,
+        `type RequiredReferenceHasCallable = AssertTrue<HasCallable<() => void>>;`,
+        `type OptionalReferenceHasCallable = AssertTrue<HasCallable<(() => void) | undefined>>;`,
+        `declare const sdk: { optional?: () => void };`,
+        `if (typeof sdk.optional === "function") sdk.optional();`,
+      ].join("\n"),
+    );
+    expect(accepted.status, `${accepted.stdout}${accepted.stderr}`).toBe(0);
+
+    for (const invalidSource of [
+      [
+        ...CALLABLE_ASSERTIONS,
+        `type InvalidReference = AssertCallable<string>;`,
+      ],
+      [
+        ...CALLABLE_ASSERTIONS,
+        `type InvalidReference = AssertTrue<HasCallable<undefined>>;`,
+      ],
+      [
+        ...CALLABLE_ASSERTIONS,
+        `type Sdk = { optional?: () => void };`,
+        `type InvalidReference = AssertCallable<Sdk["missing"]>;`,
+      ],
+      [`declare const sdk: { optional?: () => void };`, `sdk.optional();`],
+    ]) {
+      const rejected = await compileProbe(workDir, invalidSource.join("\n"));
+      expect(rejected.status, `${rejected.stdout}${rejected.stderr}`).not.toBe(
+        0,
+      );
+    }
+  });
 });
