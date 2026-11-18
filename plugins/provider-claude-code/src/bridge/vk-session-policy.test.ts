@@ -255,6 +255,7 @@ describe("buildClaudeVkSessionOptions", () => {
     expect(flags.claudeMdExcludes).toEqual(claudeMdExcludePatterns(cwd, home));
     expect(flags.syncClaudeAiSkills).toBe(false);
     expect(flags.syncClaudeAiPlugins).toBe(false);
+    expect(flags.disableClaudeAiConnectors).toBe(true);
     expect("autoMemoryEnabled" in flags).toBe(false);
   });
 

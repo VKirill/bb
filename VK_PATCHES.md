@@ -64,7 +64,8 @@ Switches: `projectInstructions: false` drops the workspace `.bb/AGENTS.md` in co
 and in the CLI — Claude `claudeMdExcludes` (folder, parents, subfolders; the
 user's `~/.claude` stays), Codex `-c project_doc_max_bytes=0`, OpenCode
 `OPENCODE_DISABLE_PROJECT_CONFIG=1`; Cursor has no switch. `claudeAiSync: false`
-sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false.
+sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false and
+`disableClaudeAiConnectors` to true (claude.ai MCP connectors such as Claude Docs).
 
 ### Hook points in upstream files
 
