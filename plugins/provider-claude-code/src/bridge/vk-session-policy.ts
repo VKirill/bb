@@ -91,9 +91,12 @@ export function buildClaudeVkSessionOptions(args: {
   // (~/.claude/projects/<cwd>/memory/MEMORY.md) is their own chats' notebook: a worker neither reads it at start
   // nor writes into it. The provider setting `memoryEnabled` keeps deciding for every session without a required policy.
   if (args.policy.required === true) flags.autoMemoryEnabled = false;
+  // Everything the claude.ai account adds: its skills, plugins and connectors
+  // (claude.ai MCP servers such as Claude Docs).
   if (args.policy.claudeAiSync === false) {
     flags.syncClaudeAiSkills = false;
     flags.syncClaudeAiPlugins = false;
+    flags.disableClaudeAiConnectors = true;
   }
   return options;
 }
