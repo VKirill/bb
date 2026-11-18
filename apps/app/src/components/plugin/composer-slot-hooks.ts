@@ -30,7 +30,9 @@ type ComposerRegistrations = readonly PluginComposerCustomizationSlot[];
  * VK EXPERIMENTAL: the place of the composer this slot renders in, from the
  * host's explicit place or, failing that, its scope.
  */
-function vkPlaceOf(host: PluginComposerHost | null): VkComposerPlace | null {
+export function vkPlaceOf(
+  host: PluginComposerHost | null,
+): VkComposerPlace | null {
   if (host === null) return null;
   if (host.vkPlace) return host.vkPlace;
   const scope = host.scope;

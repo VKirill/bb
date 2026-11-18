@@ -17,6 +17,11 @@ import {
   groupCommandSuggestions,
   orderCommandSuggestions,
 } from "@bb/client-core";
+// VK EXPERIMENTAL: `/` offers only the skills the place's session policy loads.
+import { vkPlaceOf } from "@/components/plugin/composer-slot-hooks";
+import { usePluginComposerHost } from "@/components/plugin/plugin-composer-host";
+import { useVkPlaceView } from "@/hooks/queries/vk-excluded-plugins-queries";
+import { vkVisibleCommandSuggestions } from "@/hooks/vk-command-skills";
 import { useCommandSuggestions } from "@/hooks/useCommandSuggestions";
 import { usePromptMentions } from "@/hooks/usePromptMentions";
 import type { TypeaheadConfig } from "./ComposerBox";
@@ -62,6 +67,7 @@ export const ComposerSearchProvider = memo(function ComposerSearchProvider({
     activeTrigger: commandQuery?.trigger ?? null,
     query: commandQuery?.text ?? null,
   });
+  const vkView = useVkPlaceView(vkPlaceOf(usePluginComposerHost())); // VK EXPERIMENTAL
   const searches: ComposerSearches = {
     mention: {
       status:
@@ -96,7 +102,10 @@ export const ComposerSearchProvider = memo(function ComposerSearchProvider({
         commandQuery === null
           ? []
           : groupCommandSuggestions(
-              orderCommandSuggestions(command.suggestions, commandQuery.text),
+              orderCommandSuggestions(
+                vkVisibleCommandSuggestions(command.suggestions, vkView), // VK EXPERIMENTAL
+                commandQuery.text,
+              ),
             ),
       search: (query) =>
         setCommandQuery((current) =>

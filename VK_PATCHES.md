@@ -79,7 +79,8 @@ sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false.
 | `packages/provider-bridge-acp/src/bridge/bridge.ts` | OpenCode env, Cursor data dir, filtered skill list, same env on every turn |
 | `packages/provider-bridge-acp/src/bridge/cursor-mcp-approval.ts` | export `cursorProjectSlug`, `cursorDataDirectory` |
 | `plugins/bb-guide/skills/bb-plugin-authoring/references/*-api-index.md` | docs for new exports |
-| `apps/server/src/routes/plugins.ts` | `GET /plugins/vk-excluded-plugins` |
+| `apps/server/src/routes/plugins.ts` | `GET /plugins/vk-excluded-plugins` (excluded plugins + skills filter) |
+| `apps/app/src/components/promptbox/composer-search.tsx` | `/` and `$` drop skills the place's policy leaves out |
 | `apps/server/src/services/threads/dispatch-hooks.ts` | skip excluded plugins' hooks and submission |
 | `apps/app/src/components/plugin/composer-slot-hooks.ts` | hide excluded plugins' composer UI |
 | `apps/app/src/components/plugin/plugin-composer-host.tsx` | optional `vkPlace` on the host |
@@ -113,6 +114,13 @@ environment/path) lists them; the composer hides their customizations
 (`composer-slot-hooks.ts`), and `message.dispatch` skips their hooks and drops
 their composer submission (`dispatch-hooks.ts`). The policy owner is never
 excluded.
+
+The same route returns the place's `skills` filter. The composer's command
+search (`composer-search.tsx` → `vkVisibleCommandSuggestions` in
+`apps/app/src/hooks/vk-command-skills.ts`) hides a skill whose plugin is
+excluded or whose name fails the filter — the rule `buildVkRuntimeSessionPolicy`
+applies to the session — so `/` offers only what a session started there
+loads. Commands are never hidden; a stock server (no route) hides nothing.
 
 Consumer: plugin `project-folders` (VKirill/bb-plugin-project-folders), tab
 «Контекст сессии», shown only when the API above exists.

@@ -9,7 +9,10 @@ import {
   buildThreadStartCommand,
 } from "../../src/services/threads/thread-commands.js";
 import { resolveThreadRuntimeCommandConfig } from "../../src/services/threads/thread-runtime-config.js";
-import { resolveVkExcludedPluginIds } from "../../src/services/threads/vk-excluded-plugins.js";
+import {
+  resolveVkExcludedPluginIds,
+  resolveVkPlaceView,
+} from "../../src/services/threads/vk-excluded-plugins.js";
 import {
   seedEnvironment,
   seedHostSession,
@@ -343,7 +346,10 @@ describe("vk excluded plugins", () => {
           })),
         resolveVkSessionPolicy: async () => ({
           pluginId: "project-folders",
-          policy: { bbPlugins: { mode: "allow", names: ["env-catalog"] } },
+          policy: {
+            bbPlugins: { mode: "allow", names: ["env-catalog"] },
+            skills: { mode: "deny", names: ["seo-agent"] },
+          },
         }),
       });
       expect([
@@ -359,6 +365,13 @@ describe("vk excluded plugins", () => {
       expect((await resolveVkExcludedPluginIds(harness.deps.db, {})).size).toBe(
         0,
       );
+      // The composer's `/` gets the skills filter of the same place.
+      const view = await resolveVkPlaceView(harness.deps.db, {
+        projectId: project.id,
+      });
+      expect(view.skills).toEqual({ mode: "deny", names: ["seo-agent"] });
+      expect([...view.excludedPluginIds]).toEqual(["agency"]);
+      expect((await resolveVkPlaceView(harness.deps.db, {})).skills).toBeNull();
     });
   });
 });

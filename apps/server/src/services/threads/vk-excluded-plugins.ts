@@ -5,6 +5,7 @@ import {
   resolvePluginVkSessionPolicy,
 } from "../plugins/plugin-agent-contributions.js";
 import { resolveDeprecatedWorkspaceProvisionType } from "../environments/environment-response.js";
+import type { VkPolicyFilter } from "@bb/domain";
 import { vkPluginAllowed } from "./vk-session-policy.js";
 
 /**
@@ -33,11 +34,28 @@ export async function resolveVkExcludedPluginIds(
   db: DbConnection,
   place: VkPlace,
 ): Promise<ReadonlySet<string>> {
+  return (await resolveVkPlaceView(db, place)).excludedPluginIds;
+}
+
+/**
+ * What the session policy of `place` means for its composer: the plugins it
+ * leaves out, and the skills filter, so `/` offers only the skills a session
+ * started there loads. A skill is hidden when its plugin is excluded or its
+ * name fails the filter, as `buildVkRuntimeSessionPolicy` drops it.
+ */
+export async function resolveVkPlaceView(
+  db: DbConnection,
+  place: VkPlace,
+): Promise<{
+  excludedPluginIds: ReadonlySet<string>;
+  skills: VkPolicyFilter | null;
+}> {
+  const none = { excludedPluginIds: new Set<string>(), skills: null };
   const thread = place.threadId ? getThread(db, place.threadId) : null;
   const projectId = thread?.projectId ?? place.projectId ?? null;
-  if (!projectId) return new Set();
+  if (!projectId) return none;
   const project = getProject(db, projectId);
-  if (!project) return new Set();
+  if (!project) return none;
   const environmentId = thread?.environmentId ?? place.environmentId ?? null;
   const environment = environmentId ? getEnvironment(db, environmentId) : null;
   const hostId = environment?.hostId ?? place.hostId ?? null;
@@ -80,14 +98,17 @@ export async function resolveVkExcludedPluginIds(
       },
     } as Parameters<typeof resolvePluginVkSessionPolicy>[0]["context"],
   });
-  if (resolved === null) return new Set();
-  return new Set(
-    listPluginVkContextContributions()
-      .map((entry) => entry.pluginId)
-      .filter(
-        (pluginId) =>
-          pluginId !== resolved.pluginId &&
-          !vkPluginAllowed(resolved.policy, pluginId),
-      ),
-  );
+  if (resolved === null) return none;
+  return {
+    excludedPluginIds: new Set(
+      listPluginVkContextContributions()
+        .map((entry) => entry.pluginId)
+        .filter(
+          (pluginId) =>
+            pluginId !== resolved.pluginId &&
+            !vkPluginAllowed(resolved.policy, pluginId),
+        ),
+    ),
+    skills: resolved.policy.skills ?? null,
+  };
 }
