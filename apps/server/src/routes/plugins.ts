@@ -1,7 +1,7 @@
 import { HOST_TAILWIND_VERSION } from "@bb/plugin-build/host-tailwind-version";
 import type { PluginUpdateJobs } from "../services/plugins/plugin-update-jobs.js";
 import { timingSafeEqual } from "node:crypto";
-import { resolveVkExcludedPluginIds } from "../services/threads/vk-excluded-plugins.js";
+import { resolveVkPlaceView } from "../services/threads/vk-excluded-plugins.js";
 import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import type { Context, Hono } from "hono";
@@ -510,8 +510,8 @@ export function registerPluginRoutes(
     return context.json({ ok: true, groups });
   });
 
-  // VK EXPERIMENTAL: plugins the session policy of a place leaves out; the
-  // composer hides their UI there.
+  // VK EXPERIMENTAL: plugins the session policy of a place leaves out (the
+  // composer hides their UI there) and its skills filter (for `/`).
   app.get("/plugins/vk-excluded-plugins", async (context) => {
     const problem = localAuthProblem(context, deps);
     if (problem) {
@@ -521,14 +521,18 @@ export function registerPluginRoutes(
       const value = context.req.query(name);
       return value !== undefined && value.length > 0 ? value : null;
     };
-    const excluded = await resolveVkExcludedPluginIds(deps.db, {
+    const view = await resolveVkPlaceView(deps.db, {
       projectId: read("projectId"),
       hostId: read("hostId"),
       environmentId: read("environmentId"),
       path: read("path"),
       threadId: read("threadId"),
     });
-    return context.json({ ok: true, pluginIds: [...excluded].sort() });
+    return context.json({
+      ok: true,
+      pluginIds: [...view.excludedPluginIds].sort(),
+      skills: view.skills,
+    });
   });
 
   app.post("/plugins/:id/cli", async (context) => {

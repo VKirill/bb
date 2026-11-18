@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
+import { vkPolicyFilterSchema, type VkPolicyFilter } from "@bb/domain";
 
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
@@ -14,11 +15,18 @@ export interface VkComposerPlace {
   threadId?: string | null;
 }
 
-const EMPTY: ReadonlySet<string> = new Set();
+/** What a place's session policy means for its composer. */
+export interface VkPlaceView {
+  /** Plugins left out there: no composer UI, none of their skills. */
+  pluginIds: ReadonlySet<string>;
+  /** Which skill names load there; null lets every skill through. */
+  skills: VkPolicyFilter | null;
+}
+const EMPTY: VkPlaceView = { pluginIds: new Set(), skills: null };
 const FRESH_MS = 15_000;
 
 interface Entry {
-  value: ReadonlySet<string>;
+  value: VkPlaceView;
   fetchedAt: number;
   pending: boolean;
 }
@@ -55,17 +63,26 @@ async function load(key: string): Promise<void> {
     fetchedAt: previous?.fetchedAt ?? 0,
     pending: true,
   });
-  let value: ReadonlySet<string> = previous?.value ?? EMPTY;
+  let value: VkPlaceView = previous?.value ?? EMPTY;
   try {
     const response = await fetch(`/api/v1/plugins/vk-excluded-plugins?${key}`);
     // A stock server has no such route: nothing is excluded then.
     if (response.ok) {
-      const body = (await response.json()) as { pluginIds?: unknown };
-      value = Array.isArray(body.pluginIds)
-        ? new Set(
-            body.pluginIds.filter((id): id is string => typeof id === "string"),
-          )
-        : EMPTY;
+      const body = (await response.json()) as {
+        pluginIds?: unknown;
+        skills?: unknown;
+      };
+      const skills = vkPolicyFilterSchema.safeParse(body.skills);
+      value = {
+        pluginIds: Array.isArray(body.pluginIds)
+          ? new Set(
+              body.pluginIds.filter(
+                (id): id is string => typeof id === "string",
+              ),
+            )
+          : EMPTY.pluginIds,
+        skills: skills.success ? skills.data : null,
+      };
     } else {
       value = EMPTY;
     }
@@ -80,6 +97,11 @@ async function load(key: string): Promise<void> {
 export function useVkExcludedPluginIds(
   place: VkComposerPlace | null,
 ): ReadonlySet<string> {
+  return useVkPlaceView(place).pluginIds;
+}
+
+/** The session policy's view of `place`; lets everything through until known. */
+export function useVkPlaceView(place: VkComposerPlace | null): VkPlaceView {
   const key = placeKey(place);
   useEffect(() => {
     if (key === null) return;
