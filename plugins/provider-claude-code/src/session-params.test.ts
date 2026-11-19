@@ -457,7 +457,10 @@ describe("buildClaudeSessionParams dynamic tool presentation", () => {
   });
 
   it("makes the bridge row read the registered label, and the generic one for a tool without it", () => {
-    const translator = createClaudeDeltaTranslator({ sandboxEnabled: false });
+    const translator = createClaudeDeltaTranslator({
+      sandboxEnabled: false,
+      commandDescriptionsEnabled: false,
+    });
     translator.configureInjectedTools(
       buildTools().map((tool) => ({
         name: tool.name as string,

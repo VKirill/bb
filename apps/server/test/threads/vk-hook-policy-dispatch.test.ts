@@ -1,4 +1,4 @@
-import { listEvents } from "@bb/db";
+import { listEvents } from "@bb/db/testing";
 import type { ExperimentalVkHookPolicy } from "@get-bb/plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { ApiError } from "../../src/errors.js";

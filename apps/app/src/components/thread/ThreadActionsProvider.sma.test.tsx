@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import {
-  act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Thread } from "@bb/domain";
@@ -16,6 +16,8 @@ import {
   ThreadActionsProvider,
   useThreadActions,
 } from "./ThreadActionsProvider";
+import { useDefaultRequestRename } from "@/lib/thread-actions/thread-action-registry";
+import { threadQueryKey } from "@/hooks/queries/query-keys";
 
 const mocks = vi.hoisted(() => ({
   closePanesForThreads: vi.fn(),
@@ -23,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   inlineRename: vi.fn(),
   mutation: vi.fn(),
   navigate: vi.fn(),
-  renameFromDialog: vi.fn(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -59,8 +60,8 @@ vi.mock("@/components/ui/app-toast", () => ({
   },
 }));
 
-// The provider asks for two update hooks: the inline one (showErrorToast: false)
-// serves renameThreadAsync, the other serves the dialog. Each gets its own spy.
+// The provider's only update hook is the showErrorToast:false one; both the
+// inline path and the dialog's onSave reach it through renameThreadAsync.
 vi.mock("@/hooks/mutations/thread-state-mutations", async (importOriginal) => {
   const actual =
     await importOriginal<
@@ -77,18 +78,11 @@ vi.mock("@/hooks/mutations/thread-state-mutations", async (importOriginal) => {
     useMarkThreadUnread: () => ({ mutate: mocks.mutation }),
     usePinThread: () => ({ mutate: mocks.mutation }),
     useUnpinThread: () => ({ mutate: mocks.mutation }),
-    useUpdateThread: (options?: { showErrorToast?: boolean }) =>
-      options?.showErrorToast === false
-        ? {
-            isPending: false,
-            mutate: mocks.mutation,
-            mutateAsync: mocks.inlineRename,
-          }
-        : {
-            isPending: false,
-            mutate: mocks.renameFromDialog,
-            mutateAsync: mocks.mutation,
-          },
+    useUpdateThread: () => ({
+      isPending: false,
+      mutate: mocks.mutation,
+      mutateAsync: mocks.inlineRename,
+    }),
   };
 });
 
@@ -128,10 +122,11 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
 }
 
 function RenameButtons({ thread }: { thread: Thread }) {
-  const { requestRename, renameThreadAsync } = useThreadActions();
+  const { renameThreadAsync } = useThreadActions();
+  const requestRename = useDefaultRequestRename();
   return (
     <>
-      <button type="button" onClick={() => requestRename(thread)}>
+      <button type="button" onClick={() => requestRename(thread.id)}>
         Rename in a dialog
       </button>
       <button
@@ -171,7 +166,9 @@ afterEach(() => {
 });
 
 it("[sma:d_chat_rename] the dialog opens on the conversation's current title and saving sends the trimmed new title for that thread, then closes", async () => {
-  renderProvider(<RenameButtons thread={makeThread()} />);
+  const thread = makeThread();
+  queryClient.setQueryData(threadQueryKey(thread.id), thread);
+  renderProvider(<RenameButtons thread={thread} />);
   fireEvent.click(screen.getByRole("button", { name: "Rename in a dialog" }));
 
   const input = (await screen.findByLabelText("Thread name")) as HTMLInputElement;
@@ -179,17 +176,21 @@ it("[sma:d_chat_rename] the dialog opens on the conversation's current title and
   fireEvent.change(input, { target: { value: "  Archive plan  " } });
   fireEvent.click(screen.getByRole("button", { name: "Rename thread" }));
 
-  expect(mocks.renameFromDialog).toHaveBeenCalledTimes(1);
-  const [request, callbacks] = mocks.renameFromDialog.mock.calls[0]!;
-  expect(request).toEqual({ id: "thr_one", title: "Archive plan" });
-  expect(screen.queryByLabelText("Thread name")).not.toBeNull();
-
-  act(() => callbacks.onSuccess());
-  expect(screen.queryByLabelText("Thread name")).toBeNull();
+  await waitFor(() =>
+    expect(mocks.inlineRename).toHaveBeenCalledWith({
+      id: "thr_one",
+      title: "Archive plan",
+    }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByLabelText("Thread name")).toBeNull(),
+  );
 });
 
 it("[sma:d_chat_rename] an empty title is refused in the dialog and nothing is sent", async () => {
-  renderProvider(<RenameButtons thread={makeThread()} />);
+  const thread = makeThread();
+  queryClient.setQueryData(threadQueryKey(thread.id), thread);
+  renderProvider(<RenameButtons thread={thread} />);
   fireEvent.click(screen.getByRole("button", { name: "Rename in a dialog" }));
 
   fireEvent.change(await screen.findByLabelText("Thread name"), {
@@ -197,8 +198,8 @@ it("[sma:d_chat_rename] an empty title is refused in the dialog and nothing is s
   });
   fireEvent.click(screen.getByRole("button", { name: "Rename thread" }));
 
-  expect(await screen.findByText("Thread name cannot be empty.")).toBeDefined();
-  expect(mocks.renameFromDialog).not.toHaveBeenCalled();
+  expect(await screen.findByText("Name cannot be empty.")).toBeDefined();
+  expect(mocks.inlineRename).not.toHaveBeenCalled();
 });
 
 it("[sma:d_chat_rename] a rename made in the list itself sends the new title for that thread id", () => {
@@ -210,5 +211,4 @@ it("[sma:d_chat_rename] a rename made in the list itself sends the new title for
     id: "thr_two",
     title: "Named inline",
   });
-  expect(mocks.renameFromDialog).not.toHaveBeenCalled();
 });

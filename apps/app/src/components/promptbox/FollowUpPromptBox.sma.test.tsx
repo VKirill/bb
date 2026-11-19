@@ -9,6 +9,7 @@ import {
 } from "@/components/promptbox/FollowUpPromptBox";
 import { createInertScrollPositionKeeper } from "@/test/scroll-position-keeper";
 import { testTypeaheadConfig } from "@/test/fixtures/composer-search";
+import { composerDraftStore } from "@/test/fixtures/composer-draft";
 
 interface CapturedSubmission {
   disabled?: boolean;
@@ -117,7 +118,6 @@ function props(
 ): Parameters<typeof FollowUpPromptBox>[0] {
   return {
     attachments: {
-      items: [],
       projectId: "proj_test",
       isAttaching: false,
       error: null,
@@ -127,14 +127,12 @@ function props(
     stack: null,
     composer: {
       history: {
-        currentDraft: { text: "Next step", mentions: [], attachments: [] },
         entries: [],
         onSelectEntry: vi.fn(),
       },
       isFollowUpSubmitting: false,
-      message: "Next step",
-      mentionRanges: [],
-      onChangeMessage: vi.fn(),
+      // 0.50: the draft travels as one store, not message/mentionRanges/onChangeMessage.
+      draft: composerDraftStore("Next step"),
       onModifierSubmit: vi.fn(),
       onSubmit: vi.fn(),
       compactPromptPlaceholder: "Ask a follow-up",
@@ -157,7 +155,7 @@ function props(
         loadFailed: false,
         onChange: vi.fn(),
       },
-      reasoning: { value: "medium", options: [], onChange: vi.fn() },
+      reasoning: { value: "medium", options: [], isLoading: false, onChange: vi.fn() },
     },
     permission: {
       value: "accept-edits",

@@ -12,6 +12,8 @@ bb.events.on("experimental_host.deleted", ({ host }) => { ... });
 bb.events.on("thread.created", ({ thread }) => { ... });
 bb.events.on("thread.active", ({ thread }) => { ... });
 bb.events.on("thread.idle", ({ thread, lastAssistantText }) => { ... });   // lastAssistantText: final root reply of the latest turn, or null
+// VK builds only: thread.idle also carries experimental_vkLastTurn { turnId, isSubAgent } of the newest completed turn, or null;
+// treat an absent field as unknown and fall back to reading the event log.
 bb.events.on("thread.failed", ({ thread, error }) => { ... });             // error: string | null
 bb.events.on("thread.archived", ({ thread }) => { ... });
 bb.events.on("thread.unarchived", ({ thread }) => { ... });

@@ -76,6 +76,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
       current: installed("1.0.0"),
       appVersion: "1.0.0",
       run,
+      rangeUpgradeBasis: { kind: "none" },
     });
     expect(newer.outcome).toBe("update-available");
     if (newer.outcome !== "update-available") throw new Error("unreachable");
@@ -87,11 +88,13 @@ describe("plugin update check against the npm registry (core: update-resolver)",
       current: installed("1.2.0"),
       appVersion: "1.0.0",
       run,
+      rangeUpgradeBasis: { kind: "none" },
     });
     expect(same).toEqual({ outcome: "current", current: installed("1.2.0") });
 
     const before = seen.length;
     const pinned = await resolveNpmUpdate({
+      rangeUpgradeBasis: { kind: "none" },
       intent: intent("1.0.0", "exact"),
       current: installed("1.0.0"),
       appVersion: "1.0.0",
@@ -105,6 +108,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
     const seen: Fetched[] = [];
     const current = Object.freeze(installed("1.0.0"));
     const resolution = await resolveNpmUpdate({
+      rangeUpgradeBasis: { kind: "none" },
       intent: intent("", "default"),
       current,
       appVersion: "1.0.0",
@@ -141,6 +145,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
       current: installed("1.0.0"),
       appVersion: "1.0.0",
       run,
+      rangeUpgradeBasis: { kind: "none" },
     });
     expect(planned.outcome).toBe("update-available");
     if (planned.outcome !== "update-available") throw new Error("unreachable");
@@ -150,6 +155,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
 
     // every release newer than the app allows: no target, the newest blocked release is reported
     const none = await resolveNpmUpdate({
+      rangeUpgradeBasis: { kind: "none" },
       intent: intent("", "default"),
       current: installed("1.0.0"),
       appVersion: "1.0.0",
@@ -165,6 +171,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
 
   it("[sma:k_up_npm] an unreachable registry is a report line, not an error", async () => {
     const refused = await resolveNpmUpdate({
+      rangeUpgradeBasis: { kind: "none" },
       intent: intent("", "default"),
       current: installed("1.0.0"),
       appVersion: "1.0.0",
@@ -180,6 +187,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
     });
 
     const down = await resolveNpmUpdate({
+      rangeUpgradeBasis: { kind: "none" },
       intent: intent("", "default"),
       current: installed("1.0.0"),
       appVersion: "1.0.0",
@@ -206,6 +214,7 @@ describe("plugin update check against the npm registry (core: update-resolver)",
         current: installed("1.0.0"),
         appVersion: "1.0.0",
         run,
+        rangeUpgradeBasis: { kind: "none" },
       });
     }
     expect(calls).toBe(1);
@@ -263,6 +272,7 @@ describe("plugin update from a git tag range never moves to an older tag (core: 
       intent: rangeIntent("v1.2.0"),
       currentCommit: commitOf.get("v1.2.0") as string,
       probeCandidate: recordingProbe(() => "compatible", probed),
+      rangeUpgradeBasis: { kind: "none" },
     });
     expect(resolution.outcome).toBe("current");
     expect(probed).toEqual([]);
@@ -275,6 +285,7 @@ describe("plugin update from a git tag range never moves to an older tag (core: 
       intent: rangeIntent("v1.1.0"),
       currentCommit: commitOf.get("v1.1.0") as string,
       probeCandidate: recordingProbe(() => "compatible", offered),
+      rangeUpgradeBasis: { kind: "none" },
     });
     expect(update).toMatchObject({ outcome: "update-available", candidateGitTag: "v1.2.0" });
     expect(offered).toEqual(["v1.2.0"]);
@@ -285,6 +296,7 @@ describe("plugin update from a git tag range never moves to an older tag (core: 
       intent: rangeIntent("v1.1.0"),
       currentCommit: commitOf.get("v1.1.0") as string,
       probeCandidate: recordingProbe(() => "incompatible", probed),
+      rangeUpgradeBasis: { kind: "none" },
     });
     expect(blocked.outcome).toBe("current");
     expect(blocked).not.toHaveProperty("candidate");

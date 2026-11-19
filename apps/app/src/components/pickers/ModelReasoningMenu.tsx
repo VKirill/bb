@@ -141,7 +141,6 @@ export function ModelReasoningMenu({
   onStartHandoff,
   vk,
 }: ModelReasoningMenuProps) {
-  const isCompactViewport = useIsCompactViewport();
   const brandPrefix = provider?.brandPrefix;
   const singleServiceTier =
     serviceTierOptions.length === 1 ? serviceTierOptions[0] : undefined;
@@ -797,8 +796,11 @@ function MoreModelsSubmenu({
             return;
           }
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          // VK EXPERIMENTAL: skip the favorite star (tabIndex -1) beside each row.
           const items = Array.from(
-            event.currentTarget.querySelectorAll<HTMLButtonElement>("button"),
+            event.currentTarget.querySelectorAll<HTMLButtonElement>(
+              'button:not([tabindex="-1"])',
+            ),
           );
           if (items.length === 0) return;
           event.preventDefault();

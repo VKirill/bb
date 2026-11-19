@@ -2285,9 +2285,12 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     const vkHeldRuns = new Map<string, number>(
       previous?.manifest.vkLifecycleDrain === undefined
         ? []
-        : listDuePluginSchedules(deps.db, { now, limit: 1_000 })
-            .filter((due) => due.pluginId === row.id)
-            .map((due): [string, number] => [due.name, due.nextRunAt]),
+        : listDuePluginSchedules(deps.db, {
+            excludedKeys: new Set(),
+            limit: 1_000,
+            now,
+            pluginIds: [row.id],
+          }).map((due): [string, number] => [due.name, due.nextRunAt]),
     );
     prunePluginSchedules(
       deps.db,

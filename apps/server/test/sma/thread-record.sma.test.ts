@@ -106,6 +106,7 @@ describe("the thread record (core: thread-events, turn-failed, ws hub)", () => {
         execution,
         initiator: "user",
         senderThreadId: null,
+        originPluginId: null,
         requestMethod: "turn/start",
         source: "tell",
       });
@@ -118,6 +119,7 @@ describe("the thread record (core: thread-events, turn-failed, ws hub)", () => {
         execution,
         initiator: "user",
         senderThreadId: null,
+        originPluginId: null,
         requestMethod: "turn/start",
         source: "tell",
       });

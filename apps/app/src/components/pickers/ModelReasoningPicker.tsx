@@ -287,7 +287,8 @@ function nextNavigableNavIndex(
   direction: 1 | -1,
 ): number {
   if (rows.length === 0) return -1;
-  let index = from;
+  // From no highlight (-1), ArrowUp lands on the last row, as in upstream.
+  let index = from < 0 && direction === -1 ? rows.length : from;
   for (let step = 0; step < rows.length; step += 1) {
     index = (index + direction + rows.length) % rows.length;
     if (rows[index]?.kind !== "section") return index;

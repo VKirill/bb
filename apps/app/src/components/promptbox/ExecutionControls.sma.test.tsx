@@ -38,6 +38,7 @@ function props(overrides: Partial<ExecutionControlsProps> = {}) {
     },
     reasoning: {
       value: "medium",
+      isLoading: false,
       options: [
         { value: "medium", label: "Medium" },
         { value: "high", label: "High" },

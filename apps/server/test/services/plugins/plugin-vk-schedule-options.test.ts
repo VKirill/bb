@@ -29,6 +29,16 @@ import { testLogger } from "../../helpers/test-app.js";
 
 const logger = testLogger as unknown as Logger;
 
+// 0.50: the schedule sweep is an ItemSweep (dueScheduleSweep(now).run), as in plugin-background.test.ts.
+function sweepDueSchedules(
+  service: PluginService,
+  now: number,
+  connection: DbConnection = currentDb,
+): Promise<void> {
+  return service.dueScheduleSweep(now).run({ db: connection, logger }, now);
+}
+let currentDb: DbConnection;
+
 interface Control {
   started: string[];
   signals: Record<string, AbortSignal | undefined>;
@@ -156,6 +166,7 @@ describe("vk isolated schedules", () => {
     ctl = control();
     globals.__vk = ctl;
     db = createConnection(":memory:");
+    currentDb = db;
     migrate(db);
     workDir = await mkdtemp(join(tmpdir(), "bb-plugin-vk-sched-test-"));
     service = createPluginService({
@@ -226,7 +237,7 @@ describe("vk isolated schedules", () => {
     makeDue("slowiso", "a", 180_000);
     makeDue("plainb", "b", 120_000);
     makeDue("isoc", "c", 60_000);
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     // A is still hanging ("10 minutes"), the sweep itself finished.
     expect(ctl.started).toEqual(expect.arrayContaining(["a", "b", "c"]));
     expect(row(db, "slowiso", "a").lastStatus).toBe("running");
@@ -238,7 +249,7 @@ describe("vk isolated schedules", () => {
     makeDue("slowiso", "a");
     makeDue("plainb", "b");
     makeDue("isoc", "c");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     await vi.waitFor(() =>
       expect(ctl.started.filter((s) => s === "b")).toHaveLength(2),
     );
@@ -257,7 +268,7 @@ describe("vk isolated schedules", () => {
       expect(row(db, "slowiso", "a").lastStatus).toBe("ok"),
     );
     makeDue("slowiso", "a");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     expect(ctl.started.filter((s) => s === "a")).toHaveLength(2);
   });
 
@@ -279,7 +290,7 @@ describe("vk isolated schedules", () => {
     );
     for (const name of names) makeDue("many", name);
     const before = Date.now();
-    await service.sweepDueSchedules(before);
+    await sweepDueSchedules(service, before);
     expect(ctl.started).toHaveLength(8);
     const skippedName = names.find((name) => !ctl.started.includes(name));
     expect(skippedName).toBeDefined();
@@ -293,7 +304,7 @@ describe("vk isolated schedules", () => {
       expect(row(db, "many", ctl.started[0] as string).lastStatus).toBe("ok"),
     );
     makeDue("many", skippedName as string);
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     expect(ctl.started).toHaveLength(9);
   });
 
@@ -315,7 +326,7 @@ describe("vk isolated schedules", () => {
     );
     for (const name of names) makeDue("daily", name);
     const before = Date.now();
-    await service.sweepDueSchedules(before);
+    await sweepDueSchedules(service, before);
     const deferred = names.find((name) => !ctl.started.includes(name)) as string;
     const next = row(db, "daily", deferred).nextRunAt;
     expect(next).toBeGreaterThan(before);
@@ -336,7 +347,7 @@ describe("vk isolated schedules", () => {
       }`,
     );
     makeDue("timeouter", "t");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     expect(ctl.signals.t?.aborted).toBe(false);
     await vi.waitFor(() =>
       expect(row(db, "timeouter", "t").lastStatus).toBe("error"),
@@ -347,7 +358,7 @@ describe("vk isolated schedules", () => {
     // The settled run frees its slot: the next due tick starts it again.
     await vi.waitFor(async () => {
       makeDue("timeouter", "t");
-      await service.sweepDueSchedules(Date.now());
+      await sweepDueSchedules(service, Date.now());
       expect(row(db, "timeouter", "t").lastStatus).toBe("running");
     });
   });
@@ -362,7 +373,7 @@ describe("vk isolated schedules", () => {
       }`,
     );
     makeDue("boomer", "boom");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     await vi.waitFor(() =>
       expect(row(db, "boomer", "boom").lastStatus).toBe("error"),
     );
@@ -381,8 +392,7 @@ describe("vk isolated schedules", () => {
     makeDue("stockslow", "a", 120_000);
     makeDue("stockslow", "b", 60_000);
     let sweepDone = false;
-    const sweep = service
-      .sweepDueSchedules(Date.now())
+    const sweep = sweepDueSchedules(service, Date.now())
       .then(() => {
         sweepDone = true;
       });
@@ -416,7 +426,7 @@ describe("vk isolated schedules", () => {
       { schedules: { m: { isolated: true } } },
     );
     makeDue("manifested", "m");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     expect(ctl.started).toEqual(["m"]);
     expect(row(db, "manifested", "m").lastStatus).toBe("running");
     expect(ctl.signals.m).toBeInstanceOf(AbortSignal);
@@ -436,7 +446,7 @@ describe("vk isolated schedules", () => {
     );
     makeDue("lenient", "l");
     let done = false;
-    const sweep = service.sweepDueSchedules(Date.now()).then(() => {
+    const sweep = sweepDueSchedules(service, Date.now()).then(() => {
       done = true;
     });
     await vi.waitFor(() => expect(ctl.started).toEqual(["l"]));
@@ -465,7 +475,7 @@ describe("vk isolated schedules", () => {
     );
     makeDue("apiwins", "off", 120_000);
     makeDue("apiwins", "long", 60_000);
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     // "off": isolated:false in the API beats the manifest, so it ran in the sweep.
     expect(row(db, "apiwins", "off").lastStatus).toBe("ok");
     // "long": the API timeout (60 s) beats the manifest's 20 ms.
@@ -485,7 +495,7 @@ describe("vk isolated schedules", () => {
       }`,
     );
     makeDue("disposable", "d");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     expect(row(db, "disposable", "d").lastStatus).toBe("running");
     await service.setEnabled("disposable", false);
     expect(ctl.signals.d?.aborted).toBe(true);
@@ -501,7 +511,7 @@ describe("vk isolated schedules", () => {
     // Re-enabled: the schedule is free to start again.
     await service.setEnabled("disposable", true);
     makeDue("disposable", "d");
-    await service.sweepDueSchedules(Date.now());
+    await sweepDueSchedules(service, Date.now());
     expect(ctl.started.filter((s) => s === "d")).toHaveLength(2);
     expect(row(db, "disposable", "d").lastStatus).toBe("running");
   });

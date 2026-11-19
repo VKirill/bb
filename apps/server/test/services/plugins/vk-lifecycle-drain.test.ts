@@ -241,11 +241,11 @@ describe("VK drain on reload and shutdown", () => {
     const reloading = harness.pluginService.reload("drainer");
     await started;
     upsertPluginSchedule(harness.deps.db, { pluginId: "drainer", name: "tick", cron: "0 0 1 1 *", nextRunAt: 1 });
-    await harness.pluginService.sweepDueSchedules(Date.now());
+    await harness.pluginService.dueScheduleSweep(Date.now()).run({ db: harness.deps.db, logger: harness.deps.logger }, Date.now());
     expect(events().filter((event) => event.schedule)).toEqual([]);
     release();
     await reloading;
-    await harness.pluginService.sweepDueSchedules(Date.now());
+    await harness.pluginService.dueScheduleSweep(Date.now()).run({ db: harness.deps.db, logger: harness.deps.logger }, Date.now());
     expect(events().filter((event) => event.schedule)).toEqual([{ v: "v2", schedule: true }]);
   });
 

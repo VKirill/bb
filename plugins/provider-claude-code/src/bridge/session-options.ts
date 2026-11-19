@@ -18,6 +18,7 @@ import {
   buildClaudeVkSessionOptions,
   listClaudeBbSkillNames,
 } from "./vk-session-policy.js";
+import { claudeConfigDirectory } from "./session-fork.js";
 import type {
   ClaudeMutableFlagSettings,
   ClaudeSdkReasoningEffort,
@@ -268,6 +269,7 @@ export function buildSessionOptions(
   const vk = params.vkSessionPolicy
     ? buildClaudeVkSessionOptions({
         bbSkillNames: listClaudeBbSkillNames(params.plugins),
+        configDir: claudeConfigDirectory(env, params.cwd),
         cwd: params.cwd,
         policy: params.vkSessionPolicy,
       })

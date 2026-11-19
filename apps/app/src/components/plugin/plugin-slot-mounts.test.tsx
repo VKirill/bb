@@ -258,15 +258,20 @@ describe("experimental_useComposerSelection", () => {
         <output data-testid="selection">{JSON.stringify(selection)}</output>
       );
     }
-    const threadView: ComposerView = {
+    // 0.50: the provider takes the static view and a draft source.
+    const threadView: Omit<ComposerView, "draft"> = {
       scope: { kind: "thread", threadId: "thr_existing" },
       layout: "expanded",
-      draft: { text: "draft", isEmpty: false, attachmentCount: 0 },
       run: { isRunning: false, isSubmitting: false },
+    };
+    const currentDraft = { text: "draft", mentions: [], attachments: [] };
+    const threadDraft = {
+      getCurrent: () => currentDraft,
+      subscribeDraft: () => () => {},
     };
     const view = render(
       <MemoryRouter>
-        <PluginComposerViewProvider value={threadView}>
+        <PluginComposerViewProvider view={threadView} draft={threadDraft}>
           <Probe />
         </PluginComposerViewProvider>
       </MemoryRouter>,

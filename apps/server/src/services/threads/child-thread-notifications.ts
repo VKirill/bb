@@ -6,12 +6,7 @@ import {
   type ThreadEventTurnStatus,
   type ChildThreadOutcome,
 } from "@bb/domain";
-import {
-  getThread,
-  isVkQuietChildThread,
-  listActiveBackgroundTaskCountsByThreadIds,
-  vkChildJustToldParent,
-} from "@bb/db";
+import { getThread, isVkQuietChildThread, listActiveBackgroundTaskCountsByThreadIds, vkChildJustToldParent } from "@bb/db";
 import { renderTemplate } from "@bb/templates";
 import { z } from "zod";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";

@@ -65,6 +65,16 @@ A handler that throws is logged and the install still succeeds; the install
 waits at most 30 seconds for handlers. In tests,
 `harness.lifecycle.install()` runs them.
 
+### bb.vk (VK builds only)
+
+`bb.vk` (`PluginVkApi`) is optional and exists only on VK builds; feature-test
+`bb.vk?.startReason`. `bb.vk.startReason` (`"boot"` | `"enable"` | `"reload"`)
+and `bb.vk.afterDrain` (true when the previous instance's reload drain
+finished; read it from a service, not the factory) tell a new instance how it
+started. `bb.vk.experimental_vkOnHookTimeout(callback)` reports a timeout of a
+hook declared in the package.json `vk.hookPolicy`. The VK functions are
+described in `VK_FUNCTIONS.md` at the root of the VK branch.
+
 ### bb.onDispose and the reload lifecycle
 
 `bb.onDispose(hook)` registers cleanup; hooks run **LIFO**. On reload the

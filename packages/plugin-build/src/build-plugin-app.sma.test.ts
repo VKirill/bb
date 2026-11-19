@@ -50,6 +50,7 @@ describe("plugin window distribution (SMA proofs)", () => {
 
     const first = await buildPluginApp(dir, "0.9.0-test", toolchain, {
       minify: false,
+      hostProvidedZod: false,
     });
     const firstJs = await readFile(first.jsPath, "utf8");
     expect(firstJs).toContain("first-marker");
@@ -60,7 +61,10 @@ describe("plugin window distribution (SMA proofs)", () => {
     ]);
 
     await writeFile(join(dir, "app.tsx"), app("second-marker"));
-    await buildPluginApp(dir, "0.9.0-test", toolchain, { minify: false });
+    await buildPluginApp(dir, "0.9.0-test", toolchain, {
+      minify: false,
+      hostProvidedZod: false,
+    });
     const secondJs = await readFile(first.jsPath, "utf8");
     expect(secondJs).toContain("second-marker");
     expect(secondJs).not.toContain("first-marker");
@@ -74,7 +78,10 @@ describe("plugin window distribution (SMA proofs)", () => {
     const metaBefore = await readFile(first.metaPath, "utf8");
     await writeFile(join(dir, "app.tsx"), "export default function App( {\n");
     await expect(
-      buildPluginApp(dir, "0.9.0-test", toolchain, { minify: false }),
+      buildPluginApp(dir, "0.9.0-test", toolchain, {
+        minify: false,
+        hostProvidedZod: false,
+      }),
     ).rejects.toThrow();
     expect(await readFile(first.jsPath, "utf8")).toBe(servedBefore);
     expect(await readFile(first.metaPath, "utf8")).toBe(metaBefore);

@@ -344,7 +344,8 @@ describe("ModelReasoningPicker", () => {
     await expectNonmodalPicker({
       trigger,
       open: () => fireEvent.click(trigger),
-      content: () => screen.queryByRole("button", { name: "5.5" }),
+      // VK model-picker-unity: model rows are always listbox options.
+      content: () => screen.queryByRole("option", { name: "5.5" }),
     });
   });
 
@@ -533,7 +534,8 @@ describe("ModelReasoningPicker", () => {
     const moreModels = screen.getByRole("button", { name: "More models" });
     fireEvent.pointerEnter(moreModels);
     expect(moreModels.getAttribute("aria-expanded")).toBe("true");
-    fireEvent.pointerEnter(screen.getByRole("button", { name: "5.5" }));
+    // VK model-picker-unity: model rows are always listbox options.
+    fireEvent.pointerEnter(screen.getByRole("option", { name: "5.5" }));
     expect(moreModels.getAttribute("aria-expanded")).toBe("false");
     act(() => moreModels.focus());
     fireEvent.keyDown(moreModels, { key: "Enter" });
@@ -1534,8 +1536,6 @@ describe("ModelReasoningPicker", () => {
 });
 
 describe("ModelReasoningPicker vendor subgroups", () => {
-  beforeAll(() => ModelReasoningMenu.preload());
-
   it("opens the selected model's vendor, then another vendor on click", () => {
     renderPicker({
       modelOptions: [

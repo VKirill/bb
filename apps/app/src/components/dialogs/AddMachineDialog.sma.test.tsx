@@ -169,6 +169,8 @@ it("[sma:d_machine_add] the machine that joins is shown by name with a link to i
       ...reservedHost,
       name: "Studio PC",
       status: "connected",
+      connectMachineId: null,
+      threadStorageRootPath: null,
       lifecycle: { ...reservedHost.lifecycle, phase: "active" },
     });
   });
@@ -188,6 +190,8 @@ it("[sma:d_machine_add] a join that ends in a phase other than active says why a
   const rendered = setup(() => {
     vi.mocked(sdk.hosts.get).mockResolvedValue({
       ...reservedHost,
+      connectMachineId: null,
+      threadStorageRootPath: null,
       lifecycle: {
         ...reservedHost.lifecycle,
         phase: "removing",

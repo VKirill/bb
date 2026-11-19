@@ -1264,7 +1264,9 @@ describe("PluginNewThreadComposer seeding", () => {
     const submitted: NewThreadRequest[] = [];
     renderComposer(
       STORED_REQUEST,
-      (request) => submitted.push(request),
+      (request) => {
+        submitted.push(request);
+      },
       "hidden-data",
     );
     await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));

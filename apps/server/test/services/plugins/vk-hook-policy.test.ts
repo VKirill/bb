@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { listEvents } from "@bb/db";
+import { listEvents } from "@bb/db/testing";
 import { encodeClientTurnRequestIdNumber } from "@bb/domain";
 import { ApiError } from "../../../src/errors.js";
 import { readPluginManifest } from "../../../src/services/plugins/manifest.js";
