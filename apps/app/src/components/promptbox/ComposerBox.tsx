@@ -449,7 +449,10 @@ function useComposerRendererHostApi({
   const previousAttachmentPathsRef = useRef<ReadonlySet<string>>(new Set());
   // VK EXPERIMENTAL: the latest attach handler for experimental_vkAttachFiles.
   const vkAttachFilesRef = useRef(attachments?.onAttachFiles);
-  vkAttachFilesRef.current = attachments?.onAttachFiles;
+  const vkOnAttachFiles = attachments?.onAttachFiles;
+  useLayoutEffect(() => {
+    vkAttachFilesRef.current = vkOnAttachFiles;
+  }, [vkOnAttachFiles]);
   useEffect(() => {
     const paths = new Set(draftAttachments.map((item) => item.path));
     for (const path of previousAttachmentPathsRef.current) {

@@ -6,6 +6,13 @@ is absent from upstream bb. A guide to the functions for plugin authors (in
 Russian) is in [VK_FUNCTIONS.md](VK_FUNCTIONS.md). Rebase this branch on each new upstream tag; a
 conflict can only happen at the hook points listed below.
 
+Since desktop-v0.50 the bb-plugin-authoring `references/*-api-index.md` files are
+generated from the SDK types (`bb-plugin-bb-guide#generate:api-index`, gitignored),
+and `plugin-authoring-docs.test.ts` derives its key lists from the types. Rows
+below that name those files or the test's lists need no hand edit any more: a new
+`experimental_vk*` export shows up there by itself. `packages/db/src/data/index.ts`
+is `export *` per module; a new `vk-*.ts` data module adds one line there.
+
 ## Session policy (`session-policy`, v1)
 
 A plugin narrows what one agent session loads: BB plugins (instructions,
@@ -79,7 +86,7 @@ sets Claude `syncClaudeAiSkills` / `syncClaudeAiPlugins` to false and
 | `plugins/provider-codex/src/bridge/bridge.ts` | launch `-c` args, per-session skill roots, construction signature |
 | `packages/provider-bridge-acp/src/bridge/bridge.ts` | OpenCode env, Cursor data dir, filtered skill list, same env on every turn |
 | `packages/provider-bridge-acp/src/bridge/cursor-mcp-approval.ts` | export `cursorProjectSlug`, `cursorDataDirectory` |
-| `plugins/bb-guide/skills/bb-plugin-authoring/references/*-api-index.md` | docs for new exports |
+| `plugins/bb-guide/skills/bb-plugin-authoring/references/*-api-index.md` | generated since 0.50 (see the note at the top) |
 | `apps/server/src/routes/plugins.ts` | `GET /plugins/vk-excluded-plugins` (excluded plugins + skills filter) |
 | `apps/app/src/components/promptbox/composer-search.tsx` | `/` and `$` drop skills the place's policy leaves out |
 | `apps/server/src/services/threads/dispatch-hooks.ts` | skip excluded plugins' hooks and submission |
@@ -911,7 +918,7 @@ Measured on this host (a write by shell inside the sandbox dir, permissions auto
 | `packages/provider-bridge-acp/src/bridge/bridge.ts` | ACP: extra args on the agent command; `session/set_mode` (or the `mode` config option) right after the session exists |
 | `packages/provider-bridge-acp/src/session-params.ts` | `vkAcpMode` session param |
 | `plugins/provider-claude-code/src/bridge/{bridge,commands,session-options}.ts`, `src/session-params.ts` | Claude Code: `claude.disallowedTools` merged into `disallowedTools`; `--disable-slash-commands` |
-| `plugins/bb-guide/skills/bb-plugin-authoring/references/provider-bridge-api-index.md` | SDK exports reference |
+| `plugins/bb-guide/skills/bb-plugin-authoring/references/provider-bridge-api-index.md` | SDK exports reference, generated since 0.50 |
 
 New files: `packages/domain/src/vk-launch-tuning.ts`,
 `packages/db/src/data/vk-launch-tuning.ts`,

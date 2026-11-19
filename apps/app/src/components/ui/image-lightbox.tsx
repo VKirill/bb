@@ -184,7 +184,9 @@ export function ImageLightbox({
   const [vkEditing, setVkEditing] = useState(false);
   const [vkEditorCrashed, setVkEditorCrashed] = useState(false);
   const vkEditingRef = useRef(false);
-  vkEditingRef.current = vkEditing && vkEdit !== undefined;
+  useLayoutEffect(() => {
+    vkEditingRef.current = vkEditing && vkEdit !== undefined;
+  }, [vkEditing, vkEdit]);
   useEffect(() => {
     if (!isVisible) setVkEditing(false);
   }, [isVisible, imageSrc]);

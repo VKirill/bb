@@ -44,7 +44,8 @@ export * from "./thread-sections.js";
 export * from "./thread-tabs.js";
 export * from "./threads.js";
 export * from "./ui-preferences.js";
-export * from "./vk-quiet-child.js";
+// VK EXPERIMENTAL: quiet child threads (plugin metadata flag), see vk-quiet-child.ts.
+export { VK_QUIET_CHILD_KEY, isVkQuietChildThread } from "./vk-quiet-child.js";
 export * from "./vk-thread-keys.js";
 export * from "./vk-child-told-parent.js";
 export * from "./vk-launch-tuning.js";
