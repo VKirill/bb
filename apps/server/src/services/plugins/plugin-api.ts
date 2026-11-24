@@ -18,6 +18,8 @@ import { createMachineBootstrapApi } from "../machines/bootstrap.js";
 import type { MachineEnrollments } from "../machines/enrollments.js";
 import { listServerAccessProviders } from "./plugin-server-access-registry.js";
 import { detachActivePluginToolCallForUserInput } from "./plugin-tool-calls.js";
+import { vkDetachToolCall } from "./vk-detach-tool-call.js"; // VK EXPERIMENTAL
+import { createVkSystemNoticeMethods } from "./vk-system-notice.js"; // VK EXPERIMENTAL
 import { fillPluginPresentation } from "./plugin-presentation.js";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -448,6 +450,8 @@ function wrapSdkForPlugin(
       }),
       // VK EXPERIMENTAL: experimental_vkInspectRequiredSessionPolicies.
       ...createVkRequiredSessionPolicyInspectionMethods({ db, assertLive }),
+      // VK EXPERIMENTAL: experimental_vkSystemNotice.
+      ...createVkSystemNoticeMethods({ pluginId, assertLive }),
     },
   };
 }
@@ -1040,6 +1044,11 @@ export function createPluginApi(options: {
   let vkSessionPolicyResolver: PluginVkSessionPolicyResolver | null = null;
 
   const agents: PluginAgents = {
+    // VK EXPERIMENTAL — absent from upstream bb.
+    experimental_vkDetachToolCall(text) {
+      assertLive();
+      return vkDetachToolCall(text);
+    },
     // VK EXPERIMENTAL — absent from upstream bb.
     experimental_vkContextContributions() {
       assertLive();

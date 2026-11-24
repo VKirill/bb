@@ -3,6 +3,7 @@ import type {
   PromptInput,
   PromptMentionResource,
   PromptTextMention,
+  QueuedMessageDeliveryMode,
   SystemMessageKind,
   Thread,
   SystemMessageSubject,
@@ -21,6 +22,8 @@ export interface ParentSystemMessageTaxonomy {
 interface QueueParentSystemMessageArgs extends ParentSystemMessageTaxonomy {
   input: PromptInput[];
   parentThreadId: string;
+  /** VK EXPERIMENTAL: "queue" waits for the running turn to end (vk-system-notice.ts); bb's own notices steer. */
+  deliveryMode?: QueuedMessageDeliveryMode;
 }
 
 export interface ParentSystemRenderedMention {
@@ -176,7 +179,7 @@ export async function queueParentSystemMessage(
           kind: args.systemMessageKind,
           subject: args.systemMessageSubject,
         },
-        deliveryMode: "steer",
+        deliveryMode: args.deliveryMode ?? "steer",
       });
     },
     { behavior: "immediate" },
