@@ -36,6 +36,14 @@ export function detachActivePluginToolCallForUserInput(): void {
     ?.detachWith(stubResponse(PLUGIN_TOOL_CALL_AWAITING_USER_RESULT_TEXT));
 }
 
+// VK EXPERIMENTAL — absent from upstream bb: the same detach without a form (vk-detach-tool-call.ts).
+export function vkDetachActivePluginToolCall(text: string): boolean {
+  const call = activeCall.getStore();
+  if (!call || call.controller.signal.aborted) return false;
+  call.detachWith(stubResponse(text));
+  return true;
+}
+
 function failedToolCallResponse(
   toolName: string,
   error: unknown,

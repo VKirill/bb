@@ -681,6 +681,55 @@ Consumer: plugin `lane-pilot` (H7 labels of its `lane_pilot_*` tools).
 
 Tests: `plugins/provider-claude-code/src/session-params.test.ts` ("dynamic tool presentation": kept, absent when not registered, bridge row label).
 
+## Plugin notice as a system message (`system-notice`)
+
+`bb.sdk.threads.experimental_vkSystemNotice({ threadId, text, label?, mode? })`: queues a plugin's notice to a thread as bb's
+own system message (`initiator: "system"`, a `tool-result-delivered` row titled `label`, default the plugin id) through
+`queueParentSystemMessage`, the queue detached tool results and child-thread outcomes use. `threads.send` stays for
+words that are the user's or another thread's; a notice the plugin itself writes (a task digest, a refused dispatch)
+was recorded as `initiator: "user"` and read by the owner and the model as the owner's own message.
+
+No migration, no protocol change. Resolves false for a missing, deleted or archived thread. An idle thread starts a turn;
+`mode` "queue" (default) waits for a running turn to end, "steer" joins it as bb's own child notices do
+(`queueParentSystemMessage` takes an optional `deliveryMode`, default "steer", so bb's own callers are unchanged).
+
+Consumer: plugin `lane-pilot` (`sendServiceMessage` without a sender thread; `optional` in `vk-requires.json`, without it
+the plugin keeps its marked `threads.send`).
+
+| File | What |
+| --- | --- |
+| `apps/server/src/internal/tool-calls.ts` | `registerInternalToolCallRoutes` installs the queue (`vkInstallSystemNoticeSink(deps)`) |
+| `apps/server/src/services/threads/parent-system-messages.ts` | optional `deliveryMode` in `queueParentSystemMessage` (default "steer") |
+| `apps/server/src/services/plugins/plugin-api.ts` | `bb.sdk.threads.experimental_vkSystemNotice` from `createVkSystemNoticeMethods` |
+| `packages/plugin-sdk/src/backend-contract.ts` | `PluginBbSdk["threads"].experimental_vkSystemNotice?` |
+
+New files: `apps/server/src/services/plugins/vk-system-notice.ts`,
+`apps/server/test/services/plugins/vk-system-notice.test.ts`.
+
+## Detached tool call without a form (`detach-tool-call`)
+
+`bb.agents.experimental_vkDetachToolCall(text?)`: a plugin tool that starts long work (a helper thread, a workflow run)
+answers the model at once and lets bb deliver the value its `execute` eventually returns as a `tool-result-delivered`
+system message, titled with the tool's `presentation.label.completed` (see `delivered-label`). It is the detach
+`bb.ui.requestInput` already performs, without a form. Before it, Lane Pilot told the PM chat a run's end by
+`threads.send` of its own text, which bb records as `initiator:"user"` and the model read as the owner's words, and
+which repeated what a synchronous `wait_*` tool had already returned.
+
+No migration, no protocol change: the detach and the delivery are bb's own (`plugin-tool-calls.ts`,
+`detached-tool-result-delivery.ts`). Thread stop/delete and plugin disposal drop the pending result, as for a form.
+
+Consumer: plugin `lane-pilot` (`lane_pilot_errand`, `lane_pilot_specialist`, `lane_pilot_helpers` scout; `optional` in
+`vk-requires.json`, without it the tools keep their synchronous wait).
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/plugins/plugin-tool-calls.ts` | `vkDetachActivePluginToolCall(text)` detaches the active call with the given notice |
+| `apps/server/src/services/plugins/plugin-api.ts` | `bb.agents.experimental_vkDetachToolCall` |
+| `packages/plugin-sdk/src/backend-contract.ts` | `PluginAgents.experimental_vkDetachToolCall?` |
+
+New files: `apps/server/src/services/plugins/vk-detach-tool-call.ts`,
+`apps/server/test/services/plugins/vk-detach-tool-call.test.ts`.
+
 ## Delivered result label (`delivered-label`)
 
 A long tool call the model detached comes back as a system message titled «Delivered <tool_name> result», and the plugin's

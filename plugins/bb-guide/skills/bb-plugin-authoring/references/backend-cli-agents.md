@@ -127,6 +127,10 @@ implementations: the docs plugin's pull/push sync and the
 tasks plugin's attachment commands. `node:fs` remains correct for genuinely
 server-local data such as files under the plugin's own data directory.
 
+VK builds only:
+
+- `bb.agents.experimental_vkDetachToolCall(text?)` — optional, VK builds only: called inside a tool's `execute`, answers the model with `text` (or a default notice) at once and delivers the value `execute` eventually returns as a `tool-result-delivered` system message, the path `bb.ui.requestInput` takes, without a form. Returns false outside a tool call. Feature-test with `typeof bb.agents.experimental_vkDetachToolCall === "function"`.
+
 ### bb.ui.requestInput — show a form in the thread composer
 
 Use `bb.ui.requestInput({ threadId, rendererId, title, payload, timeoutMs? },

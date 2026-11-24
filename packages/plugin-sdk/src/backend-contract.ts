@@ -1830,6 +1830,20 @@ export interface PluginAgents {
    * sessions: instructions, agent tools and skills.
    */
   experimental_vkContextContributions?(): VkContextContribution[];
+  /**
+   * VK EXPERIMENTAL — present only in VK builds of bb, absent upstream.
+   * Feature-test it: `typeof bb.agents.experimental_vkDetachToolCall === "function"`.
+   *
+   * Call inside a tool's `execute` that starts long work: the model gets
+   * `text` (or a default notice) as the tool's answer at once, and the value
+   * `execute` eventually returns is delivered as a `tool-result-delivered`
+   * system message titled with the tool's `presentation.label.completed` —
+   * the path `bb.ui.requestInput` takes, without a form. Success steers a
+   * running turn or starts a new one; an `isError` result only steers. Thread
+   * stop/delete and plugin disposal drop the pending result. Returns false
+   * outside a tool call or after the call was aborted.
+   */
+  experimental_vkDetachToolCall?(text?: string): boolean;
 }
 
 /**
@@ -2314,6 +2328,23 @@ export type PluginBbSdk = Omit<BbSdk, "threads"> & {
     ExperimentalVkThreadKeys &
     // VK EXPERIMENTAL: experimental_vkInspectRequiredSessionPolicies.
     ExperimentalVkRequiredSessionPolicyInspectionMethods & {
+    /**
+     * VK EXPERIMENTAL — present only in VK builds of bb, absent upstream.
+     * Feature-test it: `typeof bb.sdk.threads.experimental_vkSystemNotice === "function"`.
+     *
+     * Queue `text` to a thread as bb's own system message
+     * (`initiator: "system"`, a `tool-result-delivered` row titled `label`)
+     * instead of `send`, which bb records as the user's words. Starts a turn
+     * when the thread is idle; `mode` "queue" (default) waits for a running
+     * turn to end, "steer" joins it. Resolves false when the thread is
+     * missing, deleted or archived.
+     */
+    experimental_vkSystemNotice?(args: {
+      threadId: string;
+      text: string;
+      label?: string;
+      mode?: "queue" | "steer";
+    }): Promise<boolean>;
     getPluginMetadata(
       args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
     ): Promise<ThreadPluginMetadataResult>;

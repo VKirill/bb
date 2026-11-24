@@ -21,6 +21,8 @@ import {
 import { requireAuthenticatedDaemonSession } from "./session-state.js";
 // VK EXPERIMENTAL: the calling plugin's own thread metadata inside the tool's ctx.
 import { vkToolContextPluginMetadata } from "./vk-tool-ctx-metadata.js";
+// VK EXPERIMENTAL: plugin notices as system messages (bb.sdk.threads.experimental_vkSystemNotice).
+import { vkInstallSystemNoticeSink } from "../services/plugins/vk-system-notice.js";
 
 const textEncoder = new TextEncoder();
 
@@ -52,6 +54,7 @@ function streamToolCallResponse(
 }
 
 export function registerInternalToolCallRoutes(app: Hono, deps: AppDeps): void {
+  vkInstallSystemNoticeSink(deps); // VK EXPERIMENTAL
   const { post } = typedRoutes<HostDaemonInternalSchema>(app, {
     onValidationError: (msg) => new ApiError(400, "invalid_request", msg),
   });

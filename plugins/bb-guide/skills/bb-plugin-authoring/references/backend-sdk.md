@@ -243,6 +243,10 @@ explicit `origin` or `originPluginId`. `bb.sdk.threads.send({
 threadId, mode: "auto", input: [...] })` starts a turn on an idle thread or
 queues/steers a running one.
 
+VK builds only:
+
+- `bb.sdk.threads.experimental_vkSystemNotice({ threadId, text, label?, mode? })` — optional, VK builds only: queues `text` to a thread as bb's own system message (`initiator: "system"`, a `tool-result-delivered` row titled `label`, default the plugin id) instead of `send`, which bb records as the user's words; an idle thread starts a turn; `mode` "queue" (default) waits for a running turn, "steer" joins it; resolves false for a missing, deleted or archived thread. Feature-test with `typeof bb.sdk.threads.experimental_vkSystemNotice === "function"`.
+
 Read and edit existing threads with the same area — you do not need a
 sidebar panel or a spawned thread to reach them:
 
