@@ -1,6 +1,6 @@
 // VK EXPERIMENTAL (thread-instructions): keep the instructions sent to the provider bridge for debugging.
 // A failed write is logged and never blocks the start or the turn.
-import { recordVkThreadInstructions } from "@bb/db";
+import { getExperiments, recordVkThreadInstructions } from "@bb/db";
 import type { LoggedWorkSessionDeps } from "../../types.js";
 
 export function vkRecordThreadInstructions(
@@ -14,6 +14,8 @@ export function vkRecordThreadInstructions(
   },
 ): void {
   try {
+    // The owner's switch in Settings → «Функции VK»; off keeps what was recorded and records nothing new.
+    if (!getExperiments(deps.db).vkThreadInstructions) return;
     recordVkThreadInstructions(deps.db, args.threadId, args.kind, {
       text: args.instructions,
       capturedAt: Date.now(),

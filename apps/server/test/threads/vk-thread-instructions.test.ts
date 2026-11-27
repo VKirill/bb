@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { encodeClientTurnRequestIdNumber } from "@bb/domain";
+import { setExperiments } from "@bb/db";
 import {
   buildExecutionOptions,
   buildThreadStartCommand,
@@ -47,6 +48,24 @@ describe("vk thread instructions", () => {
       const recorded = await methods.experimental_vkThreadInstructions(thread.id);
       expect(recorded?.start).toMatchObject({ text: command.instructions, providerId: "codex", model: "test-model" });
       expect(recorded?.latest).toBeNull();
+
+      // The owner's switch off: a new start records nothing and the old record stays.
+      setExperiments(harness.deps.db, { vkThreadInstructions: false });
+      const other = seedThread(harness.deps, { projectId: project.id, environmentId: environment.id, providerId: "codex" });
+      await buildThreadStartCommand(harness.deps, {
+        environment,
+        execution,
+        fork: null,
+        permissionEscalation: "ask",
+        input: textInput("hello"),
+        projectId: project.id,
+        providerId: other.providerId,
+        requestId: encodeClientTurnRequestIdNumber({ value: 2 }),
+        syncGeneratedTitle: false,
+        thread: other,
+      });
+      expect(await methods.experimental_vkThreadInstructions(other.id)).toBeNull();
+      expect((await methods.experimental_vkThreadInstructions(thread.id))?.start?.text).toBe(command.instructions);
       await expect(methods.experimental_vkThreadInstructions("thr_missing")).rejects.toThrow();
     });
   });
