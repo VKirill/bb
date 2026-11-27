@@ -56,6 +56,7 @@ const REASONING_PLACEHOLDER_KEYS = ["low", "medium", "high"] as const;
 
 /** VK EXPERIMENTAL: favorite models and accordion groups. */
 export interface VkModelMenuProps {
+  favoritesEnabled: boolean;
   favoriteCopy: VkFavoriteCopy;
   isFavorite: (model: string) => boolean;
   onToggleFavorite: (model: string) => void;
@@ -614,8 +615,11 @@ function ProviderGroupRow({
   );
 }
 
-function vkFavoriteRowProps(vk: VkModelMenuProps | undefined, model: string) {
-  if (!vk) return {};
+export function vkFavoriteRowProps(
+  vk: VkModelMenuProps | undefined,
+  model: string,
+) {
+  if (!vk?.favoritesEnabled) return {};
   return {
     favorite: vk.isFavorite(model),
     favoriteAddLabel: vk.favoriteCopy.add,

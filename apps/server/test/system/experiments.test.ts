@@ -65,6 +65,7 @@ describe("experiments settings", () => {
       const put = await putExperiments(harness, { threadContextCard: true });
       expect(put.status).toBe(200);
       expect(experimentsSchema.parse(await readJson(put))).toEqual({
+        ...defaultExperiments, // VK EXPERIMENTAL: the VK switches default on
         agentCpuPriority: false,
         compactExpiredCache: false,
         keyedPluginCss: false,

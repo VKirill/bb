@@ -267,6 +267,11 @@ export const SETTINGS_SEARCH_INDEX: Record<
       },
     ],
   },
+  // VK EXPERIMENTAL
+  "vk-features": {
+    keywords: ["vk", "функции", "ядро", "эксперименты"],
+    settings: [],
+  },
   community: {
     keywords: ["help", "support", "feedback"],
     settings: [

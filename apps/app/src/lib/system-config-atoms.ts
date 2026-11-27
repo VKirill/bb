@@ -1,5 +1,9 @@
 import { atom } from "jotai";
-import { defaultAppSettings, defaultAppTheme } from "@bb/domain";
+import {
+  defaultAppSettings,
+  defaultAppTheme,
+  vkExperimentsOn,
+} from "@bb/domain";
 import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
 import type { HostDaemonStatusSnapshot } from "./api-host-daemon";
 import type { SystemConfigResponse } from "@bb/server-contract";
@@ -40,6 +44,7 @@ const unavailableSystemConfig: SystemConfigResponse = {
     skipFocusedThreadNotifications: false,
     threadContextCard: false,
     walCheckpointWorker: false,
+    ...vkExperimentsOn, // VK EXPERIMENTAL
   },
   appearance: defaultAppTheme,
   customThemes: [],

@@ -1,4 +1,4 @@
-import { getThread } from "@bb/db";
+import { getExperiments, getThread } from "@bb/db";
 import type {
   PromptInput,
   SystemMessageSubject,
@@ -43,9 +43,12 @@ function buildDetachedToolResultInput(args: {
 function buildDetachedToolResultSubject(args: {
   toolName: string;
   presentation: PluginRowPresentation | null;
+  withLabel: boolean;
 }): SystemMessageSubject {
   // VK EXPERIMENTAL (delivered-label): the plugin's own label for the finished call titles the delivered result.
-  const label = args.presentation?.label?.completed?.trim();
+  const label = args.withLabel
+    ? args.presentation?.label?.completed?.trim()
+    : undefined;
   return {
     kind: "tool-call",
     toolName: args.toolName,
@@ -75,6 +78,7 @@ export async function deliverDetachedToolResult(
     systemMessageSubject: buildDetachedToolResultSubject({
       toolName: args.toolName,
       presentation: args.presentation,
+      withLabel: getExperiments(deps.db).vkDeliveredLabel,
     }),
   });
 }

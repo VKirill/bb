@@ -6,7 +6,8 @@ import {
   type QueryObserverOptions,
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PendingInteraction, ThreadListEntry } from "@bb/domain";
+import { defaultExperiments, type PendingInteraction, type ThreadListEntry } from "@bb/domain";
+import { makeSystemConfig } from "@/test/fixtures/system-config";
 import type {
   SidebarBootstrapResponse,
   ThreadListResponse,
@@ -22,6 +23,7 @@ import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { ARCHIVED_THREADS_PAGE_SIZE } from "./archived-threads-page-size";
 import {
   sidebarNavigationQueryKey,
+  systemConfigQueryKey,
   threadDetailBootstrapQueryKey,
   threadHostFilePreviewQueryKey,
   threadPendingInteractionsQueryKey,
@@ -1179,5 +1181,37 @@ describe("palette lifecycle queries", () => {
       limit: 20,
       signal: expect.any(AbortSignal),
     });
+  });
+});
+
+describe("vkMentionRecency switch", () => {
+  const placeholderIds = (queryClient: QueryClient) => {
+    const options = threadMentionCandidatesFallbackQueryOptions({
+      queryClient,
+      shouldFetch: false,
+    });
+    const placeholder = options.placeholderData as (
+      previous: undefined,
+    ) => Array<{ id: string }> | undefined;
+    return placeholder(undefined)?.map((thread) => thread.id);
+  };
+
+  it("sorts cached candidates by recency while on and keeps sidebar order once off", () => {
+    const { queryClient } = createQueryClientTestHarness();
+    queryClient.setQueryData(
+      sidebarNavigationQueryKey(),
+      makeSidebarNavigation([
+        makeThreadListEntry({ id: "old", updatedAt: 1 }),
+        makeThreadListEntry({ id: "new", updatedAt: 9 }),
+      ]),
+    );
+    expect(placeholderIds(queryClient)).toEqual(["new", "old"]);
+    queryClient.setQueryData(
+      systemConfigQueryKey(),
+      makeSystemConfig({
+        experiments: { ...defaultExperiments, vkMentionRecency: false },
+      }),
+    );
+    expect(placeholderIds(queryClient)).toEqual(["old", "new"]);
   });
 });

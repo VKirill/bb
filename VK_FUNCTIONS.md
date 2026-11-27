@@ -576,3 +576,11 @@ if (typeof bb.sdk.threads.experimental_vkThreadInstructions === "function") {
 - Формат правил: [packages/domain/src/vk-session-policy.ts](packages/domain/src/vk-session-policy.ts).
 - Контракт API плагина: [packages/plugin-sdk/src/backend-contract.ts](packages/plugin-sdk/src/backend-contract.ts) (`PluginAgents`).
 - Эталонный потребитель: <https://github.com/VKirill/bb-plugin-project-folders>, файлы `session-policy-server.ts`, `session-policy.ts`, `session-policy-ui.tsx`.
+
+## Функции VK в настройках
+
+В Настройки → «Функции VK» (под «Экспериментами») перечислены все функции нашего ядра с русским названием и описанием. Список один: `vkFeatures` в `packages/domain/src/vk-features.ts`.
+
+- Переключатели (включены по умолчанию, выключение действует сразу): избранные модели, свежие треды в упоминаниях, тихие дочерние треды, без второго уведомления о результате, название отложенного результата, системная инструкция треда (сама функция подключается веткой thread-instructions).
+- «Всегда включено»: API для плагинов (политика сессии, ключи тредов, расписания, хуки, RPC, редактор картинок и др.). Выключить их нельзя, плагины на них опираются.
+- Переменные окружения: вход владельца (`BB_VK_OWNER_AUTH=1`, по умолчанию выключен), зависимости в worktree (`BB_VK_WORKTREE_DEPS=0` отключает), повтор старта треда (`BB_VK_THREAD_START_RETRY=0` отключает). В списке показано состояние по умолчанию.

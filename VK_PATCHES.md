@@ -1075,3 +1075,40 @@ New files: `packages/db/src/data/vk-thread-instructions.ts`,
 `packages/plugin-sdk/src/vk-thread-instructions.ts`; tests
 `packages/db/test/data/vk-thread-instructions.test.ts`,
 `apps/server/test/threads/vk-thread-instructions.test.ts`.
+
+## VK functions in Settings (`vk-features`)
+
+Settings gets a section «Функции VK» right below Experiments. It is rendered from one list,
+`vkFeatures` in `packages/domain/src/vk-features.ts`: every VK function with a Russian label and
+description and a kind. `switch` entries are experiment keys `vk<Name>` (appended to
+`experimentKeys`, default `true` for everyone and for early adopters, stored in the existing
+`system_experiments` rows, no migration) with a real gate; `always` entries are plugin API surfaces
+shown as «Всегда включено» without a switch; `env` entries (owner login, worktree deps, thread start
+retry) show the default state and the variable that changes it, because the environment is not
+readable from the app. The upstream Experiments list skips VK keys (`isUpstreamExperimentKey`).
+
+Gates: `vkQuietChild` and `vkChildToldParent` (`child-thread-notifications.ts`), `vkDeliveredLabel`
+(`detached-tool-result-delivery.ts`), `vkMentionRecency` (`thread-queries.ts`), `vkFavoriteModels`
+(`ModelReasoningPicker.tsx`, `ModelReasoningMenu.tsx`). `vkThreadInstructions` is registered only; its
+gate comes with the `thread-instructions` branch. Not gated on purpose: system notice, detached tool
+call, worktree deps, thread start retry, skill tree cache (plugin API, or run in the host daemon, which
+has no database).
+
+### Hook points in upstream files
+
+| File | What |
+| --- | --- |
+| `packages/domain/src/experiments.ts` | `...vkSwitchKeys` in `experimentKeys`, `...vkExperimentsOn` in both default sets, `UpstreamExperimentKey` |
+| `packages/domain/src/index.ts` | export `vk-features` |
+| `apps/app/src/views/SettingsView.tsx` | `vk-features` section; Experiments list limited to `UpstreamExperimentKey` |
+| `apps/app/src/components/settings/settings-sections.ts`, `settings-search.ts` | nav entry and search entry |
+| `apps/app/src/lib/system-config-atoms.ts` | VK switches on in the placeholder config |
+| `apps/app/src/hooks/queries/thread-queries.ts` | `vkMentionRecency` gate |
+| `apps/app/src/components/pickers/ModelReasoningPicker.tsx`, `ModelReasoningMenu.tsx` | `vkFavoriteModels` gate |
+| `apps/server/src/services/threads/child-thread-notifications.ts` | `vkQuietChild`, `vkChildToldParent` gates |
+| `apps/server/src/services/plugins/detached-tool-result-delivery.ts` | `vkDeliveredLabel` gate |
+
+New files: `packages/domain/src/vk-features.ts`, `apps/app/src/views/vk-features-settings.tsx`,
+`apps/app/src/hooks/queries/vk-feature-enabled.ts` and tests (`packages/domain/test/vk-features.test.ts`,
+`apps/server/test/threads/vk-features-gates.test.ts`, `apps/app/src/views/vk-features-settings.test.tsx`,
+`apps/app/src/hooks/queries/vk-feature-enabled.test.ts`).

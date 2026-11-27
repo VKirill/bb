@@ -83,9 +83,11 @@ import {
 } from "./modelPickerCycle";
 import {
   useVkFavoriteModels,
+  type VkFavoriteModel,
   vkFavoriteCopy,
   vkFavoriteOptionsForProvider,
 } from "./vk-favorite-models";
+import { useVkFeature } from "@/hooks/queries/vk-feature-enabled";
 import {
   vkGroupModels,
   vkGroupPathContaining,
@@ -170,6 +172,7 @@ export type ModelNavRow =
 
 const EMPTY_FAVORITE_OPTIONS: readonly ModelPickerOption[] = [];
 const EMPTY_MODEL_GROUPS: readonly VkModelGroup[] = [];
+const EMPTY_FAVORITES: readonly VkFavoriteModel[] = [];
 
 export function buildModelNavRows({
   modelOptions,
@@ -582,11 +585,13 @@ export function ModelReasoningPicker({
   const activeBrandPrefix = activeProvider?.brandPrefix;
   // VK EXPERIMENTAL: starred models for this provider, stored in localStorage.
   const favoriteCopy = vkFavoriteCopy();
+  const favoritesEnabled = useVkFeature("vkFavoriteModels");
   const {
-    favorites,
+    favorites: storedFavorites,
     toggle: toggleFavorite,
     isFavorite,
   } = useVkFavoriteModels(activeProviderId);
+  const favorites = favoritesEnabled ? storedFavorites : EMPTY_FAVORITES;
   const favoriteCatalogOptions = useMemo(
     () =>
       vkFavoriteOptionsForProvider(favorites, activeProviderId, [
@@ -1420,6 +1425,7 @@ export function ModelReasoningPicker({
               : null
           }
           vk={{
+            favoritesEnabled,
             favoriteCopy,
             isFavorite,
             onToggleFavorite: toggleFavorite,

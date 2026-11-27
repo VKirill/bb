@@ -20,6 +20,8 @@ import {
   managedBranchPrefixSchema,
   type AppTheme,
   type ExperimentKey,
+  type UpstreamExperimentKey,
+  isUpstreamExperimentKey,
   type Experiments,
   type FaviconColorPreference,
   type PluginThemeMeta,
@@ -45,6 +47,7 @@ import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section.js";
+import { VkFeaturesSettingsSection } from "@/views/vk-features-settings";
 import { WorkspaceOpenTargetIcon } from "@/components/workspace-open-target/WorkspaceOpenTargetIcon";
 import {
   setPreferredTheme,
@@ -1144,7 +1147,7 @@ export function PrivacySettingsSection({
 }
 
 const EXPERIMENT_DEFINITIONS: Record<
-  ExperimentKey,
+  UpstreamExperimentKey,
   { label: string; description: string }
 > = {
   agentCpuPriority: {
@@ -1201,12 +1204,15 @@ const EXPERIMENT_DEFINITIONS: Record<
 };
 export function visibleExperimentKeys(
   performanceDiagnosticsAvailable: boolean,
-): ExperimentKey[] {
-  return experimentKeys.filter(
-    (experimentKey) =>
-      experimentKey !== "performanceDiagnostics" ||
-      performanceDiagnosticsAvailable,
-  );
+): UpstreamExperimentKey[] {
+  // VK EXPERIMENTAL: VK switches are listed in «Функции VK», not here.
+  return experimentKeys
+    .filter(isUpstreamExperimentKey)
+    .filter(
+      (experimentKey) =>
+        experimentKey !== "performanceDiagnostics" ||
+        performanceDiagnosticsAvailable,
+    );
 }
 
 const EARLY_ADOPTER_LABEL = "Early adopter";
@@ -1444,6 +1450,17 @@ export function SettingsView() {
           systemConfigQuery.data?.performanceDiagnosticsAvailable ?? false
         }
         onExperimentChange={(key, enabled) =>
+          updateExperimentsMutation.mutate({ [key]: enabled })
+        }
+      />
+    );
+  } else if (activeSection === "vk-features") {
+    // VK EXPERIMENTAL
+    content = (
+      <VkFeaturesSettingsSection
+        disabled={systemConfigQuery.data === undefined}
+        experiments={experiments}
+        onSwitchChange={(key, enabled) =>
           updateExperimentsMutation.mutate({ [key]: enabled })
         }
       />
