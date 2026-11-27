@@ -39,6 +39,15 @@ environment do not thrash the runtime.
 | OpenCode (ACP) | instruction list filtered | `OPENCODE_CONFIG_CONTENT` `permission.skill` | `OPENCODE_CONFIG_CONTENT` `mcp.<n>.enabled=false` | — |
 | Cursor (ACP) | instruction list filtered | — | per-policy `CURSOR_DATA_DIR` overlay: real project folder linked, own `mcp-disabled.json` | — |
 
+Core narrows the BB skill catalog itself (`vkFilterCoreEnforcedSkillSources`)
+for every provider whose bridge does not swap in a filtered twin: everyone
+outside `VK_BRIDGE_FILTERED_SKILL_PROVIDERS` (Claude Code, Codex, OpenCode ACP,
+Cursor and the ACP plugin providers). OpenCode v2, the built-in `agy` and the
+`muse` plugin get only the policy's skills in their hidden first message
+(2026-11-27: an `agy` brief step carried the whole skill list and was cut at
+~35 KB). Such a thread's catalog differs from the environment's, so an idle
+runtime is replaced and a busy one keeps the hash per thread, as for opencode2.
+
 ## Cursor bridge MCP (`cursor-bridge-mcp`)
 
 Cursor ACP (`cursor-agent`) does not put `session/new` MCP tools into Grok's

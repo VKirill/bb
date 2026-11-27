@@ -268,6 +268,25 @@ function vkAcpLikeProvider(providerId: string): boolean {
   return providerId === "acp-cursor" || VK_ACP_PLUGIN_POLICY_PROVIDERS.includes(providerId);
 }
 
+/**
+ * VK EXPERIMENTAL: providers whose bridge swaps the BB skill catalog for a
+ * filtered twin per session (see the session-policy table in VK_PATCHES.md).
+ * Every other provider — opencode2, agy, muse and any plugin bridge without a
+ * filter — gets the catalog narrowed in core, otherwise its hidden first
+ * message lists every BB skill (agy cut a brief at ~35 KB, 2026-11-27).
+ */
+export const VK_BRIDGE_FILTERED_SKILL_PROVIDERS: readonly string[] = [
+  "claude-code",
+  "codex",
+  "acp-opencode",
+  "acp-cursor",
+  ...VK_ACP_PLUGIN_POLICY_PROVIDERS,
+];
+
+export function vkCoreFiltersSkillCatalog(providerId: string): boolean {
+  return !VK_BRIDGE_FILTERED_SKILL_PROVIDERS.includes(providerId);
+}
+
 export function assertVkRequiredPolicyProvider(
   providerId: string,
   policy: VkSessionPolicy,
