@@ -81,12 +81,9 @@ describe("buildCodexVkLaunchArgs", () => {
         nativePlugins: { mode: "deny", names: ["browser"] },
       },
     });
-    expect(args).toEqual([
-      "-c",
-      "mcp_servers.discord-web.enabled=false",
-      "-c",
-      "plugins.browser@openai-bundled.enabled=false",
-    ]);
+    expect(args).toContain("mcp_servers.discord-web.enabled=false");
+    expect(args).toContain("plugins.browser@openai-bundled.enabled=false");
+    expect(args).not.toContain("mcp_servers.gitnexus.enabled=false");
   });
 
   it("disables nested, bundled and plugin skills outside an allow list", () => {
@@ -148,5 +145,45 @@ describe("buildCodexVkLaunchArgs", () => {
         policy: { version: 1, projectInstructions: false },
       }),
     ).toEqual(["-c", "project_doc_max_bytes=0"]);
+  });
+});
+
+describe("Codex built-in tool surfaces under an MCP filter", () => {
+  it("turns off ChatGPT apps, browser, computer use and image generation when the MCP list leaves them out", () => {
+    const { codexHome, home, cwd } = fixture();
+    const args = buildCodexVkLaunchArgs({
+      codexHome,
+      home,
+      cwd,
+      policy: { mcpServers: { mode: "allow", names: [] } },
+    });
+    for (const feature of [
+      "apps",
+      "browser_use",
+      "browser_use_external",
+      "in_app_browser",
+      "computer_use",
+      "image_generation",
+    ]) {
+      expect(args).toContain(`features.${feature}=false`);
+    }
+  });
+
+  it("keeps a surface the MCP list names", () => {
+    const { codexHome, home, cwd } = fixture();
+    const args = buildCodexVkLaunchArgs({
+      codexHome,
+      home,
+      cwd,
+      policy: { mcpServers: { mode: "allow", names: ["codex_apps"] } },
+    });
+    expect(args).not.toContain("features.apps=false");
+    expect(args).toContain("features.computer_use=false");
+  });
+
+  it("leaves every surface on without an MCP filter", () => {
+    const { codexHome, home, cwd } = fixture();
+    const args = buildCodexVkLaunchArgs({ codexHome, home, cwd, policy: {} });
+    expect(args.some((arg) => arg.startsWith("features."))).toBe(false);
   });
 });

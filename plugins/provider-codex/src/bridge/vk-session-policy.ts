@@ -6,6 +6,15 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+const CODEX_BUILTIN_TOOL_SURFACES: ReadonlyArray<
+  readonly [string, readonly string[]]
+> = [
+  ["codex_apps", ["apps"]],
+  ["browser_use", ["browser_use", "browser_use_external", "in_app_browser"]],
+  ["computer_use", ["computer_use"]],
+  ["image_generation", ["image_generation"]],
+];
+
 /**
  * VK EXPERIMENTAL — not part of upstream bb.
  *
@@ -54,6 +63,19 @@ export function buildCodexVkLaunchArgs(args: {
         !vkPolicyAllows(args.policy.mcpServers, name)
       ) {
         overrides.push(`mcp_servers.${name}.enabled=false`);
+      }
+    }
+  }
+  // Codex ships tool surfaces of its own that no config.toml table lists:
+  // ChatGPT connectors arrive as the `codex_apps` MCP server (~220 tools),
+  // browser, computer use and image generation as built-in features. An MCP
+  // filter names them like servers, so a scoped session drops whichever the
+  // list leaves out.
+  if (args.policy.mcpServers) {
+    for (const [surface, features] of CODEX_BUILTIN_TOOL_SURFACES) {
+      if (vkPolicyAllows(args.policy.mcpServers, surface)) continue;
+      for (const feature of features) {
+        overrides.push(`features.${feature}=false`);
       }
     }
   }
