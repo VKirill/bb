@@ -25,6 +25,7 @@ import {
 } from "./prompt-attachments.js";
 import { providerInstallationGateKey } from "../provider-installation-gate.js";
 import { requireResolvedWorkspaceForCommand } from "../workspace-resolution.js";
+import { vkRetryThreadStartOnTimeout } from "../vk-thread-start-retry.js"; // VK EXPERIMENTAL (thread-start-retry)
 import {
   currentTurnSubmitTrace,
   markTurnSubmitTraceSpan,
@@ -252,7 +253,7 @@ export async function startThread(
       command,
       options,
     );
-    const result = await entry.runtime.startThread({
+    const startArgs = {
       bridgeLaunch,
       skillRoots: entry.skillRoots,
       environmentId: command.environmentId,
@@ -267,8 +268,13 @@ export async function startThread(
       dynamicTools: command.dynamicTools,
       instructionMode: command.instructionMode,
       ...(command.fork ? { fork: command.fork } : {}),
+    };
+    // VK EXPERIMENTAL (thread-start-retry)
+    return await vkRetryThreadStartOnTimeout({
+      command,
+      options,
+      start: () => entry.runtime.startThread(startArgs),
     });
-    return result;
   } catch (error) {
     await cleanupAfterPostStagingFailure(staged.cleanup);
     throw error;

@@ -999,3 +999,33 @@ schema change.
 | `packages/plugin-sdk/src/vk-hook-policy.ts` | `bb.vk.experimental_vkDirectoryMove` capability |
 
 New tests: `apps/server/test/services/environments/vk-directory-move.test.ts`.
+
+## Thread start retry (`thread-start-retry`, `BB_VK_THREAD_START_RETRY`, default 1)
+
+An agent that never answers session creation used to fail the thread with
+`JSON-RPC request timed out: thread/start` (Antigravity hung on 1 of 4 parallel
+starts, 2026-11-27; the other three opened in 13-17 s). The failed start already
+retires its stuck session (`abandonFailedSessionConstruction` in agent-runtime),
+so the host daemon now starts the thread again on a fresh agent. On success the
+thread shows a `provider/warning` ("BB restarted it (attempt N)"); the daemon log
+has `thread/start timed out; retrying with a fresh session`.
+
+Only a `thread/start` timeout is repeated. Forks, auth or other errors, and a
+`turn/start` timeout after the session exists are thrown at once, so a message
+is never sent twice. Worst case per attempt is the core's 120 s thread-creation
+timeout; the server waits up to 24 h for the command.
+
+`BB_VK_THREAD_START_RETRY` in the host daemon's environment: unset = 1 retry,
+`0` = off (upstream behaviour), up to `3`. Read once in `app.ts`.
+
+No schema, no migration, no protocol change.
+
+| File | What |
+| --- | --- |
+| `apps/host-daemon/src/command-handlers/thread.ts` | `startThread` runs `entry.runtime.startThread` through `vkRetryThreadStartOnTimeout` |
+| `apps/host-daemon/src/app.ts` | `vkThreadStartRetries: vkThreadStartRetriesFromEnv(process.env)` into the command router |
+| `apps/host-daemon/src/command-router.ts` | the option passes into the dispatch options |
+| `apps/host-daemon/src/command-dispatch-support.ts` | `vkThreadStartRetries?` on `CommandDispatchOptions` |
+
+New files: `apps/host-daemon/src/vk-thread-start-retry.ts` and its test (real ACP
+bridge, fake agent that hangs on the first `session/new` only).

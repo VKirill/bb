@@ -51,6 +51,8 @@ export interface CommandDispatchOptions {
   desktopBrowserBroker?: DesktopBrowserBroker;
   dataDir: string;
   logger: Pick<HostDaemonLogger, "debug" | "warn">;
+  /** VK EXPERIMENTAL (thread-start-retry): repeats of a timed-out thread/start. */
+  vkThreadStartRetries?: number;
   fetchProjectAttachment: FetchProjectAttachment;
   skillTreeTransport?: SkillTreeTransport;
   fetchPluginHostArtifact?: FetchPluginHostArtifact;

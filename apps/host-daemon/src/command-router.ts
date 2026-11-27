@@ -65,6 +65,7 @@ export interface CommandRouterOptions {
   emitEnvironmentHookProgress?: CommandDispatchOptions["emitEnvironmentHookProgress"];
   desktopBrowserBroker?: CommandDispatchOptions["desktopBrowserBroker"];
   dataDir: CommandDispatchOptions["dataDir"];
+  vkThreadStartRetries?: CommandDispatchOptions["vkThreadStartRetries"]; // VK EXPERIMENTAL (thread-start-retry)
   fetchProjectAttachment: CommandDispatchOptions["fetchProjectAttachment"];
   skillTreeTransport?: CommandDispatchOptions["skillTreeTransport"];
   fetchPluginHostArtifact?: CommandDispatchOptions["fetchPluginHostArtifact"];
@@ -337,6 +338,7 @@ export class CommandRouter {
       runtimeManager: this.options.runtimeManager,
       desktopBrowserBroker: this.options.desktopBrowserBroker,
       dataDir: this.options.dataDir,
+      vkThreadStartRetries: this.options.vkThreadStartRetries, // VK EXPERIMENTAL (thread-start-retry)
       eventSink: this.options.eventSink,
       listModels: this.options.listModels,
       listCommands: this.options.listCommands,

@@ -81,6 +81,7 @@ import {
   defaultServerMoveServiceOptions,
   ServerMoveService,
 } from "./server-move/service.js";
+import { vkThreadStartRetriesFromEnv } from "./vk-thread-start-retry.js"; // VK EXPERIMENTAL (thread-start-retry)
 
 interface SessionState {
   value: string | null;
@@ -837,6 +838,7 @@ export async function createHostDaemonApp(
   });
 
   const router = new CommandRouter({
+    vkThreadStartRetries: vkThreadStartRetriesFromEnv(process.env), // VK EXPERIMENTAL (thread-start-retry)
     emitEnvironmentHookProgress: (message) => sendServerMessage(message),
     desktopBrowserBroker,
     dataDir: options.dataDir,
