@@ -2,32 +2,38 @@
 
 > [!IMPORTANT]
 > This is **not** the official bb. It is a personal fork of
-> [get-bb/bb](https://github.com/get-bb/bb) with a small set of experimental core
+> [get-bb/bb](https://github.com/get-bb/bb) with a set of experimental core
 > functions on top of an upstream release tag. For bb itself (desktop app,
 > docs, Discord) go to the [official repository](https://github.com/get-bb/bb).
 > Nothing here is supported by the bb team.
 
 | | |
 |---|---|
-| Branch | [`vk/experimental`](https://github.com/VKirill/bb/tree/vk/experimental) |
-| Based on | `desktop-v0.43.3` ([full diff](https://github.com/get-bb/bb/compare/desktop-v0.43.3...VKirill:bb:vk/experimental)) |
-| Package version | `0.43.3`, same as upstream on purpose (see [FAQ](#faq)) |
-| Status | Runs daily on the author's own bb server with ~60 plugins, Claude Code, Codex, OpenCode and Cursor |
+| Branch | [`vk/experimental`](https://github.com/VKirill/bb/tree/vk/experimental) — the only branch of this fork; old feature branches live on as `vk-archive/*` tags |
+| Based on | `desktop-v0.50.1` ([full diff](https://github.com/get-bb/bb/compare/desktop-v0.50.1...VKirill:bb:vk/experimental)) |
+| Package version | `0.50.1`, same as upstream on purpose (see [FAQ](#faq)) |
+| Functions | 35, all listed below and in the app under **Settings → «Функции VK»** |
+| Status | Runs daily on the author's own bb server with ~60 plugins, Claude Code, Codex, OpenCode, Cursor and Antigravity |
 | Upstream discussion | [get-bb/bb#4233](https://github.com/get-bb/bb/issues/4233) (supersedes #3843 and #4043) |
 
 Every change is marked `VK EXPERIMENTAL` in code, new names use a `vk` prefix,
-and logic lives in separate files. Upstream files are only touched at hook
-points, all listed in [VK_PATCHES.md](VK_PATCHES.md). That keeps a rebase onto
-each new upstream tag small and predictable.
+and logic lives in separate `vk-*` files. Upstream files are only touched at
+hook points, all listed in [VK_PATCHES.md](VK_PATCHES.md). The fork adds **no
+database migrations or schema changes and no host-daemon protocol changes**:
+data lives in reserved rows of existing tables (`__vk.*` thread plugin
+metadata, `system_experiments`). That keeps a rebase onto each new upstream tag
+small and predictable.
 
 ## Contents
 
 - [What the fork adds](#what-the-fork-adds)
-  - [1. Session context policy](#1-session-context-policy)
-  - [2. Context contributions](#2-context-contributions)
-  - [3. Excluded plugins disappear from the place](#3-excluded-plugins-disappear-from-the-place)
-  - [4. Fast tier for helper inference](#4-fast-tier-for-helper-inference)
-  - [5. Language of generated thread titles](#5-language-of-generated-thread-titles)
+  - [Agent session context](#agent-session-context)
+  - [Threads and notifications](#threads-and-notifications)
+  - [Plugin runtime](#plugin-runtime)
+  - [Interface](#interface)
+  - [Server and machines](#server-and-machines)
+  - [Settings → «Функции VK»](#settings--функции-vk)
+  - [Session context policy in detail](#session-context-policy-in-detail)
 - [Plugins that use it](#plugins-that-use-it)
 - [Install](#install)
 - [Update to a new upstream release](#update-to-a-new-upstream-release)
@@ -38,7 +44,91 @@ each new upstream tag small and predictable.
 
 ## What the fork adds
 
-### 1. Session context policy
+Kind: **switch** — on by default, the owner can turn it off in Settings →
+«Функции VK»; **env** — controlled by an environment variable; **API** —
+a plugin API or core behaviour that plugins depend on, always on. Plugin APIs
+are `undefined` on official bb: plugins feature-test them
+(`typeof … === "function"`) and degrade. Details and hook points per function:
+[VK_PATCHES.md](VK_PATCHES.md); a Russian guide for plugin authors:
+[VK_FUNCTIONS.md](VK_FUNCTIONS.md).
+
+### Agent session context
+
+| Function | Kind | Entry point | What it does |
+|---|---|---|---|
+| Session policy | API | `bb.agents.experimental_vkSessionPolicy(resolver)` | A plugin decides per session which BB plugins (instructions, tools, skills, env), provider-native skills, MCP servers, CLI plugins and instruction files load. [Details](#session-context-policy) |
+| Context contributions | API | `bb.agents.experimental_vkContextContributions()` | Lists what every plugin adds to sessions, for a policy editor |
+| Excluded plugins | API | `GET /api/v1/plugins/vk-excluded-plugins` | A plugin a policy excludes from a place also loses its composer UI and dispatch hooks there |
+| Required session policy and compiled main agent | API | `threads.spawn({ experimental_vkRequiredSessionPolicy, experimental_vkCompiledMainAgent })`, `bb.agents.experimental_vkRequiredSessionPolicy()` | A policy snapshot stored with the thread, applied on every turn, can only narrow; children and forks inherit it as a ceiling. A prebuilt main-agent profile for Claude Code threads |
+| Required policy inspection | API | `bb.sdk.threads.experimental_vkInspectRequiredSessionPolicies({ threadIds })` | Read the stored required policy of up to 200 threads |
+| Launch tuning | API | `experimental_vkLaunchTuning` in the spawning plugin's thread metadata | Narrows how one helper is launched: ACP mode `ask`/`plan`, Claude Code disallowed tools |
+| **Thread instructions** | switch `vkThreadInstructions` | `bb.sdk.threads.experimental_vkThreadInstructions(threadId)` | Core stores the exact instructions it sent to the agent (on `thread.start`, and on a turn whose text changed) so a plugin can show them for debugging |
+| Cursor bridge MCP | API | Cursor ACP bridge | Writes `bb-bridge` into Cursor's `mcp.json` before launch, so Cursor's model sees every BB plugin tool |
+| Claude bridge tool presentation | API | `presentation` of `bb.agents.registerTool` | Plugin tools in Claude Code threads keep the label and glyph the plugin set |
+
+### Threads and notifications
+
+| Function | Kind | Entry point | What it does |
+|---|---|---|---|
+| Thread keys | API | `bb.sdk.threads.experimental_vkSpawnKeyed`, `experimental_vkFindByKey`, `experimental_vkFindByPluginMetadata` | Idempotent spawn by a plugin's own key; find own threads by metadata without listing everything |
+| Quiet child threads | switch `vkQuietChild` | `experimental_vkQuietChild: true` in spawn metadata | Marked helpers do not wake their parent with completed/failed/interrupted notices |
+| Child told its parent | switch `vkChildToldParent` | core | A child that already sent its result with `bb thread tell` gets no second «completed» notice in the parent |
+| Plugin notice as a system message | API | `bb.sdk.threads.experimental_vkSystemNotice({ threadId, text, label?, mode? })` | A plugin's note arrives as bb's own system message, not as the owner's words |
+| Detached tool call | API | `bb.agents.experimental_vkDetachToolCall(text?)` | A long plugin tool answers the model at once; its result arrives later as a system message |
+| Delivered result label | switch `vkDeliveredLabel` | `presentation.label.completed` | The delivered result is titled with the plugin's label instead of «Delivered … result» |
+| Last turn in `thread.idle` | API | `experimental_vkLastTurn` on the event | The idle event carries the newest completed turn and whether it was a sub-agent's |
+| Tool context plugin metadata | API | `ctx.experimental_vkPluginMetadata` | A plugin tool gets its own thread metadata in the call context, no extra request |
+| Directory move checkpoint | API | `bb.vk.experimental_vkDirectoryMove`, `vk.directoryMove` in package.json | The owning plugin prepares, commits or aborts a change of a thread's working directory |
+| Thread start retry | env `BB_VK_THREAD_START_RETRY` (default 1, `0` off, max 3) | host daemon | An agent that times out on `thread/start` is started again on a fresh session |
+
+### Plugin runtime
+
+| Function | Kind | Entry point | What it does |
+|---|---|---|---|
+| Plugin lifecycle and drain | API | `experimental_vkLifecycle` export, `vk.lifecycle.drain`, `bb.vk.startReason`, `bb.vk.afterDrain` | Enable/disable/remove hooks; on reload and shutdown a plugin finishes current work before core stops it |
+| Isolated schedules | API | `bb.background.experimental_vkSchedule(name, cron, fn, options)`, `vk.schedules` | A long scheduled run does not hold the plugin's other schedules |
+| Hook policy | API | `vk.hookPolicy`, `bb.vk.experimental_vkOnHookTimeout(cb)` | Per-plugin hook time limits and visible timeouts instead of silently lost env |
+| RPC caller identity | API | `vk.rpcCallerPolicy`, `experimental_vkCaller` | A plugin learns who called its RPC or CLI: the owner's app, another plugin or an agent in a thread |
+| Owner login | env `BB_VK_OWNER_AUTH=1` (default off) | server | Optional owner login; unverified callers get their own kind and owner-only routes |
+| Composer dispatch | API | `useComposer().experimental_vkSetDispatchData(data)`, `vkPlace` | A plugin attaches hidden JSON to the next send; the composer knows the place of a new thread |
+
+### Interface
+
+| Function | Kind | Entry point | What it does |
+|---|---|---|---|
+| Favorite models | switch `vkFavoriteModels` | native model picker | Star a model; starred ones sit in a «Favorite models» block (`localStorage`) |
+| One model picker look | API | native model picker | Every provider tab looks the same; reasoning levels sorted weakest first |
+| Mention recency | switch `vkMentionRecency` | @-mention picker | Thread candidates sorted by last activity before the 200 limit, so recent threads of later projects are not dropped |
+| Image editor | API | `app.slots.experimental_vkImageEditor`, `useComposer().experimental_vkAttachFiles` | A plugin editor inside bb's image preview; attach files to the composer draft |
+| Thread info section | API | `app.slots.experimental_vkThreadInfoSection` | Alias of bb's own Info section slot for plugins written before 0.47 |
+| «Функции VK» settings | — | Settings | The list below, rendered from one home: `packages/domain/src/vk-features.ts` |
+
+### Server and machines
+
+| Function | Kind | Entry point | What it does |
+|---|---|---|---|
+| Server settings | env, in `<dataDir>/env.json` | `BB_INFERENCE_SERVICE_TIER` = `fast`/`default`, `BB_THREAD_TITLE_LANGUAGE` (e.g. `Russian`) | Helper inference (titles, metadata) on the Codex Fast tier; language of generated thread titles |
+| Worktree dependencies | env `BB_VK_WORKTREE_DEPS=0` turns off | git worktree environments | A new worktree links the source checkout's installed packages instead of reinstalling them |
+| Skill tree cache | API | host daemon | The daemon keeps up to 512 skill trees, so a large skill catalog is not refetched every turn |
+
+```jsonc
+// <dataDir>/env.json (usually ~/.bb/env.json), then restart the server
+{ "BB_INFERENCE_SERVICE_TIER": "fast", "BB_THREAD_TITLE_LANGUAGE": "Russian" }
+```
+
+### Settings → «Функции VK»
+
+A settings section right below Experiments lists every function above with a
+Russian name and description. The six **switch** functions have real switches,
+on by default (also for early adopters), stored as experiment keys `vk<Name>`
+in the existing `system_experiments` table; turning one off stops that function
+at once. **env** functions show their default and the variable that changes
+it. **API** functions show «Всегда включено»: turning them off would break the
+plugins below.
+
+### Session context policy in detail
+
+#### Session context policy
 
 Out of the box, **everything** installed enters **every** agent session: every
 BB plugin's instructions, tools, skills and env; every provider-native skill,
@@ -70,7 +160,7 @@ type VkSessionPolicy = {
 Example — a copywriter session that sees one BB plugin, two skill families,
 no MCP servers and no project instructions:
 
-```json
+```jsonc
 {
   "bbPlugins": { "mode": "allow", "names": ["env-catalog"] },
   "skills": { "mode": "allow", "names": ["ru-text", "lane-stack:copy-*"] },
@@ -111,7 +201,7 @@ Rules:
   (without it bb can't run or show threads) and `bb-bridge`, the MCP channel
   through which plugin tools reach the agent.
 
-### 2. Context contributions
+#### Context contributions
 
 ```ts
 bb.agents.experimental_vkContextContributions();
@@ -122,7 +212,7 @@ Lists what each running plugin adds to agent sessions, so a policy editor can
 label its switches ("adds instructions, 5 tools, 3 skills") and lock the
 `required` ones.
 
-### 3. Excluded plugins disappear from the place
+#### Excluded plugins disappear from the place
 
 If a policy leaves a plugin out, bb behaves there as if the plugin were not
 installed: its composer buttons, banners and chips are not rendered, and
@@ -137,39 +227,21 @@ GET /api/v1/plugins/vk-excluded-plugins?projectId=…&hostId=…&environmentId=�
 The second form serves a new thread that doesn't exist yet: the new-thread
 composer passes its place (project, host, environment, section folder).
 
-### 4. Fast tier for helper inference
-
-`BB_INFERENCE_SERVICE_TIER` = `fast` | `default`. With `fast`, helper inference
-(thread titles, metadata) goes through the Codex AI service with
-`service_tier=priority`, the id Codex lists for Fast.
-
-### 5. Language of generated thread titles
-
-`BB_THREAD_TITLE_LANGUAGE`, e.g. `Russian`. Without it the title prompt names no
-language and models often answer in English. With it titles are written in that
-language; unset, they follow the task's own language.
-
-Both settings are regular bb managed config keys: put them in
-`<dataDir>/env.json` (usually `~/.bb/env.json`) and restart the server.
-
-```json
-{ "BB_INFERENCE_SERVICE_TIER": "fast", "BB_THREAD_TITLE_LANGUAGE": "Russian" }
-```
-
 ## Plugins that use it
 
-Both plugins feature-test the API and work on official bb without it; they only
-hide the parts that need the fork.
+Each plugin declares the functions it calls in `vk-requires.json` (`required`
+or `optional`) and feature-tests the optional ones, so it still loads on
+official bb.
 
-- **[bb-plugin-project-folders](https://github.com/VKirill/bb-plugin-project-folders)** —
-  tab «Session context»: policy for the whole bb, a project and a section
-  (folder), inherited down the tree. The reference consumer.
-- **[bb-plugin-agency](https://github.com/VKirill/bb-plugin-agency)** *(alpha,
-  in active development)* — standing employees, departments, jobs, versioned
-  results and acceptance. Each employee's context (skills, MCP servers, CLI
-  plugins, BB plugins) is frozen in the launch snapshot and applied through the
-  session policy, so a marketer, a developer and a reviewer get different tools,
-  and a reused reviewer thread keeps its original policy on resume.
+| Plugin | Uses |
+|---|---|
+| [Lane Pilot](https://github.com/VKirill/bb-plugin-lane-pilot) | composer dispatch, plugin lifecycle (required); session and required policy, compiled main agent, quiet child, thread keys, drain, schedules, hook policy, tool ctx metadata, last turn, launch tuning, policy inspection, directory move, system notice, detached tool call, thread info section |
+| [Projects & Sections](https://github.com/VKirill/bb-plugin-project-folders) | session policy, context contributions — tab «Session context» for the whole bb, a project and a section. The reference consumer |
+| [Agency](https://github.com/VKirill/bb-plugin-agency) *(alpha)* | session policy, context contributions — each employee's context frozen per launch |
+| Content Factory *(private)* | session policy, context contributions (optional) |
+| [Office Viewer](https://github.com/VKirill/bb-plugin-office-viewer) | image editor, attach files (optional) |
+| [Thread Instructions](https://github.com/VKirill/bb-plugin-thread-instructions) | thread instructions (optional) — a collapsible section on the thread Info tab with the exact text bb sent to the agent |
+| My Posts | required policy, compiled main agent (optional) |
 
 ## Install
 
@@ -206,7 +278,7 @@ updates a plain rebase onto the next upstream tag.
 pnpm install
 pnpm turbo run build --filter=bb-app...
 cd packages/bb-app
-npm pack --pack-destination /tmp          # -> /tmp/bb-app-0.43.3.tgz
+npm pack --pack-destination /tmp          # -> /tmp/bb-app-0.50.1.tgz
 ```
 
 ### 3. Install into its own runtime folder
@@ -214,11 +286,11 @@ npm pack --pack-destination /tmp          # -> /tmp/bb-app-0.43.3.tgz
 One folder per build, so rollback is switching a path:
 
 ```sh
-R=~/.local/share/bb-runtime-0.43.3-vk
+R=~/.local/share/bb-runtime-0.50.1-vk
 mkdir -p "$R" && cd "$R"
 echo '{"name":"bb-runtime","private":true}' > package.json
-npm i --omit=dev /tmp/bb-app-0.43.3.tgz
-# npm 12+: npm i --omit=dev --allow-scripts=better-sqlite3,node-pty,@parcel/watcher /tmp/bb-app-0.43.3.tgz
+npm i --omit=dev /tmp/bb-app-0.50.1.tgz
+# npm 12+: npm i --omit=dev --allow-scripts=better-sqlite3,node-pty,@parcel/watcher /tmp/bb-app-0.50.1.tgz
 ```
 
 ### 4. Run
@@ -226,7 +298,7 @@ npm i --omit=dev /tmp/bb-app-0.43.3.tgz
 Foreground, same as `npx bb-app`:
 
 ```sh
-node ~/.local/share/bb-runtime-0.43.3-vk/node_modules/bb-app/dist/bb-app.js
+node ~/.local/share/bb-runtime-0.50.1-vk/node_modules/bb-app/dist/bb-app.js
 ```
 
 Open `http://localhost:38886`.
@@ -238,7 +310,7 @@ entry with a drop-in instead of editing the unit:
 # /etc/systemd/system/bb-server.service.d/runtime.conf
 [Service]
 ExecStart=
-ExecStart=/usr/bin/node /home/<you>/.local/share/bb-runtime-0.43.3-vk/node_modules/bb-app/dist/bb-server.js
+ExecStart=/usr/bin/node /home/<you>/.local/share/bb-runtime-0.50.1-vk/node_modules/bb-app/dist/bb-server.js
 ```
 
 ```sh
@@ -286,7 +358,7 @@ conflict, keep the fork's version.
 ## Roll back to official bb
 
 1. Stop the fork's server.
-2. Start the official build of the **same** version: `npx bb-app@0.43.3`, the
+2. Start the official build of the **same** version: `npx bb-app@0.50.1`, the
    desktop app of that version, or point the systemd drop-in back to the
    official runtime.
 3. Nothing else: no database rollback is needed. Plugins that use the API hide
@@ -297,14 +369,15 @@ conflict, keep the fork's version.
 <details>
 <summary><b>Is it safe to run against my existing data directory?</b></summary>
 
-The fork adds no tables, columns or migrations. Policies are stored by the
-plugins that define them, not by core. The risk is the usual one of running a
+The fork adds no tables, columns or migrations. Its own data sits in reserved
+rows of existing tables (`__vk.*` thread plugin metadata, `vk*` experiment
+keys); policies are stored by the plugins that define them. The risk is the usual one of running a
 custom build: back up `~/.bb` first, and keep the fork on the same upstream
 version as the official build you may roll back to.
 </details>
 
 <details>
-<summary><b>Why is the package version 0.43.3 and not something like 0.43.3-vk?</b></summary>
+<summary><b>Why is the package version 0.50.1 and not something like 0.50.1-vk?</b></summary>
 
 `bb-host-daemon` on your machines compares its version with the server. A
 different version string breaks that handshake. Tell builds apart by the runtime
@@ -382,6 +455,8 @@ patches apart during rebases; upstream names would drop it.
 
 ## For plugin authors
 
+- The list of functions with Russian names and descriptions (one home for the
+  Settings section): [`packages/domain/src/vk-features.ts`](packages/domain/src/vk-features.ts).
 - Full guide (Russian): [VK_FUNCTIONS.md](VK_FUNCTIONS.md) — context fields,
   policy format, what core and each bridge do, how to scope a policy to your own
   threads, live checks.
