@@ -20,6 +20,7 @@ import { listServerAccessProviders } from "./plugin-server-access-registry.js";
 import { detachActivePluginToolCallForUserInput } from "./plugin-tool-calls.js";
 import { vkDetachToolCall } from "./vk-detach-tool-call.js"; // VK EXPERIMENTAL
 import { createVkSystemNoticeMethods } from "./vk-system-notice.js"; // VK EXPERIMENTAL
+import { createVkThreadInstructionsMethods } from "./vk-thread-instructions.js"; // VK EXPERIMENTAL
 import { fillPluginPresentation } from "./plugin-presentation.js";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -442,6 +443,8 @@ function wrapSdkForPlugin(
       ...createVkRequiredSessionPolicyInspectionMethods({ db, assertLive }),
       // VK EXPERIMENTAL: experimental_vkSystemNotice.
       ...createVkSystemNoticeMethods({ pluginId, assertLive }),
+      // VK EXPERIMENTAL: experimental_vkThreadInstructions.
+      ...createVkThreadInstructionsMethods({ db, assertLive }),
     },
   };
 }

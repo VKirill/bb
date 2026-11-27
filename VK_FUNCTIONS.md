@@ -36,6 +36,7 @@ date: 2026-09-24
 | 14 | `vk.hookPolicy` и `bb.vk.experimental_vkOnHookTimeout(cb)` | `package.json` плагина и API плагина (сервер) | Свой лимит времени для хуков плагина и видимый таймаут вместо тихой потери env |
 | 15 | `app.slots.experimental_vkImageEditor` и `useComposer().experimental_vkAttachFiles` | API плагина (интерфейс) | Редактор картинок плагина внутри просмотра картинки BB; добавление файлов в черновик композера |
 | 16 | `bb.vk.experimental_vkDirectoryMove` и `vk.directoryMove` | API плагина и `package.json` | Предварительный checkpoint Lane Pilot перед сменой каталога треда: prepare/commit/abort без host-daemon протокола |
+| 17 | `bb.sdk.threads.experimental_vkThreadInstructions(threadId)` | API плагина (SDK) | Точный текст системной инструкции, который ядро отправило агенту треда (для отладки) |
 
 ```mermaid
 flowchart TD
@@ -503,6 +504,19 @@ HTTP API BB не требует входа: любой процесс, кото�
 **Если потерял устройство:** по ssh на хабе `bb owner pairing-code` и сопрягаешь новое (владельческая проверка для этого не нужна); `bb owner remove-key <id>` убирает один ключ и его сессии, `bb owner revoke` все; аварийно выключить: убрать `BB_VK_OWNER_AUTH` и перезапустить сервер.
 
 **Остаточный риск:** процесс того же пользователя ОС читает файл ключа на Linux, на macOS ему мешает запрос пароля Keychain; cookie лежит в профиле браузера владельца (агент с доступом к профилю её заберёт); кто имеет ssh на хаб (ключ `oracle_bb`), выдаст себе код сопряжения. Сопрягайте только машины, где агенты не работают под тем же пользователем, и закройте ssh-ключ хаба от агентов.
+
+## 16. Системная инструкция треда: `experimental_vkThreadInstructions`
+
+Ядро собирает инструкцию треда (инструкции инструментов и плагинов, `<dataDir>/AGENTS.md`, `.bb/AGENTS.md`) при каждом `thread.start` и `turn.submit`. Теперь оно сохраняет отправленный текст в зарезервированной строке метаданных `__vk.thread-instructions`, без миграций.
+
+```ts
+if (typeof bb.sdk.threads.experimental_vkThreadInstructions === "function") {
+  const rec = await bb.sdk.threads.experimental_vkThreadInstructions(threadId);
+  // rec?.start — текст последнего старта сессии; rec?.latest — текст хода, если он отличался (сессия возобновлялась)
+}
+```
+
+`null` — ядро ничего не записало: тред создан до функции. Потребитель — плагин Thread Instructions (раздел во вкладке «Инфо» треда).
 
 ## Как внедрить в Агентство
 

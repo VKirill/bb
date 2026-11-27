@@ -58,6 +58,7 @@ import {
   type ExistingThreadExecutionInputRequest,
 } from "./thread-execution-plan.js";
 import { clampPermissionModeToHost } from "../hosts/permission-ceiling.js";
+import { vkRecordThreadInstructions } from "./vk-thread-instructions.js"; // VK EXPERIMENTAL
 import type { ProviderRegistryService } from "../providers/provider-registry.js";
 import { resolveProviderPlanCommand } from "../providers/provider-plan-command.js";
 import { workspaceContextFromPath } from "../environments/workspace-command-target.js";
@@ -353,6 +354,14 @@ export async function buildThreadStartCommand(
     environment: args.environment,
     model: args.execution.model,
   });
+  // VK EXPERIMENTAL (thread-instructions): the text this session starts with.
+  vkRecordThreadInstructions(deps, {
+    threadId: args.thread.id,
+    kind: "start",
+    providerId: args.providerId,
+    model: args.execution.model,
+    instructions: runtimeContext.instructions,
+  });
   const bridgeLaunch = requireBridgeLaunchForProviderId(deps, args.providerId);
   return {
     type: "thread.start",
@@ -457,6 +466,14 @@ export async function prepareTurnSubmitCommandPayload(
     thread: args.thread,
     environment: args.environment,
     model: args.execution.model,
+  });
+  // VK EXPERIMENTAL (thread-instructions): a resumed session receives the turn's text.
+  vkRecordThreadInstructions(deps, {
+    threadId: args.thread.id,
+    kind: "turn",
+    providerId: runtimeContext.providerId,
+    model: args.execution.model,
+    instructions: runtimeContext.instructions,
   });
   return buildPreparedTurnSubmitCommandPayload({
     deps,

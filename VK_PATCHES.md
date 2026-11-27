@@ -1038,3 +1038,40 @@ No schema, no migration, no protocol change.
 
 New files: `apps/host-daemon/src/vk-thread-start-retry.ts` and its test (real ACP
 bridge, fake agent that hangs on the first `session/new` only).
+
+## Thread instructions (`thread-instructions`)
+
+Core assembles a thread's instructions (plugin tool instructions, plugin and
+dynamic plugin instructions, `<dataDir>/AGENTS.md`, the workspace `.bb/AGENTS.md`)
+for every `thread.start` and `turn.submit` and used to keep none of it. Core now
+stores the exact text it sent, so the plugin Thread Instructions
+([VKirill/bb-plugin-thread-instructions](https://github.com/VKirill/bb-plugin-thread-instructions))
+can show it on the thread Info tab for debugging.
+
+Storage: the reserved thread plugin metadata row `__vk.thread-instructions`
+(`{ start, latest }`, each `{ text, capturedAt, providerId, model }`). `start`
+is the text of the latest `thread.start`; `latest` is the latest turn text that
+differed from it (a resumed session receives the turn's text) and is written
+only on a change. A failed write is logged and never blocks the start or turn.
+
+Plugin API: `bb.sdk.threads.experimental_vkThreadInstructions(threadId)` →
+`{ start, latest } | null`; null when nothing was recorded (the thread started
+before this feature). Any loaded plugin may read any public thread, like the
+other thread reads. Feature-test with `typeof … === "function"`.
+
+No schema, no migration, no protocol change.
+
+| File | What |
+| --- | --- |
+| `apps/server/src/services/threads/thread-commands.ts` | `vkRecordThreadInstructions` after `resolveThreadRuntimeCommandConfig` in `buildThreadStartCommand` (start) and `prepareTurnSubmitCommandPayload` (turn) |
+| `apps/server/src/services/plugins/plugin-api.ts` | `...createVkThreadInstructionsMethods({ db, assertLive })` on `bb.sdk.threads` |
+| `packages/plugin-sdk/src/backend-contract.ts` | `ExperimentalVkThreadInstructionsMethods` on `PluginBbSdk.threads` |
+| `packages/plugin-sdk/src/index.ts` | type re-export |
+| `packages/db/src/data/index.ts` | `export * from "./vk-thread-instructions.js"` |
+
+New files: `packages/db/src/data/vk-thread-instructions.ts`,
+`apps/server/src/services/threads/vk-thread-instructions.ts`,
+`apps/server/src/services/plugins/vk-thread-instructions.ts`,
+`packages/plugin-sdk/src/vk-thread-instructions.ts`; tests
+`packages/db/test/data/vk-thread-instructions.test.ts`,
+`apps/server/test/threads/vk-thread-instructions.test.ts`.

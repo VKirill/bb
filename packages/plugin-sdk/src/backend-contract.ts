@@ -5,6 +5,7 @@ import type {
 } from "./vk-schedule-options.js";
 import type { VK_REQUIRED_SESSION_POLICY_CAPABILITY } from "@bb/domain/vk-session-policy";
 import type { ExperimentalVkThreadKeys } from "./vk-thread-keys.js";
+import type { ExperimentalVkThreadInstructionsMethods } from "./vk-thread-instructions.js"; // VK EXPERIMENTAL
 import type { ExperimentalVkRequiredSessionPolicyInspectionMethods } from "./vk-required-session-policy-inspection.js";
 import type { PluginVkApi } from "./vk-hook-policy.js"; // VK EXPERIMENTAL
 import type { ExperimentalVkRpcCaller } from "./vk-rpc-caller.js"; // VK EXPERIMENTAL
@@ -2327,7 +2328,9 @@ export type PluginBbSdk = Omit<BbSdk, "threads"> & {
     // VK EXPERIMENTAL: experimental_vkSpawnKeyed, vkFindByKey, vkFindByPluginMetadata.
     ExperimentalVkThreadKeys &
     // VK EXPERIMENTAL: experimental_vkInspectRequiredSessionPolicies.
-    ExperimentalVkRequiredSessionPolicyInspectionMethods & {
+    ExperimentalVkRequiredSessionPolicyInspectionMethods &
+    // VK EXPERIMENTAL: experimental_vkThreadInstructions.
+    ExperimentalVkThreadInstructionsMethods & {
     /**
      * VK EXPERIMENTAL — present only in VK builds of bb, absent upstream.
      * Feature-test it: `typeof bb.sdk.threads.experimental_vkSystemNotice === "function"`.

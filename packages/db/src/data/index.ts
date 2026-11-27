@@ -49,3 +49,4 @@ export { VK_QUIET_CHILD_KEY, isVkQuietChildThread } from "./vk-quiet-child.js";
 export * from "./vk-thread-keys.js";
 export * from "./vk-child-told-parent.js";
 export * from "./vk-launch-tuning.js";
+export * from "./vk-thread-instructions.js"; // VK EXPERIMENTAL (thread-instructions)
