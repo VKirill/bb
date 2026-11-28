@@ -34,7 +34,7 @@ export interface VkStoredSessionPolicy extends VkRequiredSessionPolicy {
 // an explicit "nothing" ceiling (`[].every` would pass vacuously). Everything else (deny clauses, names
 // outside the agent's lists, the other groups and the switches) still narrows children, so a legacy row
 // errs toward restricting, never toward widening past the stored ceiling.
-// ponytail: the legacy heuristic cannot tell the agent's working set from an owner ceiling that happens to
+// the legacy heuristic cannot tell the agent's working set from an owner ceiling that happens to
 // equal it (it may free an explicit restriction inside that set, never anything wider). New rows carry
 // `ceiling`; drop the heuristic once no legacy compiled rows remain.
 export function vkSessionPolicyCeiling(
